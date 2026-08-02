@@ -38,6 +38,16 @@ target_include_directories(primeforge_core
 target_compile_features(primeforge_core PUBLIC cxx_std_23)
 primeforge_enable_strict_warnings(primeforge_core)
 
+add_library(primeforge_benchmark STATIC src/benchmark/benchmark.cpp)
+add_library(PrimeForge::benchmark ALIAS primeforge_benchmark)
+target_include_directories(primeforge_benchmark
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+)
+target_compile_features(primeforge_benchmark PUBLIC cxx_std_23)
+primeforge_enable_strict_warnings(primeforge_benchmark)
+
 if(WIN32)
     target_compile_definitions(primeforge_core PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
     target_link_libraries(primeforge_core PRIVATE user32)
@@ -57,6 +67,16 @@ add_executable(primeforge-corpus-tests tests/corpus_test.cpp)
 target_compile_features(primeforge-corpus-tests PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge-corpus-tests)
 
+add_executable(primeforge-benchmark src/benchmark/main.cpp)
+target_link_libraries(primeforge-benchmark PRIVATE PrimeForge::benchmark)
+target_compile_features(primeforge-benchmark PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-benchmark)
+
+add_executable(primeforge-benchmark-tests tests/benchmark_test.cpp)
+target_link_libraries(primeforge-benchmark-tests PRIVATE PrimeForge::benchmark)
+target_compile_features(primeforge-benchmark-tests PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-benchmark-tests)
+
 if(BUILD_TESTING)
     add_test(NAME primeforge.unit COMMAND primeforge-tests)
     add_test(NAME primeforge.selftest COMMAND primeforge-selftest)
@@ -67,6 +87,19 @@ if(BUILD_TESTING)
             ${CMAKE_CURRENT_SOURCE_DIR}/corpus/v1/oracles/oracle_results.tsv
             ${CMAKE_CURRENT_SOURCE_DIR}/corpus/v1/certificates/pari-primecert-valid.txt
             ${CMAKE_CURRENT_SOURCE_DIR}/corpus/v1/certificates/pari-primecert-corrupt.txt
+    )
+    add_test(NAME primeforge.benchmark_protocol COMMAND primeforge-benchmark-tests)
+    add_test(
+        NAME primeforge.benchmark_smoke
+        COMMAND primeforge-benchmark
+            --output-dir ${CMAKE_CURRENT_BINARY_DIR}/benchmark-smoke
+            --candidates ${CMAKE_CURRENT_SOURCE_DIR}/corpus/v1/cases.tsv
+            --run-id ctest
+            --commit ctest
+            --candidate-set-sha256 2B61CB65EF67D14CD8DED6F19EC1285FA1F1AB1A1EDD33717C8EA8326AB9D79B
+            --environment-metadata-file NOT_APPLICABLE
+            --repetitions 7
+            --seed 20260802
     )
 
     add_test(

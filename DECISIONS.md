@@ -133,3 +133,15 @@ PARI/GP, FLINT, and proth20 are independent local validation tools. Their binari
 **Status:** Accepted — 2026-08-02
 
 Pinned FLINT 3.6.0 upstream source states LGPL-3.0-or-later, while the vcpkg package SPDX record declares GPL-3.0-only. PrimeForge does not choose the more permissive interpretation. The local dynamic oracle is treated conservatively as non-redistributable and cannot enter a release until a later distribution review resolves the exact binary obligations.
+
+## D-0023 — Benchmark arithmetic and confidence output are integer-only
+
+**Status:** Accepted — 2026-08-02
+
+Raw phase durations are integer nanoseconds. Stage-5 summaries use lower median, median absolute deviation, minimum, maximum, and a conservative distribution-free median interval. JSON contains no floating-point values. A smaller median is not called a gain when intervals overlap or when the difference is within the recorded noise floor.
+
+## D-0024 — Missing telemetry disables performance claims
+
+**Status:** Accepted — 2026-08-02
+
+Temperature, frequency, power, wall energy, and throttling data are never inferred. Missing values are `UNKNOWN` or `UNAVAILABLE`, and the affected samples remain useful only for validating the harness. Hardware errors, reported throttling, unacceptable temperature, or frequency collapse invalidate samples automatically under an injected policy.

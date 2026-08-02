@@ -59,7 +59,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/run_all.ps1 -Cle
 
 See `docs/BUILD_WINDOWS.md` and `docs/CANONICAL_JSON.md`.
 
-Milestone evidence is kept in `docs/reports/`. Stage 11 measures fixed and adaptive sieve bounds against an internal base-2 strong PRP workload. A positive PRP is recorded only as `PROBABLE_PRIME`; the test suite proves this separation with a known strong pseudoprime. Telemetry-incomplete timings carry `performance_claim=NONE`. No search campaign is started. primesieve, FLINT, PARI/GP, and proth20 remain isolated local oracles only.
+Milestone evidence is kept in `docs/reports/`. Stage 11 measures fixed and adaptive sieve bounds against an internal base-2 strong PRP workload. A positive PRP is recorded only as `PROBABLE_PRIME`; the test suite proves this separation with a known strong pseudoprime. Across 210 validation samples, offline adaptation only reproduced fixed-low and online exploration added cost, so H2 is `FAILED` for all three retained regimes. Telemetry-incomplete timings carry `performance_claim=NONE`. No search campaign is started. primesieve, FLINT, PARI/GP, and proth20 remain isolated local oracles only.
 
 ## Governance and licensing
 

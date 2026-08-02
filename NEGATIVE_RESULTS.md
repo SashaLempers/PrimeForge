@@ -246,3 +246,12 @@ Each future entry must include:
 - **Failure criterion:** the retained negative vector must exercise the PRP-positive/proof-negative boundary, not merely be composite.
 - **Conclusion:** the fixture is now 1,373,653, which passes the implemented base-2 strong PRP and fails the independent deterministic 64-bit classifier. The corrected gate passes without weakening the prefilter.
 - **Retry condition:** every future PRP backend must retain at least one backend-positive, independently composite vector.
+
+## NR-0026 — Adaptive bound gives no retained-regime advantage
+
+- **Date:** 2026-08-02
+- **Change tested:** two calibration and two validation families over three sizes, comparing fixed bounds 7/19/43, offline adaptation, and online adaptation.
+- **Evidence:** the offline model selected bound 7 for all three regimes and therefore duplicated fixed-low; online exploration selected 19 after paying cumulative probes and had a higher interval than the fixed-medium fallback. All 210 validation rows lack claim-eligible stability and energy telemetry.
+- **Failure criterion:** H2 requires a statistically robust end-to-end gain on at least one validation regime, not selection of the same fixed bound or an ineligible timing difference.
+- **Conclusion:** H2 is `FAILED` for the retained small, medium, and large regimes. Fixed-medium remains the conservative fallback; no general impossibility claim is made.
+- **Retry condition:** a distinct preregistered family set with a materially representative external PRP cost, reliable stability/energy telemetry, and an adaptive choice that outperforms the best preregistered fixed strategy.

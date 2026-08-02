@@ -28,7 +28,7 @@ This internal workload exists to make the stage-11 cost interface measurable bef
 
 ## Statistical decision
 
-The comparison uses the distribution-free intervals from the stage-5 protocol. An adaptive strategy is `BETTER` only when its entire interval lies below the fixed-medium fallback interval. Overlap is `INCONCLUSIVE`. Because current stability and energy telemetry are unavailable, the retained stage decision remains claim-ineligible even if intervals happen not to overlap. A regime without a claim-eligible robust gain is marked `FAILED`, as required by the research specification.
+The comparison uses the distribution-free intervals from the stage-5 protocol. An adaptive strategy is `BETTER` only when its entire interval lies below the fixed-medium fallback interval. Overlap is `INCONCLUSIVE`. Because current stability and energy telemetry are unavailable, the retained stage decision remains claim-ineligible even if intervals happen not to overlap. In the retained run the offline selector chose the same low fixed bound in every regime, while online exploration added cost. All three regimes are therefore marked `FAILED`, as required by the research specification.
 
 Run the clean collector with:
 

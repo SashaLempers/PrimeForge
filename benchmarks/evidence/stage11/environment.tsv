@@ -1,0 +1,27 @@
+key	value
+schema_version	1
+commit	0b2d62695bfffa5809604c89c47052a456c2639a
+repository_dirty	NO
+captured_utc	2026-08-02T20:03:38Z
+compiler_path	C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\cl.exe
+compiler_version	19.51.36252.0
+os_caption	Microsoft Windows 11 Famille
+os_version	10.0.26200
+cpu_name	AMD Ryzen 9 9950X3D 16-Core Processor
+physical_cores	16
+logical_cores	32
+calibration_families	2
+validation_families	2
+regimes	3
+bounds	7;19;43
+next_engine	BASE2_STRONG_PRP_U64
+next_engine_output	PROBABLE_PRIME_OR_COMPOSITE
+cpu_temperature_celsius	UNKNOWN
+cpu_frequency_hz	UNKNOWN
+electrical_power_watts	UNKNOWN
+energy_joules	UNKNOWN
+hardware_errors	UNKNOWN
+throttling	UNKNOWN
+repetitions	7
+performance_valid	NO
+performance_claim	NONE

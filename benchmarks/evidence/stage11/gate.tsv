@@ -1,0 +1,4 @@
+schema_version	regime	adaptive_offline_comparison	adaptive_online_comparison	hypothesis_status	reason
+1	small	BETTER	WORSE	FAILED	NO_CLAIM_ELIGIBLE_ROBUST_GAIN
+1	medium	BETTER	WORSE	FAILED	NO_CLAIM_ELIGIBLE_ROBUST_GAIN
+1	large	BETTER	WORSE	FAILED	NO_CLAIM_ELIGIBLE_ROBUST_GAIN

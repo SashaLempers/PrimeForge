@@ -1,0 +1,10 @@
+schema_version	regime	bound	median_sieve_nanoseconds	measured_candidates	measured_eliminations	measured_survivors	next_prp_nanoseconds_per_survivor	projected_total_nanoseconds	offline_selected
+1	small	7	1902400	1024	802	222	828	2086216	YES
+1	small	19	2965300	1024	854	170	828	3106060	NO
+1	small	43	4427200	1024	877	147	828	4548916	NO
+1	medium	7	2239900	4096	3217	879	897	3028363	YES
+1	medium	19	3102500	4096	3441	655	897	3690035	NO
+1	medium	43	4919300	4096	3545	551	897	5413547	NO
+1	large	7	3145500	16384	12871	3513	874	6215862	YES
+1	large	19	3943800	16384	13753	2631	874	6243294	NO
+1	large	43	6001500	16384	14211	2173	874	7900702	NO

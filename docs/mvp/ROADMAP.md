@@ -91,7 +91,7 @@ certificates and a fresh FLINT verdict. See
 workflow `30770731160` passed Linux/GCC in 1 min 21 s and Windows/MSVC in
 7 min 43 s.
 
-### MVP-04 — Known campaign and private release (PASS locally)
+### MVP-04 — Known campaign and private release (PASS)
 
 Run the versioned small campaign end to end, verify all artifacts, document one
 Windows command, build the private release package and attach it to a private
@@ -101,8 +101,11 @@ answers recovered, release hash verified and no external executable redistribute
 The closed 15-file archive builder and verifier pass locally. A copy augmented
 with the separately installed local oracles completed the documented one-command
 campaign and a second idempotent invocation: 160 records, 34 proven primes, 126
-composites and 208 campaign-manifest files. Final status requires the MVP-04
-private CI and private release asset/hash gate.
+composites and 208 campaign-manifest files. Private workflow `30771438835`
+passed Linux/GCC in 1 min 22 s and Windows/MSVC, including the package gate, in
+4 min 41 s. Private prerelease `v0.1.0-mvp` targets commit `8c7a304`; its
+re-downloaded ZIP passed the content verifier with SHA-256
+`EE050AB7819E0C6C66DB956AA2AE222B31266B0994D563221A466B1CFD49F710`.
 
 Every milestone receives updated documentation, a milestone commit and push, and
 a report section named `Contribution directe au logiciel final`.

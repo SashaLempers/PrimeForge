@@ -26,7 +26,7 @@ MVP must add it.
 | `primeforge.exe` commands | READY | Operational `selftest`, `inspect`, `search`, `resume` and `verify` | No MVP work remaining |
 | Known small campaign | READY | Versioned 160-candidate YAML and 34-prime corpus; 126 composites reproduced | Final private release reproduction only |
 | One-command Windows use | READY | Packaged wrapper starts, resumes or verifies the known campaign; two complete local invocations | No MVP work remaining |
-| Private release | PARTIAL | Closed 15-file allowlist, package manifest, ZIP re-extraction, self-test/inspect and zero-external-binary gate | Attach CI-validated ZIP/hash to the private release |
+| Private release | READY | `v0.1.0-mvp`: closed 15-file allowlist, green CI package gate, remote ZIP re-download/hash/content verification | No MVP work remaining |
 
 ## Local proof engines already available
 

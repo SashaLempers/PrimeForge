@@ -1,7 +1,6 @@
 # MVP-04 - Known campaign and private Windows release
 
-Date: 2026-08-02. Status: PASS locally; private MVP-04 CI and release attachment
-pending at the milestone commit.
+Date: 2026-08-02. Status: PASS.
 
 MVP-04 turns the validated engine into a closed Windows x64 package. The package
 contains 15 allowlisted files: `primeforge.exe`, the known `search.yaml`, a
@@ -61,3 +60,19 @@ The restricted MVP delivery path is complete. Packaging needs no further design
 before release; future work returns to the engine, starting with measured CPU
 pipeline improvements and then CUDA integration while preserving this campaign
 as a non-regression gate.
+
+## Private release closure
+
+Private workflow `30771438835` passed Linux/GCC in 1 min 22 s and Windows/MSVC
+in 4 min 41 s; the latter also built and verified the ZIP. Prerelease
+`v0.1.0-mvp` targets commit
+`8c7a30421fc73a7bab34217db6977aa9a806c659`. The uploaded 225,728-byte ZIP was
+downloaded into a fresh directory, matched its sidecar and GitHub asset digest,
+then passed the 15-file content verifier again.
+
+- ZIP SHA-256: `EE050AB7819E0C6C66DB956AA2AE222B31266B0994D563221A466B1CFD49F710`;
+- `primeforge.exe` SHA-256: `19173DC1588917E035B12483847A932A5954EC378D1ECC7764B741D9D8A0F154`;
+- internal package-manifest SHA-256: `D7E89E3966BC7DD7C44DEAE2CDC749590432683E07E9A0E24D6E16F05BC958F1`.
+
+The repository visibility was rechecked as `PRIVATE`. No public release,
+announcement or repository-visibility change occurred.

@@ -13,6 +13,12 @@ now pass locally and in private Windows/Linux CI. MVP-04 packages that executabl
 without redistributing either external proof engine. The governing plan and exact
 inventory are `docs/mvp/ROADMAP.md` and `docs/mvp/INVENTORY.md`.
 
+The private prerelease `v0.1.0-mvp` is attached to commit `8c7a304`. Its Windows
+ZIP SHA-256 is
+`EE050AB7819E0C6C66DB956AA2AE222B31266B0994D563221A466B1CFD49F710`.
+The asset was downloaded again and passed the closed package verifier. The
+repository and release remain private.
+
 Windows/MSVC is the product path. Linux/GCC remains mandatory portable-correctness
 CI. CUDA stays available for the post-MVP performance path but is not allowed to
 delay the first complete CPU campaign.

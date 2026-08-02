@@ -14,7 +14,6 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <map>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -41,6 +40,7 @@ struct Regime {
 struct Variant {
     std::string name;
     fsieve::Options options;
+    bool legacy_factor_second_pass{};
 };
 
 struct Sample {
@@ -56,7 +56,9 @@ struct Sample {
     std::uint64_t exact_checks{};
     std::uint64_t bounded_magnitude_checks{};
     std::uint64_t big_integer_checks{};
+    std::uint64_t factor_witnesses{};
     std::string result_sha256;
+    bool legacy_factor_second_pass{};
     bool vector_applied{};
     bool crt_applied{};
     bool huge_pages_applied{};
@@ -133,6 +135,10 @@ struct Sample {
     add("logical-smt", [&](auto& value) {
         value.threads = std::max(1U, system.cpu.logical_cores);
     });
+    add("mvp-factor-witnesses", [](auto& value) {
+        value.retain_factor_witnesses = true;
+    });
+    result.push_back({"mvp-legacy-factor-second-pass", baseline, true});
     return result;
 }
 
@@ -143,6 +149,30 @@ void write_text(const std::filesystem::path& path, const std::string& text) {
     if (!output) throw std::runtime_error("cannot create output file: " + path.string());
     output.write(text.data(), static_cast<std::streamsize>(text.size()));
     if (!output) throw std::runtime_error("cannot write output file: " + path.string());
+}
+
+[[nodiscard]] std::vector<std::uint64_t> canonical_factor_witnesses(
+    const congruence::CompiledTable& table,
+    const primeforge::Sha256Provider& sha256) {
+    const auto candidate_count = table.family.k.size() * table.family.n.size();
+    std::vector<std::uint64_t> result(
+        static_cast<std::size_t>(candidate_count), 0U);
+    for (const auto& elimination : congruence::apply_compiled_table(table, sha256)) {
+        const auto index = elimination.candidate.k_index * table.family.n.size() +
+                           elimination.candidate.n_index;
+        const auto factor = congruence::reconstruct_factor(elimination);
+        auto& retained = result[static_cast<std::size_t>(index)];
+        if (retained == 0U || factor < retained) retained = factor;
+    }
+    return result;
+}
+
+[[nodiscard]] std::uint64_t count_factor_witnesses(
+    const std::vector<std::uint64_t>& factors) {
+    return static_cast<std::uint64_t>(
+        std::count_if(factors.begin(), factors.end(), [](const auto value) {
+            return value != 0U;
+        }));
 }
 
 }  // namespace
@@ -163,12 +193,26 @@ int main(const int argc, char** argv) {
             const auto& regime = regimes[regime_index];
             const auto family = make_family(regime);
             const auto reference = fsieve::reference_eliminated_words(family, primes);
+            const auto reference_table =
+                congruence::compile_congruences(family, primes, {}, sha256);
+            const auto reference_factors =
+                canonical_factor_witnesses(reference_table, sha256);
             std::string expected_hash;
             for (const auto& variant : variants) {
                 const auto table = congruence::compile_congruences(family, primes, {}, sha256);
                 const auto warmup = fsieve::run(table, sha256, variant.options);
                 if (warmup.eliminated_words != reference) {
                     throw std::runtime_error("warmup disagrees with reference: " + variant.name);
+                }
+                if (variant.options.retain_factor_witnesses &&
+                    warmup.factor_witnesses != reference_factors) {
+                    throw std::runtime_error(
+                        "warmup factor witnesses disagree with reference: " + variant.name);
+                }
+                if (variant.legacy_factor_second_pass &&
+                    canonical_factor_witnesses(table, sha256) != reference_factors) {
+                    throw std::runtime_error(
+                        "legacy factor second pass disagrees with reference");
                 }
                 const auto hash = fsieve::result_sha256(warmup, sha256);
                 if (expected_hash.empty()) expected_hash = hash;
@@ -185,10 +229,18 @@ int main(const int argc, char** argv) {
                 const auto started = std::chrono::steady_clock::now();
                 const auto table = congruence::compile_congruences(family, primes, {}, sha256);
                 const auto result = fsieve::run(table, sha256, variant.options);
+                std::vector<std::uint64_t> factor_witnesses;
+                if (variant.options.retain_factor_witnesses) {
+                    factor_witnesses = result.factor_witnesses;
+                } else if (variant.legacy_factor_second_pass) {
+                    factor_witnesses = canonical_factor_witnesses(table, sha256);
+                }
                 const auto hash = fsieve::result_sha256(result, sha256);
                 const auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(
                     std::chrono::steady_clock::now() - started);
-                if (result.eliminated_words != reference || hash != expected_hash) {
+                if (result.eliminated_words != reference || hash != expected_hash ||
+                    (!factor_witnesses.empty() &&
+                     factor_witnesses != reference_factors)) {
                     throw std::runtime_error("timed result disagrees with scalar reference");
                 }
                 samples.push_back({
@@ -204,7 +256,9 @@ int main(const int argc, char** argv) {
                     result.exact_checks,
                     result.bounded_magnitude_checks,
                     result.big_integer_checks,
+                    count_factor_witnesses(factor_witnesses),
                     hash,
+                    variant.legacy_factor_second_pass,
                     result.vector_mode_applied,
                     result.crt_applied,
                     result.huge_pages_applied,
@@ -215,7 +269,7 @@ int main(const int argc, char** argv) {
             }
         }
 
-        std::string raw = "schema_version\tregime\tvariant\trepetition\torder\telapsed_nanoseconds\tcandidates\teliminated\trule_checks\tmodular_checks\texact_checks\tbounded_magnitude_checks\tbig_integer_checks\tresult_sha256\tvector_applied\tcrt_applied\thuge_pages_applied\tpinning_applied\taffinity_workers_requested\taffinity_workers_applied\ttelemetry_status\tperformance_valid\tperformance_claim\n";
+        std::string raw = "schema_version\tregime\tvariant\trepetition\torder\telapsed_nanoseconds\tcandidates\teliminated\trule_checks\tmodular_checks\texact_checks\tbounded_magnitude_checks\tbig_integer_checks\tfactor_witnesses\tlegacy_factor_second_pass\tresult_sha256\tvector_applied\tcrt_applied\thuge_pages_applied\tpinning_applied\taffinity_workers_requested\taffinity_workers_applied\ttelemetry_status\tperformance_valid\tperformance_claim\n";
         for (const auto& sample : samples) {
             raw += "1\t" + sample.regime + '\t' + sample.variant + '\t' +
                    std::to_string(sample.repetition) + '\t' + std::to_string(sample.order) + '\t' +
@@ -224,7 +278,10 @@ int main(const int argc, char** argv) {
                    std::to_string(sample.rule_checks) + '\t' + std::to_string(sample.modular_checks) + '\t' +
                    std::to_string(sample.exact_checks) + '\t' +
                    std::to_string(sample.bounded_magnitude_checks) + '\t' +
-                   std::to_string(sample.big_integer_checks) + '\t' + sample.result_sha256 + '\t' +
+                   std::to_string(sample.big_integer_checks) + '\t' +
+                   std::to_string(sample.factor_witnesses) + '\t' +
+                   yes_no(sample.legacy_factor_second_pass) + '\t' +
+                   sample.result_sha256 + '\t' +
                    yes_no(sample.vector_applied) + '\t' + yes_no(sample.crt_applied) + '\t' +
                    yes_no(sample.huge_pages_applied) + '\t' + yes_no(sample.pinning_applied) +
                    '\t' + std::to_string(sample.affinity_workers_requested) +

@@ -15,7 +15,6 @@
 #include <cstdio>
 #include <cstdint>
 #include <fstream>
-#include <map>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -423,21 +422,15 @@ SearchSummary execute_search(
     options.vector_mode = family_sieve::VectorMode::scalar;
     options.threads = 1U;
     options.thread_placement = family_sieve::ThreadPlacement::scheduler_managed;
+    options.retain_factor_witnesses = true;
     const auto sieve_result = family_sieve::run(table, sha256, options);
     summary.sieve_result_sha256 = family_sieve::result_sha256(sieve_result, sha256);
-
-    std::map<std::uint64_t, std::uint64_t> factors;
-    const auto eliminations = congruence::apply_compiled_table(table, sha256);
-    const auto n_count = (config.n_stop - config.n_start) / config.n_step + 1U;
-    for (const auto& elimination : eliminations) {
-        const auto flat_index = elimination.candidate.k_index * n_count +
-                                elimination.candidate.n_index;
-        const auto factor = congruence::reconstruct_factor(elimination);
-        const auto [position, inserted] = factors.emplace(flat_index, factor);
-        if (!inserted) position->second = std::min(position->second, factor);
+    if (sieve_result.factor_witnesses.size() != summary.plan.candidate_count) {
+        throw std::logic_error("sieve did not retain the complete factor-witness vector");
     }
     for (std::uint64_t index = 0U; index < summary.plan.candidate_count; ++index) {
-        if (eliminated(sieve_result, index) != factors.contains(index)) {
+        if (eliminated(sieve_result, index) !=
+            (sieve_result.factor_witnesses[static_cast<std::size_t>(index)] != 0U)) {
             throw std::logic_error("sieve bitset and reconstructed factors disagree");
         }
     }
@@ -460,12 +453,18 @@ SearchSummary execute_search(
         record.candidate = candidate_at(config, index);
         record.work_unit_id = owner_for(summary.plan, index);
         record.status.novelty = NoveltyStatus::not_checked;
-        if (const auto factor = factors.find(index); factor != factors.end()) {
+        const auto factor =
+            sieve_result.factor_witnesses[static_cast<std::size_t>(index)];
+        if (factor != 0U) {
+            if (record.candidate.value <= factor ||
+                record.candidate.value % factor != 0U) {
+                throw std::logic_error("sieve returned an invalid proper-factor witness");
+            }
             record.status.primality = PrimalityStatus::composite;
             record.status.verification = VerificationStatus::self_verified;
             record.classification_method = "CONGRUENCE_FACTOR";
             record.prp_status = "NOT_RUN";
-            record.factor = factor->second;
+            record.factor = factor;
             ++summary.sieve_composite_count;
             ++summary.composite_count;
         } else if (!adaptive_bound::is_base2_strong_probable_prime_u64(

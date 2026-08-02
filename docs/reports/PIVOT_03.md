@@ -83,3 +83,59 @@ infrastructure. PIVOT-03 remains open only for monitored, disjoint calibration
 and validation of thread count, placement, segmentation, scheduling and SIMD.
 Those remaining optimization experiments are explicitly paused until the
 end-to-end PrimeForge MVP and its small known campaign have been delivered.
+
+## Third engine tranche: single-pass proper-factor evidence
+
+After the private MVP release, profiling the real source path exposed a complete
+duplicated operation: `search` first ran `family_sieve::run` to obtain the
+elimination bitset, then called `apply_compiled_table` over the whole table only
+to reconstruct factor values. The family sieve can now optionally retain the
+canonical smallest proper factor while it performs the original divisibility
+checks. MVP search consumes those witnesses directly and revalidates each factor
+against the exact uint64 candidate before serializing it.
+
+All storage, orientation, loop, metadata, segment, scheduling, compressed/direct,
+wheel, CRT, AVX2, AVX-512, prefetch, huge-page, placement and thread variants
+produce the reference bitset and canonical reference factors. The CRT test first
+found that a valid premark factor was not always the smallest; the corrected path
+checks only lower matching rules and now preserves canonical evidence without a
+full replay. Witness collection is opt-in, so bitset-only callers allocate no
+factor vector.
+
+The real 160-candidate campaign was regenerated and independently verified: 34
+proven primes, 126 composites and 208 manifest files. Its result and manifest
+hashes remain exactly
+`4C0BF7E5554A257BE36C9F4CA54FD2E7D7B601CF848C1A3AAC48610254361C1A`
+and `2CC3A3E38BFFA4BE2CBA8938547239B3B994B5A4AB803D9901E2ADE9698E4137`.
+
+A short 420-row diagnostic compared the retained single pass with a deliberate
+legacy replay on 1,024, 4,096 and 16,384 candidates. Both paths produced the same
+353, 1,438 and 5,836 canonical factors. Observed medians were respectively
+2.14/4.22/7.11 ms and 3.19/7.08/17.91 ms. CPU temperature, CPU power and complete
+stability telemetry were unavailable, so every row remains
+`performance_valid=NO` and `performance_claim=NONE`; these timings support no
+speed claim or optimum selection.
+
+The ignored local diagnostic remains at
+`out/benchmarks/pivot03-factor-witness-dev1`: `raw.tsv` SHA-256
+`6CE1DFB41658B8E1EDFE9037865928CA64916F5C3D44C764A560D99964516C90`
+and `summary.tsv` SHA-256
+`2BFE63E52CAD0D137B97851F7BAC4A5AFF1907BD4A2B3E6932B6641D23834D8D`.
+
+The final clean gate passed 31/31 Debug tests in 43.71 s and 31/31 Release
+tests in 14.38 s, with both explicit C++23 self-tests passing and no PrimeForge
+warning. The final snapshot reported GPU 51 C, 46.39 W, no throttling,
+43,717,922,816 RAM bytes available and 13,639 MiB VRAM free. CPU temperature
+and power remain `UNKNOWN`; no prolonged load ran.
+
+## Contribution directe au logiciel final
+
+This tranche removes a whole congruence-table traversal from the actual
+configuration-to-proof executable while keeping the exact factor evidence needed
+by results and independent verification. It directly shortens the candidate
+classification pipeline instead of optimizing unused infrastructure.
+
+The duplicate pass is permanently removed for the MVP path. Factor retention may
+later need a more compact representation for billion-candidate batches, but it is
+optional and does not affect bitset-only sieving. PIVOT-03 remains open for the
+measured thread, segment, placement and SIMD selection required by the target.

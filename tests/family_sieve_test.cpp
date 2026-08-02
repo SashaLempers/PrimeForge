@@ -4,6 +4,7 @@
 #include "primeforge/core/system_info.hpp"
 #include "primeforge/cpu/cpu_topology.hpp"
 #include "primeforge/family_sieve/family_sieve.hpp"
+#include "primeforge/math/big_integer.hpp"
 
 #include <cstdint>
 #include <iostream>
@@ -40,6 +41,45 @@ void expect_failure(Function&& function, const std::string& message) {
     return family;
 }
 
+void check_factor_witnesses(
+    const fsieve::Result& result,
+    const congruence::AffineExponentialFamily& family,
+    const std::string& context) {
+    const auto n_count = family.n.size();
+    check(result.factor_witnesses.size() == result.candidate_count,
+          context + ": complete factor-witness vector");
+    for (std::uint64_t index = 0U; index < result.candidate_count; ++index) {
+        const auto word = result.eliminated_words[static_cast<std::size_t>(index / 64U)];
+        const bool eliminated =
+            (word & (std::uint64_t{1} << (index % 64U))) != 0U;
+        const auto factor = result.factor_witnesses[static_cast<std::size_t>(index)];
+        check(eliminated == (factor != 0U), context + ": witness/bitset agreement");
+        if (factor == 0U) continue;
+        const auto value = congruence::evaluate_exact(
+            family, index / n_count, index % n_count);
+        check(value > primeforge::math::BigInteger{1} && value.modulo(factor) == 0U,
+              context + ": retained factor divides candidate");
+        check(value > primeforge::math::BigInteger::from_decimal(std::to_string(factor)),
+              context + ": retained factor is proper");
+    }
+}
+
+[[nodiscard]] std::vector<std::uint64_t> reference_factor_witnesses(
+    const congruence::AffineExponentialFamily& family,
+    const std::vector<std::uint64_t>& primes) {
+    std::vector<std::uint64_t> result(
+        static_cast<std::size_t>(family.k.size() * family.n.size()), 0U);
+    for (const auto& elimination :
+         congruence::scalar_reference_eliminations(family, primes)) {
+        const auto index = elimination.candidate.k_index * family.n.size() +
+                           elimination.candidate.n_index;
+        const auto factor = congruence::reconstruct_factor(elimination);
+        auto& retained = result[static_cast<std::size_t>(index)];
+        if (retained == 0U || factor < retained) retained = factor;
+    }
+    return result;
+}
+
 }  // namespace
 
 int main() {
@@ -51,13 +91,18 @@ int main() {
         const auto table = primeforge::congruence::compile_congruences(
             family, primes, {}, sha256);
         const auto reference = fsieve::reference_eliminated_words(family, primes);
+        const auto reference_factors = reference_factor_witnesses(family, primes);
 
         fsieve::Options baseline;
         baseline.threads = 2U;
         baseline.segment_candidates = 128U;
+        baseline.retain_factor_witnesses = true;
         const auto expected = fsieve::run(table, sha256, baseline);
         check(expected.eliminated_words == reference, "baseline equals direct scalar reference");
         check(expected.eliminated_count != 0U, "test family has eliminations");
+        check_factor_witnesses(expected, family, "baseline");
+        check(expected.factor_witnesses == reference_factors,
+              "baseline retains the canonical smallest reference factor");
 
         std::vector<fsieve::Options> variants;
         auto add = [&](const auto change) {
@@ -96,6 +141,10 @@ int main() {
                   "one-factor variant equals reference: " + fsieve::describe(options));
             check(result.candidate_count == family.k.size() * family.n.size(),
                   "candidate count retained");
+            const auto description = fsieve::describe(options);
+            check_factor_witnesses(result, family, description);
+            check(result.factor_witnesses == reference_factors,
+                  description + ": retains identical canonical factors");
             ++variant_index;
         }
         const auto crt_result = fsieve::run(table, sha256, variants[10]);
@@ -132,6 +181,11 @@ int main() {
         check(expected.exact_checks == expected.bounded_magnitude_checks +
                   expected.big_integer_checks,
               "mixed family accounts for every exact magnitude check");
+
+        auto without_witnesses = baseline;
+        without_witnesses.retain_factor_witnesses = false;
+        check(fsieve::run(table, sha256, without_witnesses).factor_witnesses.empty(),
+              "factor witnesses remain opt-in");
 
         const auto capabilities = primeforge::collect_system_info().cpu;
         const auto avx2_result = fsieve::run(table, sha256, variants[11]);

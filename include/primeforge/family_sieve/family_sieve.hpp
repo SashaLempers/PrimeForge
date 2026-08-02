@@ -39,11 +39,14 @@ struct Options {
     std::uint64_t crt_memory_limit_bytes{8U * 1024U * 1024U};
     bool explicit_prefetch{};
     bool request_huge_pages{};
+    bool retain_factor_witnesses{};
 };
 
 struct Result {
     // Canonical k-major bitset. A set bit means a locally witnessed proper factor.
     std::vector<std::uint64_t> eliminated_words;
+    // Optional canonical k-major proper factor; zero means no retained witness.
+    std::vector<std::uint64_t> factor_witnesses;
     std::uint64_t candidate_count{};
     std::uint64_t eliminated_count{};
     std::uint64_t rule_checks{};

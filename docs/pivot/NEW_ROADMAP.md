@@ -8,11 +8,12 @@ target fast path.
 
 Current progress: PIVOT-00 is accepted at commit `ce22b91`. PIVOT-01, including
 CUDA Toolkit 13.3 detection, is accepted at commit `9379303`. PIVOT-02 is accepted
-at commit `10699d3`; private Windows/Linux CI run `30767609057` is green. PIVOT-03
-has begun with topology-aware Ryzen worker placement; no fastest configuration is
-claimed yet. Its next engine tranche removes unnecessary arbitrary-precision
-candidate construction from nonnegative proper-factor checks while retaining an
-exact signed fallback and auditable path counters.
+at commit `10699d3`; private Windows/Linux CI run `30767609057` is green. The
+private end-to-end MVP is released at `v0.1.0-mvp`. PIVOT-03 has validated
+topology-aware Ryzen placement, bounded nonnegative proper-factor checks and
+single-pass factor evidence; no fastest configuration is claimed yet. Its next
+work is monitored, disjoint selection of thread, placement, segment and SIMD
+parameters on the complete sieve path.
 
 ## PIVOT-00 — Audit and reorientation
 

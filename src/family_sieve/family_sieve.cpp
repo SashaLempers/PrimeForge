@@ -42,6 +42,7 @@ struct Counters {
 struct WorkerOutput {
     std::vector<std::uint64_t> words;
     std::vector<std::uint64_t> list;
+    std::vector<std::pair<std::uint64_t, std::uint64_t>> factor_witnesses;
     Counters counters;
     bool pinning_applied{};
 };
@@ -232,12 +233,20 @@ struct BoundedMagnitudeResult {
 void record_elimination(
     WorkerOutput& output,
     const CandidateStorage storage,
-    const std::uint64_t index) {
+    const std::uint64_t index,
+    const std::uint64_t prime,
+    const bool retain_factor_witnesses) {
+    bool first_worker_elimination = true;
     if (storage == CandidateStorage::list) {
         output.list.push_back(index);
     } else {
-        output.words[static_cast<std::size_t>(index / 64U)] |=
-            std::uint64_t{1} << (index % 64U);
+        auto& word = output.words[static_cast<std::size_t>(index / 64U)];
+        const auto bit = std::uint64_t{1} << (index % 64U);
+        first_worker_elimination = (word & bit) == 0U;
+        word |= bit;
+    }
+    if (retain_factor_witnesses && first_worker_elimination) {
+        output.factor_witnesses.emplace_back(index, prime);
     }
 }
 
@@ -295,6 +304,7 @@ void scan_segment(
     const RuleColumns& columns,
     const Options& options,
     const std::vector<std::uint64_t>& premarked,
+    const std::vector<std::uint64_t>& premarked_factor_witnesses,
     const std::uint64_t traversal_begin,
     const std::uint64_t traversal_end,
     WorkerOutput& output) {
@@ -309,9 +319,19 @@ void scan_segment(
             traversal_index, k_count, n_count, options.orientation);
         if (!candidate_is_valid(table.family, k_index, n_index)) return;
         const auto index = canonical_index(k_index, n_index, n_count);
-        if (word_contains(premarked, index)) return;
+        if (word_contains(premarked, index)) {
+            if (!options.retain_factor_witnesses) return;
+            const auto retained =
+                premarked_factor_witnesses[static_cast<std::size_t>(index)];
+            if (retained == 0U) {
+                throw std::logic_error("premarked candidate has no factor witness");
+            }
+            if (prime >= retained) return;
+        }
         if (proper_factor(table.family, k_index, n_index, prime, output.counters)) {
-            record_elimination(output, options.storage, index);
+            record_elimination(
+                output, options.storage, index, prime,
+                options.retain_factor_witnesses);
         }
     };
 
@@ -408,6 +428,7 @@ void premark_small_prime_union(
     const congruence::CompiledTable& table,
     const std::size_t prime_count,
     std::vector<std::uint64_t>& words,
+    std::vector<std::uint64_t>* const factor_witnesses,
     Counters& counters) {
     const auto limit = std::min(prime_count, table.prime_tables.size());
     const auto k_count = table.family.k.size();
@@ -426,6 +447,10 @@ void premark_small_prime_union(
                         proper_factor(table.family, k_index, n_index, rule.prime, counters)) {
                         words[static_cast<std::size_t>(index / 64U)] |=
                             std::uint64_t{1} << (index % 64U);
+                        if (factor_witnesses != nullptr) {
+                            (*factor_witnesses)[static_cast<std::size_t>(index)] =
+                                rule.prime;
+                        }
                     }
                 }
             }
@@ -437,6 +462,7 @@ void premark_small_prime_union(
     const congruence::CompiledTable& table,
     const Options& options,
     std::vector<std::uint64_t>& words,
+    std::vector<std::uint64_t>* const factor_witnesses,
     Counters& counters) {
     const auto limit = std::min(options.crt_prime_count, table.prime_tables.size());
     if (limit < 2U) return false;
@@ -487,6 +513,11 @@ void premark_small_prime_union(
             if (proper_factor(table.family, k, n, prime, counters)) {
                 words[static_cast<std::size_t>(index / 64U)] |=
                     std::uint64_t{1} << (index % 64U);
+                if (factor_witnesses != nullptr) {
+                    auto& witness =
+                        (*factor_witnesses)[static_cast<std::size_t>(index)];
+                    if (witness == 0U || prime < witness) witness = prime;
+                }
             }
         }
     }
@@ -513,15 +544,25 @@ Result run(
     const auto rules = flatten_rules(table);
     const auto columns = make_columns(rules);
     std::vector<std::uint64_t> premarked(word_count, 0U);
+    std::vector<std::uint64_t> premarked_factor_witnesses;
+    if (options.retain_factor_witnesses) {
+        premarked_factor_witnesses.assign(
+            static_cast<std::size_t>(candidate_count), 0U);
+    }
+    auto* const premarked_factor_pointer = options.retain_factor_witnesses
+        ? &premarked_factor_witnesses
+        : nullptr;
     Counters premark_counters{};
     bool crt_applied = false;
     if (options.crt_prime_count != 0U) {
         crt_applied = premark_crt_template(
-            table, options, premarked, premark_counters);
+            table, options, premarked, premarked_factor_pointer,
+            premark_counters);
     }
     if (options.wheel_prime_count != 0U) {
         premark_small_prime_union(
-            table, options.wheel_prime_count, premarked, premark_counters);
+            table, options.wheel_prime_count, premarked,
+            premarked_factor_pointer, premark_counters);
     }
 
     const auto segment_count = (candidate_count + options.segment_candidates - 1U) /
@@ -557,7 +598,8 @@ Result run(
                     const auto begin = segment * options.segment_candidates;
                     const auto end = std::min(candidate_count, begin + options.segment_candidates);
                     scan_segment(
-                        table, rules, columns, options, premarked, begin, end, outputs[worker]);
+                        table, rules, columns, options, premarked,
+                        premarked_factor_witnesses, begin, end, outputs[worker]);
                 };
                 if (options.scheduling == Scheduling::dynamic_segments) {
                     for (;;) {
@@ -587,6 +629,7 @@ Result run(
     Result result;
     result.candidate_count = candidate_count;
     result.eliminated_words = std::move(premarked);
+    result.factor_witnesses = std::move(premarked_factor_witnesses);
     result.crt_applied = crt_applied;
     result.affinity_workers_requested =
         options.thread_placement == ThreadPlacement::scheduler_managed ? 0U : thread_count;
@@ -621,6 +664,10 @@ Result run(
         result.exact_checks += output.counters.exact_checks;
         result.bounded_magnitude_checks += output.counters.bounded_magnitude_checks;
         result.big_integer_checks += output.counters.big_integer_checks;
+        for (const auto& [index, prime] : output.factor_witnesses) {
+            auto& witness = result.factor_witnesses[static_cast<std::size_t>(index)];
+            if (witness == 0U || prime < witness) witness = prime;
+        }
         result.thread_pinning_applied =
             result.thread_pinning_applied || output.pinning_applied;
         if (output.pinning_applied) {
@@ -631,6 +678,14 @@ Result run(
         options.storage == CandidateStorage::dense_bitset && vector_supported;
     for (const auto word : result.eliminated_words) {
         result.eliminated_count += static_cast<std::uint64_t>(std::popcount(word));
+    }
+    if (options.retain_factor_witnesses) {
+        for (std::uint64_t index = 0U; index < candidate_count; ++index) {
+            if (word_contains(result.eliminated_words, index) !=
+                (result.factor_witnesses[static_cast<std::size_t>(index)] != 0U)) {
+                throw std::logic_error("factor witness and elimination bitset disagree");
+            }
+        }
     }
     return result;
 }
@@ -672,6 +727,7 @@ std::string describe(const Options& options) {
            << ";compressed=" << (options.compressed_classes ? "yes" : "no")
            << ";wheel-primes=" << options.wheel_prime_count
            << ";crt-primes=" << options.crt_prime_count
+           << ";factor-witnesses=" << (options.retain_factor_witnesses ? "yes" : "no")
            << ";vector=";
     if (options.vector_mode == VectorMode::avx2) stream << "avx2";
     else if (options.vector_mode == VectorMode::avx512) stream << "avx512";

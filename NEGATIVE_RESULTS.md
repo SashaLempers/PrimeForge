@@ -318,3 +318,12 @@ Each future entry must include:
 - **Failure criterion:** the package gate reported failure despite a successful product self-test.
 - **Conclusion:** the verifier now requires the product CLI's exact `mvp.status=PASS` marker. Both unpacked and re-extracted ZIP gates pass; no binary behavior or test criterion was weakened.
 - **Retry condition:** retain the packaged CLI marker contract in the package gate.
+
+## NR-0034 - CRT premarking initially retained a noncanonical valid factor
+
+- **Date:** 2026-08-02
+- **Change tested:** exact factor-vector equality across every family-sieve option after adding single-pass witnesses.
+- **Evidence:** Debug passed 30/31 tests; `primeforge.family_sieve` found that the bounded-CRT variant produced the correct elimination bitset and a valid proper factor, but not always the smallest scalar-reference factor.
+- **Failure criterion:** optimized traversal order must not change canonical factor evidence.
+- **Conclusion:** when witnesses are requested, a CRT-premarked candidate now evaluates only matching rules with primes below its already valid factor. All variants return the exact smallest reference factors without replaying the complete table. No assertion was removed.
+- **Retry condition:** every new premark or wheel path must pass bitset and canonical-factor differential gates.

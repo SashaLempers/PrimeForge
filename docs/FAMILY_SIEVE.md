@@ -26,6 +26,15 @@ The public options isolate the planned variables:
 
 AVX2 and AVX-512 currently vectorize only the deterministic merge of per-worker bitsets. This limited scope is recorded so a capability flag cannot be misreported as a sieve-wide speedup. Unsupported SIMD paths fall back to scalar. The huge-page option probes whether a reversible large-page allocation is permitted and immediately releases it; it does not request privileges and is never a dependency. Linux remains compilable, but pinning and huge-page probing currently report not applied there.
 
+The optional `retain_factor_witnesses` mode returns one canonical smallest proper
+factor for every eliminated candidate in the same k-major index space. Worker,
+wheel and CRT paths are differential-tested against scalar factors. CRT-marked
+candidates examine only matching rules below the already valid CRT factor, which
+makes the witness canonical without replaying the entire congruence table. The
+MVP search enables this mode and no longer invokes `apply_compiled_table` a
+second time solely to reconstruct factors. Callers that need only the bitset keep
+the option disabled and pay no factor-vector allocation.
+
 ## Measurement boundary
 
 `primeforge-family-sieve-benchmark` performs warmup, uses a fixed-seed randomized schedule, runs at least seven repetitions, and times congruence compilation, the complete sieve, and result hashing. It compares every timed result to the scalar output before accepting a row. The retained matrix changes one variable from the baseline at a time over small, medium, and large finite regimes.
@@ -37,6 +46,12 @@ PIVOT-02 now supplies CPU frequency plus NVIDIA telemetry/throttling, but CPU
 temperature and package power remain `UNKNOWN`; old timings are never promoted.
 PIVOT-03 must collect new disjoint calibration/validation data before selecting a
 production configuration.
+
+The harness includes `mvp-factor-witnesses` and
+`mvp-legacy-factor-second-pass` diagnostic variants. The latter deliberately
+recreates the removed second traversal. Their timing rows remain
+`performance_valid=NO` and `performance_claim=NONE`; structural removal of a
+complete redundant pass does not turn those rows into a benchmark claim.
 
 Run a clean retained diagnostic collection with:
 

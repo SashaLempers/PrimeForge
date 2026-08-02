@@ -482,3 +482,16 @@ creation and checks them again after execution. A missing or changed file return
 contains none of these files; their hashes and local-only provisioning boundary
 are documented separately. This is a proof-integrity correction, not a claim
 that an external process resolves licensing.
+
+## D-0066 - Proper-factor evidence is retained during the sieve pass
+
+**Status:** Accepted - 2026-08-02
+
+The user-facing search must serialize a proper factor for every congruence
+composite. Reapplying the complete compiled table after the family sieve solely
+to recover that factor duplicates the dominant rule traversal. The sieve now has
+an opt-in factor-witness result, canonicalized to the smallest valid factor and
+checked against the bitset. MVP search enables it and rechecks divisibility at
+the boundary. Bitset-only callers leave it disabled, avoiding the additional
+vector. The structural duplicate is removed independently of diagnostic timing;
+no performance claim is made until monitored validation is eligible.

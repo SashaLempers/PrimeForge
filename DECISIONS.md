@@ -416,3 +416,16 @@ comparison boundary instead of constructing the full arbitrary-precision value.
 Negative `k`, `b` or `c` use the unchanged `BigInteger` path. Separate counters
 make both paths auditable. This is a semantic-preserving engine optimization;
 throughput remains unclaimed until a controlled benchmark measures it.
+
+## D-0061 — A complete uint64 Proth MVP precedes further optimization
+
+**Status:** Accepted — 2026-08-02
+
+PrimeForge now prioritizes one complete Windows executable over additional
+autotuning or micro-optimization. The first campaign supports finite
+`k*2^n+1 < 2^64` domains, fixed validated CPU settings, internal PRP separation,
+PARI/GP proof/certificate production and an independent FLINT decision. Existing
+correct optimizations remain; new optimization work is frozen until the known
+campaign, interruption/resume, coverage, manifest, verification and private
+release gates pass. External proof engines remain hash-pinned local processes and
+are not redistributed.

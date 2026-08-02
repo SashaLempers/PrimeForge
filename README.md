@@ -4,13 +4,17 @@ PrimeForge is a C++23 prime-search engine being specialized for one performance 
 
 The project currently makes no claim of superior performance, mathematical novelty, or discovery of a new prime. A probable prime is never reported as a proven prime.
 
-## Current milestone: hardware pivot
+## Current milestone: end-to-end MVP
 
-The generic stage 0-20 order has been superseded. The governing plan is
-`docs/pivot/NEW_ROADMAP.md`; the complete audit is
-`docs/pivot/PIVOT_REPORT.md`. Windows/MSVC/CUDA is the performance path.
-Linux/GCC remains mandatory portable-correctness CI and does not prohibit
-target-specific translation units or measured hardware specialization.
+The immediate priority is a usable `primeforge.exe` that completes a small known
+`k*2^n+1` campaign from configuration through proof, independent verification,
+checkpoint/resume and final manifest. The governing plan and exact gap inventory
+are `docs/mvp/ROADMAP.md` and `docs/mvp/INVENTORY.md`. Advanced autotuning and
+additional CPU/GPU optimization are paused until the private MVP release passes.
+
+Windows/MSVC is the product path. Linux/GCC remains mandatory portable-correctness
+CI. CUDA stays available for the post-MVP performance path but is not allowed to
+delay the first complete CPU campaign.
 
 PIVOT-00 changes priorities and documentation, not mathematical results. The
 pre-pivot baseline is secured at commit `35dde4a`. PIVOT-01 provides the fresh,

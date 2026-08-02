@@ -273,3 +273,12 @@ Each future entry must include:
 - **Failure criterion:** the process test must launch both independent executables and observe graceful and forced termination.
 - **Conclusion:** the test launcher now accepts only paths without shell metacharacters and passes them directly. The project and CI build roots satisfy that conservative constraint; no watchdog assertion is relaxed.
 - **Retry condition:** both cooperative and hung fixture modes must complete, leave durable stop events, and pass in Debug, Release, Windows and Linux CI.
+
+## NR-0029 — Hosted Windows exposed CPU sets but refused their selection
+
+- **Date:** 2026-08-02
+- **Change tested:** PIVOT-03 private workflow run `30768052506`, Windows/MSVC family-sieve placement test.
+- **Evidence:** all 83 compilation/link steps completed with zero PrimeForge warnings and 25/26 tests passed. Linux passed 26/26. The Windows runner returned a non-empty CPU-set topology, but `SetThreadSelectedCpuSets` did not apply the requested sets inside the hosted job. The target Ryzen had already applied every requested worker selection locally.
+- **Failure criterion:** the test incorrectly required full affinity on every Windows environment, even when the operating environment withheld CPU-set selection permission.
+- **Conclusion:** the test now probes effective runtime selection. It requires every worker to apply affinity when the probe succeeds; otherwise it verifies exact counts and forbids fabricated pinning success. Engine behavior and the strict target-machine requirement are unchanged.
+- **Retry condition:** clean local Debug/Release gates and a new private Windows/Linux workflow must pass; the target diagnostic must continue to exercise all 16 physical cores across both L3 domains.

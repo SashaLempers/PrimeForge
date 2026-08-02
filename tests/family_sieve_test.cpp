@@ -2,6 +2,7 @@
 
 #include "primeforge/core/sha256.hpp"
 #include "primeforge/core/system_info.hpp"
+#include "primeforge/cpu/cpu_topology.hpp"
 #include "primeforge/family_sieve/family_sieve.hpp"
 
 #include <cstdint>
@@ -113,10 +114,32 @@ int main() {
         check(logical_affinity.affinity_workers_requested == baseline.threads,
               "logical placement records every requested worker");
 #ifdef _WIN32
-        check(physical_affinity.affinity_workers_applied == baseline.threads,
-              "physical-core CPU sets apply to every Windows worker");
-        check(logical_affinity.affinity_workers_applied == baseline.threads,
-              "logical CPU sets apply to every Windows worker");
+        const auto topology = primeforge::cpu::collect_topology();
+        const auto affinity_probe = primeforge::cpu::build_affinity_plan(
+            topology.cpu_sets,
+            primeforge::cpu::AffinityStrategy::physical_core_spread,
+            1U);
+        const bool cpu_set_selection_available = !affinity_probe.empty() &&
+            primeforge::cpu::apply_current_thread_cpu_set(affinity_probe.front());
+        if (cpu_set_selection_available) {
+            primeforge::cpu::clear_current_thread_cpu_set();
+            check(physical_affinity.affinity_workers_applied == baseline.threads,
+                  "physical-core CPU sets apply when the host permits selection");
+            check(logical_affinity.affinity_workers_applied == baseline.threads,
+                  "logical CPU sets apply when the host permits selection");
+        }
+        check(physical_affinity.affinity_workers_applied <=
+                  physical_affinity.affinity_workers_requested,
+              "physical placement never fabricates an applied CPU set");
+        check(logical_affinity.affinity_workers_applied <=
+                  logical_affinity.affinity_workers_requested,
+              "logical placement never fabricates an applied CPU set");
+        check(physical_affinity.thread_pinning_applied ==
+                  (physical_affinity.affinity_workers_applied != 0U),
+              "physical placement summary matches the exact applied count");
+        check(logical_affinity.thread_pinning_applied ==
+                  (logical_affinity.affinity_workers_applied != 0U),
+              "logical placement summary matches the exact applied count");
 #else
         check(physical_affinity.affinity_workers_applied == 0U &&
                   logical_affinity.affinity_workers_applied == 0U,

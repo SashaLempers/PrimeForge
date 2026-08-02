@@ -27,3 +27,22 @@ This tranche is complete as a topology and placement primitive. PIVOT-03 itself
 is not complete: thread count, placement, segment, scheduling and SIMD choices
 still require disjoint monitored calibration/validation. The safe default remains
 Windows scheduler management until those measurements pass.
+
+## Hosted Windows capability correction
+
+Private workflow run `30768052506` compiled all 83 Windows steps without a
+PrimeForge warning and passed 25/26 tests, but its hosted job exposed CPU-set
+topology while refusing thread CPU-set selection. Linux passed 26/26. The test
+had incorrectly equated Windows API presence with runtime permission.
+
+The corrected gate probes selection permission and remains strict whenever it is
+available, including on the target machine. On restricted hosts it verifies that
+the exact applied count is reported and that no pinning success is fabricated.
+This is a portability correction only; it does not change placement or sieve
+semantics.
+
+The corrected clean target gate built 83/83 steps in both configurations with
+zero PrimeForge warnings and passed 26/26 tests in Debug (46.31 s) and Release
+(13.38 s). Both C++23 self-tests passed. The target topology diagnostic still
+reports 16 physical cores across two L3 domains and the same 16-worker
+interleaved physical plan.

@@ -27,9 +27,12 @@ The family sieve exposes three explicit modes:
 
 Every worker records whether its CPU-set selection succeeded. Affinity is cleared
 before the worker exits. Synthetic tests cover L3 interleaving, physical-before-
-SMT ordering, worker limits and unavailable portable topology. Windows tests
-require every requested affinity to apply and every sieve result to equal the
-scalar reference.
+SMT ordering, worker limits and unavailable portable topology. A Windows runtime
+probe distinguishes API visibility from permission to select CPU sets: when the
+host permits selection, tests require every requested affinity to apply; otherwise
+the exact unsuccessful count is retained and no success is fabricated. Every
+sieve result must equal the scalar reference in both cases. The target Ryzen gate
+requires the permitted, fully applied path.
 
 Run the target diagnostic with:
 

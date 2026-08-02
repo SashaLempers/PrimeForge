@@ -55,3 +55,15 @@ Performance language requires reproducible end-to-end benchmarks, raw results, v
 **Status:** Accepted — 2026-08-02
 
 PrimeForge follows numbered research stages 0 through 20. Conditional stages are evaluated explicitly; a rejected gate produces a documented negative result instead of being omitted.
+
+## D-0010 — C++23 compiler baseline
+
+**Status:** Accepted — 2026-08-02
+
+The build requests the CMake `cxx_std_23` compile feature and disables language extensions. PrimeForge records the compiler actually used instead of requiring a particular MSVC patch version without a technical need. Runtime reporting accepts `__cplusplus >= 202100L` as C++23 mode because supported GCC and Clang releases use that value while current MSVC reports `202400L`.
+
+## D-0011 — Immutable CI action references
+
+**Status:** Accepted — 2026-08-02
+
+Third-party CI actions are pinned to immutable commits. Their license, provenance, redistribution decision, and integration mode are tracked like every other dependency. The stage 1 workflow uses `actions/checkout` only as a CI service component and does not link or redistribute it with PrimeForge.

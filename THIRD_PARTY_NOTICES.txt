@@ -1,5 +1,7 @@
-PrimeForge stage 0 integrates no third-party library or runtime component into its binaries.
+PrimeForge stages 0 and 1 integrate no third-party library or runtime component into their binaries.
 
 Git and GitHub CLI are development tools and are not redistributed by this repository. Their individual provenance and current audit status are recorded in SOURCES.lock.
+
+The private continuous-integration workflow invokes actions/checkout at immutable commit 11d5960a326750d5838078e36cf38b85af677262. The action is licensed under the MIT License. It is a CI-only service component and is neither linked into PrimeForge nor redistributed by this repository. The license text SHA-256 recorded in SOURCES.lock is 3E855FFA704114A51628EF8F0BF3AEB41728ADF9D9070E263BF58AA5640B0EB5.
 
 No conclusion about a future dependency's license, redistribution, or integration mode may be inferred from this file.

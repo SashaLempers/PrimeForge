@@ -94,4 +94,4 @@ Get-FileHash benchmarks/evidence/stage5/* -Algorithm SHA256
 - Background applications were not controlled or closed by PrimeForge.
 - Hardware default limits and ventilation were reported, not independently measured.
 - The stage-5 workload validates the harness only and is not a prime engine benchmark.
-- Hosted CI must still pass the new protocol and smoke tests on Windows/MSVC and Linux/GCC before closure.
+- Private workflow run `30761738271` passed `linux-gcc` in 14 s and `windows-msvc` in 59 s at commit `609a5a33711dcc3a880b3001525f067e60482210`; stage 5 is closed.

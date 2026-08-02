@@ -75,6 +75,7 @@ add_library(primeforge_core STATIC
     src/core/sha256.cpp
     src/core/status.cpp
     src/core/system_info.cpp
+    src/engine/external_adapter.cpp
     src/family/family.cpp
     src/math/big_integer.cpp
     src/math/mul128.cpp
@@ -204,6 +205,20 @@ target_link_libraries(primeforge-adaptive-bound-benchmark PRIVATE PrimeForge::ad
 target_compile_features(primeforge-adaptive-bound-benchmark PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge-adaptive-bound-benchmark)
 
+add_executable(primeforge-adapter-fixture tests/adapter_fixture.cpp)
+target_compile_features(primeforge-adapter-fixture PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-adapter-fixture)
+
+add_executable(primeforge-external-adapter-tests tests/external_adapter_test.cpp)
+target_link_libraries(primeforge-external-adapter-tests PRIVATE PrimeForge::core)
+target_compile_features(primeforge-external-adapter-tests PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-external-adapter-tests)
+
+add_executable(primeforge-adapters src/engine/main.cpp)
+target_link_libraries(primeforge-adapters PRIVATE PrimeForge::core)
+target_compile_features(primeforge-adapters PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-adapters)
+
 if(BUILD_TESTING)
     add_test(NAME primeforge.unit COMMAND primeforge-tests)
     add_test(NAME primeforge.selftest COMMAND primeforge-selftest)
@@ -233,6 +248,12 @@ if(BUILD_TESTING)
     add_test(NAME primeforge.congruence_compiler COMMAND primeforge-congruence-tests)
     add_test(NAME primeforge.family_sieve COMMAND primeforge-family-sieve-tests)
     add_test(NAME primeforge.adaptive_bound COMMAND primeforge-adaptive-bound-tests)
+    add_test(
+        NAME primeforge.external_adapters
+        COMMAND primeforge-external-adapter-tests
+            $<TARGET_FILE:primeforge-adapter-fixture>
+            ${CMAKE_CURRENT_BINARY_DIR}/external-adapter-test-work
+    )
     add_test(
         NAME primeforge.congruence_cli
         COMMAND primeforge-congruence

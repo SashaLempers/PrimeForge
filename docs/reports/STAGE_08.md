@@ -37,7 +37,7 @@ Host metadata remains Windows 11 `10.0.26200`, x86_64, AMD Ryzen 9 9950X3D (16 p
 - The 10,000,000-bit exact-evaluation ceiling is a safety policy, not a benchmark-derived optimum.
 - The internal integer is a correctness implementation and carries no throughput claim.
 - No external engine, OpenSSL, GMP, FLINT, CUDA component, work assignment, network service, or real campaign is used.
-- Hosted Windows/Linux CI evidence is recorded by the follow-up closure commit after the private workflow completes.
+- Private Windows/Linux CI is mandatory before closure.
 
 The first hosted run `30763201015` passed Windows/MSVC in 1 min 59 s but exposed GCC's `-Werror=attributes` rejection of a redundant `[[nodiscard]]` on a non-defining friend declaration. NR-0021 records the failure and conservative correction; no warning was suppressed.
 
@@ -45,4 +45,6 @@ The correction audit also found that CMake had double-encoded non-breaking space
 
 After normalization, `ninja -t deps` records both PrimeForge headers for `big_integer.cpp.obj`. Advancing the timestamp of `big_integer.hpp` made 13 dependent build steps dirty; the subsequent Debug and Release rebuilds executed those steps and again passed 12/12 tests. This closes NR-0022's local retry condition.
 
-**Local status:** Accepted — 2026-08-02
+Private workflow run `30763448217` passed at corrective commit `152dcc47907c4ac8341984e21438b1be942b41f6`: Linux/GCC completed in 31 s and Windows/MSVC completed clean Debug and Release in 2 min 30 s. This closes NR-0021's cross-platform retry condition and the complete stage-8 gate.
+
+**Status:** Accepted — 2026-08-02

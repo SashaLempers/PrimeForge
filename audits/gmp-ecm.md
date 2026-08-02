@@ -1,0 +1,27 @@
+# GMP-ECM 7.0.7
+
+- Name: GMP-ECM
+- Primary URL: https://gitlab.inria.fr/zimmerma/ecm
+- Revision: tag git-7.0.7, commit 1c038e2224992ebb40cb6a87710f64080e67dd09
+- Source/archive SHA-256: A0B47DCFD235380EF12EDABC56B91E211201D6C5D6C39A0F47110270C41C3C34
+- License at revision: executable GPL-3.0-or-later; library LGPL-3.0-or-later
+- License-file SHA-256: COPYING 0B383D5A63DA644F628D99C33976EA6487ED89AAA59F0B3257992DEAC1171E6B; COPYING.LIB 319917F5CCD09878DB6F67C9A77DEE846055644CA49EB535628B9E020A87261E
+- Evidence level: SOURCE_AUDITED
+- Mathematical domain: integer factorization
+- Main algorithms: ECM, Pollard P-1 and P+1
+- Supported sizes/forms: arbitrary multiprecision composites with effectiveness depending on factor size
+- CPU/GPU: CPU
+- Vectorization/assembly/FFT/NTT: uses GMP and optional libraries; stage 2 selected no GPU route
+- Threading: command-level parallelism and optional build features; not assumed by adapter
+- Memory structures and block sizes: stage bounds, curves, and GMP limbs
+- Checkpoints and error controls: resume/checkpoint options documented by the executable
+- Proofs/certificates: discovered factors only; not a primality test
+- Input/output formats: command line and textual factor results
+- Platform status: Unix-like autotools source; Windows dependency chain not installed
+- Supplied test status: NOT_RUN
+- Simple reproduced case: NOT_RUN
+- Raw performance: NOT_MEASURED
+- Author-declared limits/TODO: value is probabilistic and workload-specific
+- Integration risks: GPL executable versus LGPL library choice, GMP provenance, nondeterministic seeds, and unmeasured prefilter benefit
+- Redistribution decision: external executable only unless a later library review explicitly passes
+- PrimeForge decision: ADAPTER, conditional on a measured cost model

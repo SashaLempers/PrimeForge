@@ -1,0 +1,27 @@
+# PrimeGrid formats and service
+
+- Name: PrimeGrid
+- Primary URL: https://www.primegrid.com/
+- Revision: service state inspected 2026-08-02; not a vendored software revision
+- Source/archive SHA-256: NOT_APPLICABLE
+- License at revision: per-application and service-specific; no single dependency license
+- License-file SHA-256: NOT_APPLICABLE
+- Evidence level: DOC_VERIFIED
+- Mathematical domain: coordinated distributed prime searches, including Proth/Riesel-related projects
+- Main algorithms: delegated to project applications such as PRST/LLR/sieves
+- Supported sizes/forms: project/work-unit specific
+- CPU/GPU: project specific
+- Vectorization/assembly/FFT/NTT: application specific
+- Threading: application specific
+- Memory structures and block sizes: application specific
+- Checkpoints and error controls: BOINC/application work units and validation policies
+- Proofs/certificates: project specific
+- Input/output formats: BOINC work units plus application-specific NewPGen/ABC/result formats
+- Platform status: external service
+- Supplied test status: NOT_RUN
+- Simple reproduced case: NOT_RUN; no account, assignment, or work unit requested
+- Raw performance: NOT_MEASURED
+- Author-declared limits/TODO: coverage and assignment state change over time
+- Integration risks: authorization, attribution, network transmission, novelty checks, and application-specific licenses
+- Redistribution decision: not a dependency
+- PrimeForge decision: REFERENCE_ONLY; any real assignment requires explicit user authorization

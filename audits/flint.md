@@ -1,0 +1,27 @@
+# FLINT 3.6.0
+
+- Name: FLINT
+- Primary URL: https://github.com/flintlib/flint and https://flintlib.org/doc/
+- Revision: tag v3.6.0, commit 8d5454b96761fafe4d5a9da76a369a602f500f49
+- Source/archive SHA-256: 7CEA49DE94F0267D5DA13F6A5EF6422FE9640EB8933ACD0F5243F8498CC2888F
+- License at revision: LGPL-3.0-or-later
+- License-file SHA-256: COPYING 230184F60BAE2FEAF244F10A8BAC053C8FF33A183BCC365B4D8B876D2B7F4809; COPYING.LESSER 7D3A95E5E06978064ED3F8E2B7C8F845E7FD8A405294727CC708F94CB83B8059
+- Evidence level: SOURCE_AUDITED
+- Mathematical domain: number theory, multiprecision integers, polynomials, factoring, PRP and rigorous primality
+- Main algorithms: machine-word primality, BPSW-style probable-prime tests, APRCL, factoring and broad algebraic algorithms
+- Supported sizes/forms: machine-word and arbitrary-precision via GMP-compatible limbs
+- CPU/GPU: CPU
+- Vectorization/assembly/FFT/NTT: inherits GMP assembly; internal tuned polynomial/integer algorithms
+- Threading: thread pool used by selected algorithms; not every operation is parallel
+- Memory structures and block sizes: limb/polynomial representations with algorithm-specific cutovers
+- Checkpoints and error controls: library assertions/tests; no scientific work checkpoint format
+- Proofs/certificates: rigorous primality routines, but no PrimeForge certificate interchange selected yet
+- Input/output formats: C API and textual debug/serialization helpers
+- Platform status: source supports major systems; Windows dependency chain not installed in stage 2
+- Supplied test status: NOT_RUN because GMP/MPFR integration is deferred until needed
+- Simple reproduced case: NOT_RUN
+- Raw performance: NOT_MEASURED
+- Author-declared limits/TODO: build and optional dependencies vary by platform
+- Integration risks: LGPL compliance, ABI chain, GMP provenance, and independent-oracle separation
+- Redistribution decision: possible only after stage 3 license and dynamic/static-link decision
+- PrimeForge decision: LINK candidate for corpus/oracle work

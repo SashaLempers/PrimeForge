@@ -1,0 +1,27 @@
+# sr2sieve
+
+- Name: sr2sieve
+- Primary URL: https://primegrid.com/download/sr2sieve/
+- Revision: latest archived family observed as 1.8.x; no maintained source tag selected
+- Source/archive SHA-256: UNKNOWN because no component is selected
+- License at revision: UNKNOWN for the archive as a whole
+- License-file SHA-256: UNKNOWN
+- Evidence level: DOC_VERIFIED
+- Mathematical domain: Sierpinski/Riesel and k*2^n±1 sieving
+- Main algorithms: specialized modular sieve and subsequence techniques
+- Supported sizes/forms: Proth/Riesel-style work files
+- CPU/GPU: historical CPU builds
+- Vectorization/assembly/FFT/NTT: build-specific x86 optimizations
+- Threading: version/build specific
+- Memory structures and block sizes: not source-audited for a selected revision
+- Checkpoints and error controls: work/factor/checkpoint formats documented by archive ecosystem
+- Proofs/certificates: factors only
+- Input/output formats: NewPGen/PrimeGrid-compatible files
+- Platform status: historical archives
+- Supplied test status: NOT_RUN
+- Simple reproduced case: NOT_RUN
+- Raw performance: NOT_MEASURED
+- Author-declared limits/TODO: no current canonical maintenance path identified
+- Integration risks: provenance, license and obsolete builds
+- Redistribution decision: forbidden
+- PrimeForge decision: REFERENCE_ONLY

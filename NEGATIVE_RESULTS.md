@@ -42,3 +42,53 @@ Each future entry must include:
 - **Failure criterion:** no avoidable deprecated component should remain in the reproducibility path.
 - **Conclusion:** the workflow now pins official `actions/checkout` v6 commit `d23441a48e516b6c34aea4fa41551a30e30af803`, whose `action.yml` declares `node24`; its MIT license hash is unchanged and recorded in `SOURCES.lock`.
 - **Retry condition:** every CI-action revision change requires an immutable pin, runtime inspection, license check, and a passing hosted workflow.
+
+## NR-0004 — Developer-shell execution policy blocked the first primesieve configure
+
+- **Date:** 2026-08-02
+- **Change tested:** first MSVC/Ninja configuration of pinned primesieve 12.15.
+- **Environment:** Windows PowerShell 5.1; Visual Studio Community 2026 developer-shell module.
+- **Evidence:** the first invocation could not load Launch-VsDevShell because the process execution policy blocked the script; CMake consequently had no usable compiler environment.
+- **Failure criterion:** the pinned source did not configure with the documented command in the current shell.
+- **Conclusion:** the retry set execution policy to Bypass for the current process only, loaded the official Visual Studio developer shell, built 97 Ninja steps, and passed all 34 CTest tests.
+- **Retry condition:** audit/build scripts must set only process-scoped policy or be launched from Developer PowerShell; machine policy is not modified.
+
+## NR-0005 — PRST integration blocked by missing project-wide license
+
+- **Date:** 2026-08-02
+- **Change tested:** selection of PRST 14.0 as a modern Proth/Riesel adapter.
+- **Environment:** tag v14.0, commit 4c01b7a5ba0f63a202951797476c4f2d6ac6907a.
+- **Evidence:** README, source tree, history metadata, and top-level files were inspected; no unambiguous project-wide license grant was found.
+- **Failure criterion:** every selected component needs an exact license and redistribution/integration decision.
+- **Conclusion:** capabilities are recorded as SOURCE_AUDITED, but PRST is REFERENCE_ONLY, was not built, and cannot be redistributed.
+- **Retry condition:** a license grant from the copyright holder or an authoritative already-published license file for the exact source revision.
+
+## NR-0006 — Historical Proth/Riesel sieve build environment unavailable
+
+- **Date:** 2026-08-02
+- **Change tested:** local reproduction of srsieve 0.6.17 and related historical sieve paths.
+- **Environment:** Windows 11 host with MSVC; no GCC, MinGW, make, or installed WSL distribution.
+- **Evidence:** official archived source and makefiles were inspected; Get-Command reported GCC, G++, make, and mingw32-make as NOT_FOUND; WSL reported that the subsystem is not installed.
+- **Failure criterion:** supplied tests could not be executed without installing an obsolete or unrelated toolchain before any component was selected.
+- **Conclusion:** the algorithms, formats, limits, license, changelog, and TODO are source-audited; execution remains NOT_RUN and the tool is REFERENCE_ONLY.
+- **Retry condition:** only if a later compatibility requirement justifies an isolated reproducible historical toolchain.
+
+## NR-0007 — CUDA candidates cannot pass an execution gate in stage 2
+
+- **Date:** 2026-08-02
+- **Change tested:** build eligibility of CGBN, mfaktc, PSieve-CUDA, and CUDA PRPLL variants.
+- **Environment:** NVIDIA RTX 5080 driver and OpenCL runtime present; nvcc NOT_FOUND.
+- **Evidence:** source revisions and licenses were audited; local command discovery found no CUDA compiler toolkit.
+- **Failure criterion:** no CUDA binary or test suite can be reproduced without the toolkit and a later stability/correctness protocol.
+- **Conclusion:** no CUDA toolkit is installed in stage 2. Candidates remain ADAPTER or REFERENCE_ONLY according to their individual audit.
+- **Retry condition:** the conditional CUDA stage must first justify the dependency, pin the official toolkit, and define cross-check vectors.
+
+## NR-0008 — Overlapping clean builds after an orchestration timeout
+
+- **Date:** 2026-08-02
+- **Change tested:** stage 2 clean Debug/Release gate.
+- **Environment:** the first run_all invocation was launched with an external five-second command timeout, shorter than the build; child build processes briefly outlived the timed-out parent while a retry began.
+- **Evidence:** the overlapping retry linked the Release unit-test executable, but CTest reported BAD_COMMAND when starting it; immediate direct execution and a targeted verbose CTest retry both passed.
+- **Failure criterion:** the complete clean gate did not pass in the overlapping state.
+- **Conclusion:** after all orphaned build processes ended, a single non-overlapping clean run completed successfully: Debug 2/2, Release 2/2, and both self-tests PASS. No source-code defect was found.
+- **Retry condition:** full build commands must receive a timeout longer than the whole gate and must never be relaunched while child processes remain active.

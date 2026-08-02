@@ -1,0 +1,27 @@
+# srsieve 0.6.17
+
+- Name: srsieve
+- Primary URL: https://primegrid.com/download/sr2sieve/srsieve-0.6.17-src.zip
+- Revision: official archived source 0.6.17
+- Source/archive SHA-256: E8ED7378A70A511C74D033AEF07B4664F83AEB15FF7380E319CA3200E51CBC80
+- License at revision: GPL-2.0-or-later
+- License-file SHA-256: 6EFE207F5847ADAB276F112D673485AFA3C51D395CDA68A2026D970CEAD4EABD
+- Evidence level: SOURCE_AUDITED
+- Mathematical domain: modular sieve for k*b^n+c sequence families
+- Main algorithms: subsequence splitting, baby-step/giant-step, prime sieve, modular filters
+- Supported sizes/forms: documented bounds k < 2^64, b < 2^32, n < 2^32-1, |c| < 2^63 with coprimality constraints
+- CPU/GPU: CPU
+- Vectorization/assembly/FFT/NTT: historical x86/x86-64/PPC assembly modular arithmetic; TODO mentions SSE2 opportunities
+- Threading: process-level/partitioned use; no modern general thread pool
+- Memory structures and block sizes: bitmaps, hash tables, subsequences, BSGS tables
+- Checkpoints and error controls: checkpoint and factor files; factor rechecking defaults on in 0.6.17
+- Proofs/certificates: factors only
+- Input/output formats: native sieve files, NewPGen, ABC/PFGW and factor files
+- Platform status: archived GCC/MinGW makefiles; audited host has no GCC/MinGW/WSL
+- Supplied test status: NOT_RUN; historical build environment absent
+- Simple reproduced case: NOT_RUN
+- Raw performance: NOT_MEASURED
+- Author-declared limits/TODO: internal self-tests/benchmarks were still a TODO; sparse bitmap and file-processing improvements listed
+- Integration risks: 2009-era toolchain, no maintained official repository, GPL, known historical 64-bit bug history
+- Redistribution decision: no bundled copy
+- PrimeForge decision: REFERENCE_ONLY for algorithms, formats, and corpus vectors

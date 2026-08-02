@@ -1,0 +1,27 @@
+# Genefer22
+
+- Name: Genefer22
+- Primary URL: https://github.com/galloty/genefer22
+- Revision: commit d5060c61090942f42a908492628eba13ebd7cd82
+- Source/archive SHA-256: 7D07B12F193833615232332D8664519C1343028ED6BD280CE108CEB9333E4A34
+- License at revision: MIT
+- License-file SHA-256: 2962630B5CC39B489CCEA9F200E1EE983D7017CE5882661CFA6018BD02D7CF48
+- Evidence level: SOURCE_AUDITED
+- Mathematical domain: generalized Fermat numbers b^(2^n)+1
+- Main algorithms: fast probable-prime and deterministic tests specialized to generalized Fermat form
+- Supported sizes/forms: b^(2^n)+1 within transform/device limits
+- CPU/GPU: multithreaded CPU and OpenCL GPU
+- Vectorization/assembly/FFT/NTT: FFT/transform kernels on CPU and OpenCL
+- Threading: CPU threads and GPU work groups
+- Memory structures and block sizes: transform buffers selected from problem/device parameters
+- Checkpoints and error controls: save files and Gerbicz-style error controls
+- Proofs/certificates: Gerbicz-Li/Pietrzak proof workflow documented and linked to primary papers
+- Input/output formats: command line, candidate lists, proof/checkpoint files
+- Platform status: Windows build documentation uses MSYS2; OpenCL platforms exist locally but no MSYS2 toolchain is installed
+- Supplied test status: NOT_RUN
+- Simple reproduced case: NOT_RUN
+- Raw performance: NOT_MEASURED; upstream numbers are not PrimeForge benchmarks
+- Author-declared limits/TODO: specialized only to generalized Fermat form and version-specific proof compatibility
+- Integration risks: process protocol, large proof files, OpenCL driver reproducibility
+- Redistribution decision: MIT permits redistribution with notice, but current design keeps an external adapter
+- PrimeForge decision: ADAPTER

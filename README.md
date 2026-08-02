@@ -4,13 +4,15 @@ PrimeForge is a C++23 research platform for auditable prime search, proof, verif
 
 The project currently makes no claim of superior performance, mathematical novelty, or discovery of a new prime. A probable prime is never reported as a proven prime.
 
-## Current milestone: stage 1
+## Current milestone: stage 2
 
 - `primeforge_core`: portable core interfaces and foundational types;
 - `primeforge-selftest`: compiler, OS, architecture, CPU, GPU-presence, and policy checks;
 - `primeforge-tests`: dependency-free unit and contract tests.
 
-No external numerical, JSON, cryptographic, or GPU library is linked at this stage.
+No external numerical, JSON, cryptographic, or GPU library is linked at this stage. The source audit selects only future integration modes; it does not add runtime dependencies.
+
+The state-of-the-art inventory is in `docs/STATE_OF_THE_ART.md`. Pinned component evidence and unresolved gaps are indexed by `audits/INDEX.md`.
 
 ## Build and test
 
@@ -36,7 +38,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/run_all.ps1 -Cle
 
 See `docs/BUILD_WINDOWS.md` and `docs/CANONICAL_JSON.md`.
 
-Milestone evidence is kept in `docs/reports/`. Stage 2 has not yet been included in the current committed baseline.
+Milestone evidence is kept in `docs/reports/`. Stage 2 records source capabilities, licenses, and decisions without making a comparative performance claim.
 
 ## Governance and licensing
 

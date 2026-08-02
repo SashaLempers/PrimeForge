@@ -1,0 +1,27 @@
+# CGBN
+
+- Name: Cooperative Groups Big Numbers
+- Primary URL: https://github.com/NVlabs/CGBN
+- Revision: commit 114601b07ae8c3e4d46b250208ea8d9def7a12f0
+- Source/archive SHA-256: 548CAE13BB130A13EF00B86D51A0594E98A2555968825E7E1BF0B4642BB28AA7
+- License at revision: MIT-style NVIDIA license
+- License-file SHA-256: 4BC245AA005FF5768E54F33AFC7E1DAA233AA3908856F5999AD3A953F76C282A
+- Evidence level: SOURCE_AUDITED
+- Mathematical domain: fixed-size multiprecision arithmetic on CUDA
+- Main algorithms: cooperative big-integer add/multiply/divide/modular operations
+- Supported sizes/forms: 32 through 32,768 bits in 32-bit increments; groups of 4, 8, 16, or 32 threads
+- CPU/GPU: NVIDIA CUDA GPU
+- Vectorization/assembly/FFT/NTT: CUDA cooperative groups; not a giant-number FFT/NTT system
+- Threading: fixed CUDA thread groups per big integer
+- Memory structures and block sizes: compile-time fixed-size limb arrays split across cooperating threads
+- Checkpoints and error controls: examples compare selected results with GMP; no scientific checkpoint format
+- Proofs/certificates: none
+- Input/output formats: C++/CUDA template API
+- Platform status: project requests CUDA 10+; driver runtime is installed but local nvcc is absent
+- Supplied test status: NOT_RUN because the CUDA toolkit is deferred to the conditional CUDA stage
+- Simple reproduced case: NOT_RUN
+- Raw performance: NOT_MEASURED; repository benchmark tables are author-reported
+- Author-declared limits/TODO: repository labels CGBN beta; fixed-size ceiling and CUDA-only design
+- Integration risks: beta API, CUDA toolkit/version lock, architecture-specific tuning, and limited relevance above 32,768 bits
+- Redistribution decision: possible with notice, but no integration selected
+- PrimeForge decision: REFERENCE_ONLY until the stage 15 gate

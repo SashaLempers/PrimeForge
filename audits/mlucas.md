@@ -1,0 +1,27 @@
+# Mlucas
+
+- Name: Mlucas
+- Primary URL: https://github.com/primesearch/Mlucas
+- Revision: commit 91188f71c1cb992e796c754a444924ec4a149649
+- Source/archive SHA-256: 06D8A1BE175330F056C2FE358807B21FB7830D7D7828B249DFEA7E9F4E262F97
+- License at revision: GPL-3.0-only
+- License-file SHA-256: 230184F60BAE2FEAF244F10A8BAC053C8FF33A183BCC365B4D8B876D2B7F4809
+- Evidence level: SOURCE_AUDITED
+- Mathematical domain: Mersenne/Fermat LL, PRP, Pépin, P-1
+- Main algorithms: FFT-based special-modulus arithmetic, Lucas-Lehmer, PRP, Pépin
+- Supported sizes/forms: documented Mersenne and Fermat workloads
+- CPU/GPU: CPU
+- Vectorization/assembly/FFT/NTT: architecture-tuned FFT and SIMD paths
+- Threading: pthread/OpenMP-style platform paths documented by project
+- Memory structures and block sizes: transform arrays and radix-specific kernels
+- Checkpoints and error controls: restart files, residue checks, Gerbicz support for selected work
+- Proofs/certificates: project documentation states it does not mirror all Prime95 proof features
+- Input/output formats: command-line work and result files
+- Platform status: native Windows described as experimental; WSL recommended; no WSL distribution installed locally
+- Supplied test status: NOT_RUN
+- Simple reproduced case: NOT_RUN
+- Raw performance: NOT_MEASURED; upstream comparisons are not PrimeForge benchmarks
+- Author-declared limits/TODO: Windows status and missing Prime95-equivalent proof functions
+- Integration risks: WSL dependency, GPL distribution, format/version stability
+- Redistribution decision: external executable only
+- PrimeForge decision: ADAPTER for independent verification

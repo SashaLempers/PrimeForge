@@ -1,0 +1,27 @@
+# LLR2 1.3.3
+
+- Name: LLR2
+- Primary URL: https://github.com/patnashev/llr2
+- Revision: tag v1.3.3, commit 51f23c6ca0da4942e0105d8b82fc14e49a812a79
+- Source/archive SHA-256: 658534594AC0D560814554CC64ADE933BCC3ED666E7EDAC4E9EDCFB21E17BBC2
+- License at revision: composite/UNKNOWN; APRCL subcode carries LGPL terms and gwnum carries separate copyright/terms, with no single top-level grant
+- License-file SHA-256: not representable as one project license
+- Evidence level: SOURCE_AUDITED
+- Mathematical domain: legacy Lucas-Lehmer-Riesel, Proth/Riesel, PRP
+- Main algorithms: LLR and Proth-family tests using gwnum
+- Supported sizes/forms: structured forms documented in repository
+- CPU/GPU: CPU
+- Vectorization/assembly/FFT/NTT: gwnum FFT/SIMD
+- Threading: multithreaded transform backend
+- Memory structures and block sizes: FFT work arrays
+- Checkpoints and error controls: save/restart and residue outputs
+- Proofs/certificates: legacy proof/test modes; exact status is version-specific
+- Input/output formats: NewPGen/ABC-like candidate lists and text results
+- Platform status: deprecated repository; author directs users to PRST
+- Supplied test status: NOT_RUN
+- Simple reproduced case: NOT_RUN
+- Raw performance: NOT_MEASURED
+- Author-declared limits/TODO: deprecated
+- Integration risks: superseded code, composite licensing, old backend, ambiguous support
+- Redistribution decision: none
+- PrimeForge decision: REJECTED for integration; retained only for formats and regression vectors

@@ -78,4 +78,4 @@ try {
     Pop-Location
 }
 
-Write-Host 'PrimeForge complete stage-1 verification: PASS'
+Write-Host 'PrimeForge complete local verification: PASS'

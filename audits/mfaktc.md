@@ -1,0 +1,27 @@
+# mfaktc 0.24.1
+
+- Name: mfaktc
+- Primary URL: https://github.com/primesearch/mfaktc
+- Revision: tag 0.24.1, commit 4ba8bd695a4a1e5689dce6f3d50810985ab39a41
+- Source/archive SHA-256: D1C0D0E9113F202429684665A9DF412C3B853B0CD3809FAC883BF03ED840B481
+- License at revision: GPL-3.0-only
+- License-file SHA-256: 0B383D5A63DA644F628D99C33976EA6487ED89AAA59F0B3257992DEAC1171E6B
+- Evidence level: SOURCE_AUDITED
+- Mathematical domain: Mersenne trial factoring
+- Main algorithms: CUDA trial factoring over factor bit ranges
+- Supported sizes/forms: Mersenne exponents and bit ranges documented by the project
+- CPU/GPU: NVIDIA CUDA GPU
+- Vectorization/assembly/FFT/NTT: CUDA integer kernels, no giant-number FFT role
+- Threading: GPU kernels plus host orchestration
+- Memory structures and block sizes: GPU candidate-factor batches
+- Checkpoints and error controls: checkpoints, CRC/result verification, built-in self-test
+- Proofs/certificates: factor outputs, not primality proofs
+- Input/output formats: standalone/GIMPS-compatible work and result files
+- Platform status: local CUDA runtime driver exists but nvcc toolkit is absent
+- Supplied test status: NOT_RUN
+- Simple reproduced case: NOT_RUN
+- Raw performance: NOT_MEASURED
+- Author-declared limits/TODO: device/compute-capability and assignment conventions apply
+- Integration risks: CUDA toolkit, GPL, GIMPS work attribution, and accidental network/assignment use
+- Redistribution decision: no bundled executable
+- PrimeForge decision: ADAPTER only after a later explicit workload decision

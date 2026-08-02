@@ -1,0 +1,27 @@
+# gpuowl PRPLL 0.15
+
+- Name: gpuowl PRPLL
+- Primary URL: https://github.com/preda/gpuowl
+- Revision: tag v/prpll/0.15, commit 60818e75ef6985b4bff0939a53575c37b0b4c79a
+- Source/archive SHA-256: 4387B9F3EABABCE74876EE0151B5F8FE6FEFEE0B8910ECC2CF50CDEB0AD7ABE0
+- License at revision: GPL-3.0-only
+- License-file SHA-256: 53927BD0B739D38C87A0A82236FD9B070C2DFFF11C0C119BE50372005D5047AD
+- Evidence level: SOURCE_AUDITED
+- Mathematical domain: GPU Mersenne PRP and Lucas-Lehmer
+- Main algorithms: FFT/NTT-oriented Mersenne modular powering and LL iteration
+- Supported sizes/forms: Mersenne exponents supported by device memory and transform tables
+- CPU/GPU: GPU, OpenCL-oriented upstream
+- Vectorization/assembly/FFT/NTT: GPU transforms
+- Threading: GPU work-group parallelism
+- Memory structures and block sizes: transform buffers sized by exponent/FFT
+- Checkpoints and error controls: save/recovery files and residue checks documented in source
+- Proofs/certificates: PRP and LL outputs; PRP is not a primality proof
+- Input/output formats: command line, work files, residues
+- Platform status: source inspected; no local build
+- Supplied test status: NOT_RUN
+- Simple reproduced case: NOT_RUN
+- Raw performance: NOT_MEASURED
+- Author-declared limits/TODO: hardware/driver compatibility varies
+- Integration risks: GPL executable distribution, GPU determinism, driver/toolchain pinning, and upstream status
+- Redistribution decision: no bundled redistribution in current design
+- PrimeForge decision: ADAPTER

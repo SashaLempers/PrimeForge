@@ -1,0 +1,27 @@
+# Frey-PRPLL
+
+- Name: Frey-PRPLL
+- Primary URL: https://github.com/shitcoinsherpa/Frey-PRPLL
+- Revision: commit 8dc650cfc8d4da5b6b862f87125bfd24af522f54
+- Source/archive SHA-256: 5EE9C5EA20B8481FF435B08BCC404A498DA806A2E162AB85F8A3CF040D71BCD2
+- License at revision: GPL-3.0-only
+- License-file SHA-256: 53927BD0B739D38C87A0A82236FD9B070C2DFFF11C0C119BE50372005D5047AD
+- Evidence level: SOURCE_AUDITED
+- Mathematical domain: CUDA fork/derivative for Mersenne PRP and LL
+- Main algorithms: GPU modular transforms and Mersenne iteration
+- Supported sizes/forms: Mersenne inputs within documented implementation limits
+- CPU/GPU: NVIDIA CUDA GPU
+- Vectorization/assembly/FFT/NTT: CUDA transforms
+- Threading: GPU kernels
+- Memory structures and block sizes: device transform buffers
+- Checkpoints and error controls: documented work/save mechanisms inherited or adapted from PRPLL lineage
+- Proofs/certificates: PRP/LL results; no PrimeForge certificate adapter
+- Input/output formats: project-specific command line/work files
+- Platform status: Linux/WSL-oriented; CUDA 12+ stated by project; local nvcc and WSL are absent
+- Supplied test status: NOT_RUN
+- Simple reproduced case: NOT_RUN
+- Raw performance: NOT_MEASURED; repository performance statements are author-reported only
+- Author-declared limits/TODO: unofficial fork and narrow device/toolchain range
+- Integration risks: unofficial provenance relative to GIMPS, CUDA reproducibility, maintenance, GPL
+- Redistribution decision: none
+- PrimeForge decision: REFERENCE_ONLY pending later comparative gate

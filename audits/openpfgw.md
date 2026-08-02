@@ -1,0 +1,27 @@
+# OpenPFGW
+
+- Name: OpenPFGW mirror
+- Primary URL: https://github.com/primesearch/OpenPFGW
+- Revision: commit 3e7ecda4e9b0d08ec1767498a107e2d7654f7b90
+- Source/archive SHA-256: 0F2CF555E45CCDA76EDD5A0506E215CB4B83FE856E2A0BC1A0E9D2B02E9DE7B8
+- License at revision: composite custom PFGW distribution terms plus separately licensed pfgwlib, GMP/gwnum and other components
+- License-file SHA-256: LICENSE.pfgw 897184694314C2EA2E72D97331C8B394F759BDFB307E222803F4F2BE6BEAA5D9; COPYING.LIB 9ADAA0662341E23F3AD4239C1AAC0325145EC3392B5B222F5F23CE4503699AF8; pfgwlib license 312C6E334F2DA4CAC0C4908EEFFFEAD91BB722643C9574B86048EDAD858CE00D
+- Evidence level: SOURCE_AUDITED
+- Mathematical domain: probable-prime tests for general and structured forms
+- Main algorithms: Fermat/strong PRP and special-form paths through gwnum
+- Supported sizes/forms: arithmetic expressions including k*b^n+c within backend limits
+- CPU/GPU: CPU
+- Vectorization/assembly/FFT/NTT: gwnum FFT/SIMD
+- Threading: backend-dependent
+- Memory structures and block sizes: gwnum transforms and parser/evaluator structures
+- Checkpoints and error controls: command output and backend-specific files
+- Proofs/certificates: not a general certificate system
+- Input/output formats: command line, ABC/NewPGen-style lists, text results
+- Platform status: Windows-oriented mirror source; build not attempted
+- Supplied test status: NOT_RUN
+- Simple reproduced case: NOT_RUN
+- Raw performance: NOT_MEASURED
+- Author-declared limits/TODO: repository is a mirror and distribution includes components under different terms
+- Integration risks: provenance, custom attribution/name restrictions, gwnum terms, parser exposure, and no single project-wide redistribution rule
+- Redistribution decision: forbidden by PrimeForge policy until a complete legal re-audit
+- PrimeForge decision: isolated ADAPTER only

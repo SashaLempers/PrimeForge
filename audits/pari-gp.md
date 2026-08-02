@@ -1,0 +1,27 @@
+# PARI/GP 2.17.4
+
+- Name: PARI/GP
+- Primary URL: https://pari.math.u-bordeaux.fr/
+- Revision: official stable source release 2.17.4, released 2026-06-29
+- Source/archive SHA-256: 02651D99C391007D384B3FADBC20ABC6916B77036F9E496C99E9CE8688CA4B53
+- License at revision: GPL-2.0-or-later
+- License-file SHA-256: COPYING 8177F97513213526DF2CF6184D8FF986C675AFB514D4E68A404010521B880643; LICENSE 2C0002E6BCEAB662DE82967E48E77A9753C7810FFB8C026C3E32FE1BB84D0D2E
+- Evidence level: SOURCE_AUDITED
+- Mathematical domain: computer algebra and rigorous primality
+- Main algorithms: BPSW filtering, Pocklington-Lehmer, APRCL below the documented cutover, ECPP for larger inputs, certificate production/validation
+- Supported sizes/forms: arbitrary-precision integers subject to memory and algorithm cost
+- CPU/GPU: CPU
+- Vectorization/assembly/FFT/NTT: general multiprecision kernel; no selected GPU route
+- Threading: PARI thread facilities exist, but the audited primality path is treated as an opaque executable
+- Memory structures and block sizes: PARI stack and GEN objects
+- Checkpoints and error controls: errors reported by GP; no PrimeForge checkpoint adapter yet
+- Proofs/certificates: primecert, primecertisvalid, primecertexport; source route verified in src/basemath/prime.c
+- Input/output formats: GP text; certificate vectors and export formats
+- Platform status: official source inspected; official Windows 64-bit installer is available but not installed because stage 4 is the first required use
+- Supplied test status: NOT_RUN
+- Simple reproduced case: NOT_RUN
+- Raw performance: NOT_MEASURED
+- Author-declared limits/TODO: general proof can be expensive; certificate export does not cover every internal certificate form identically
+- Integration risks: GPL process distribution, parser hardening, resource limits, and exact version discovery
+- Redistribution decision: do not redistribute; invoke a separately installed official executable
+- PrimeForge decision: ADAPTER

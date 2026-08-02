@@ -1,0 +1,27 @@
+# proth20
+
+- Name: proth20
+- Primary URL: https://github.com/galloty/proth20
+- Revision: commit 6771325939a7ceef2c75644c79981c7df4a61882
+- Source/archive SHA-256: 1B4537FF7538F8FA2E0117DD2B587C789EC371ED5E2441B1E856B7989E306858
+- License at revision: MIT
+- License-file SHA-256: 55D32C6AF388EF6BA7270B41C95FADFD043E6DD57FAE4491EE04CD69150A17D1
+- Evidence level: SOURCE_AUDITED
+- Mathematical domain: Proth candidates k*2^n+1
+- Main algorithms: Proth theorem tests and experimental optimized arithmetic
+- Supported sizes/forms: Proth-form inputs under project constraints
+- CPU/GPU: CPU
+- Vectorization/assembly/FFT/NTT: specialized transform/arithmetic paths described in source
+- Threading: source-specific CPU parallelism
+- Memory structures and block sizes: candidate and transform buffers
+- Checkpoints and error controls: project-specific results; no PrimeForge adapter yet
+- Proofs/certificates: Proth theorem result when all preconditions and witness checks hold
+- Input/output formats: project command line/files
+- Platform status: source inspected; not selected for build in stage 2
+- Supplied test status: NOT_RUN
+- Simple reproduced case: NOT_RUN
+- Raw performance: NOT_MEASURED
+- Author-declared limits/TODO: experimental/narrow project scope
+- Integration risks: small maintenance surface, independent verification required
+- Redistribution decision: permitted with MIT notice
+- PrimeForge decision: REFERENCE_ONLY, possible future ADAPTER after corpus comparison

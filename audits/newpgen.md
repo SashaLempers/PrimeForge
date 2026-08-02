@@ -1,0 +1,27 @@
+# NewPGen
+
+- Name: NewPGen
+- Primary URL: PrimeGrid historical download/documentation archives
+- Revision: no maintained canonical source revision identified
+- Source/archive SHA-256: UNKNOWN
+- License at revision: UNKNOWN
+- License-file SHA-256: UNKNOWN
+- Evidence level: DOC_VERIFIED
+- Mathematical domain: Proth/Riesel candidate generation and sieving
+- Main algorithms: modular sieving for k*2^n±1 and related NewPGen work types
+- Supported sizes/forms: encoded by work-type and candidate-file conventions
+- CPU/GPU: historical CPU
+- Vectorization/assembly/FFT/NTT: version-dependent
+- Threading: version-dependent
+- Memory structures and block sizes: not source-audited because no selected canonical source was found
+- Checkpoints and error controls: candidate and factor files
+- Proofs/certificates: none
+- Input/output formats: NewPGen NPG files, still consumed by later tools
+- Platform status: historical Windows binaries/documentation
+- Supplied test status: NOT_RUN
+- Simple reproduced case: NOT_RUN
+- Raw performance: NOT_MEASURED
+- Author-declared limits/TODO: superseded in active workflows
+- Integration risks: unclear provenance/license, obsolete binary, multiple archive copies
+- Redistribution decision: forbidden
+- PrimeForge decision: REFERENCE_ONLY for file-format compatibility

@@ -1,0 +1,27 @@
+# PSieve-CUDA
+
+- Name: PSieve-CUDA
+- Primary URL: https://github.com/Ken-g6/PSieve-CUDA
+- Revision: commit 401d6591461cace13029d4996b5e4202a02e748c
+- Source/archive SHA-256: 28F9ED7797EE0687255C592640A580E57FF365A35EC25FC8B4E8EEDDC57559EA
+- License at revision: GPL-2.0-only
+- License-file SHA-256: 9F2E250993C6206FAC643824E05E5A0D7D3E0895D9E09A5CE4B12BC2610AFC11
+- Evidence level: SOURCE_AUDITED
+- Mathematical domain: GPU sieve for Proth-style candidates
+- Main algorithms: CUDA modular sieve
+- Supported sizes/forms: documented Proth candidate input
+- CPU/GPU: NVIDIA CUDA GPU
+- Vectorization/assembly/FFT/NTT: legacy CUDA kernels
+- Threading: GPU kernels
+- Memory structures and block sizes: device candidate/factor buffers
+- Checkpoints and error controls: project-specific output; no modern proof route
+- Proofs/certificates: none
+- Input/output formats: project text files
+- Platform status: historical source expects CUDA 2.3-era tooling; incompatible with the audited modern environment without a port
+- Supplied test status: NOT_RUN
+- Simple reproduced case: NOT_RUN
+- Raw performance: NOT_MEASURED
+- Author-declared limits/TODO: obsolete toolchain
+- Integration risks: abandoned/obsolete CUDA API, GPL, lack of modern verification
+- Redistribution decision: none
+- PrimeForge decision: REJECTED as a dependency; source remains a historical reference

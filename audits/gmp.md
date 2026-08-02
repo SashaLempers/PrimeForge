@@ -1,0 +1,27 @@
+# GNU MP 6.3.0
+
+- Name: GNU Multiple Precision Arithmetic Library
+- Primary URL: https://gmplib.org/ and https://ftp.gnu.org/gnu/gmp/
+- Revision: official release 6.3.0
+- Source/archive SHA-256: A3C2B80201B89E68616F4AD30BC66AEE4927C3CE50E33929CA819D5C43538898
+- License at revision: library dual LGPL-3.0-or-later or GPL-2.0-or-later; demos/tests have separate GPL terms
+- License-file SHA-256: COPYING 8CEB4B9EE5ADEDDE47B31E975C1D90C73AD27B6B165A1DCD80C7C545EB65B903; COPYING.LESSERv3 A853C2FFEC17057872340EEE242AE4D96CBF2B520AE27D903E1B2FEF1A5F9D1C; COPYINGv2 8177F97513213526DF2CF6184D8FF986C675AFB514D4E68A404010521B880643
+- Evidence level: SOURCE_AUDITED
+- Mathematical domain: arbitrary-precision integer, rational, and floating arithmetic
+- Main algorithms: size-dependent multiplication, division, modular arithmetic, gcd, roots, and primality helpers
+- Supported sizes/forms: heap-limited arbitrary precision
+- CPU/GPU: CPU
+- Vectorization/assembly/FFT/NTT: extensive per-architecture assembly and tuned thresholds; FFT multiplication at large sizes
+- Threading: core mpn operations are not a general task scheduler
+- Memory structures and block sizes: limb arrays; thresholds selected by generated tuning parameters
+- Checkpoints and error controls: none at engine-work-unit level
+- Proofs/certificates: probabilistic primality helpers only; not a certificate system
+- Input/output formats: C API, C++ wrappers, textual conversions
+- Platform status: upstream Unix-style build; native MSVC integration not attempted in stage 2
+- Supplied test status: NOT_RUN; dependency is not yet required
+- Simple reproduced case: NOT_RUN
+- Raw performance: NOT_MEASURED
+- Author-declared limits/TODO: portability and tuning vary by architecture; exact subcomponent licenses must be preserved
+- Integration risks: Windows provenance, static/dynamic-link obligations, and license notices must be fixed before distribution
+- Redistribution decision: library only, subject to the selected dual-license path and stage 3 review
+- PrimeForge decision: LINK candidate, deferred until the independent-oracle stage

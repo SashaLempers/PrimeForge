@@ -1,0 +1,27 @@
+# mfakto 0.16.0-beta.5
+
+- Name: mfakto
+- Primary URL: https://github.com/primesearch/mfakto
+- Revision: tag v0.16.0-beta.5, commit 7c9f20bc054c12aef7b44f412eb457a2960da8f2
+- Source/archive SHA-256: 62A788FE6C92EA2DCECA36DFBCF429E25CDEF603568C143BAFB836FFC43FD3BC
+- License at revision: GPL-3.0-only
+- License-file SHA-256: 0B383D5A63DA644F628D99C33976EA6487ED89AAA59F0B3257992DEAC1171E6B
+- Evidence level: SOURCE_AUDITED
+- Mathematical domain: Mersenne trial factoring
+- Main algorithms: OpenCL trial factoring
+- Supported sizes/forms: Mersenne factor ranges documented by project
+- CPU/GPU: OpenCL GPU
+- Vectorization/assembly/FFT/NTT: OpenCL integer kernels
+- Threading: GPU work-items/work-groups
+- Memory structures and block sizes: batched candidate factors
+- Checkpoints and error controls: checkpoints and built-in self-test
+- Proofs/certificates: factors only
+- Input/output formats: standalone and GIMPS-compatible files
+- Platform status: NVIDIA OpenCL 3.0 and AMD OpenCL 2.1 platforms detected locally; build not attempted
+- Supplied test status: NOT_RUN
+- Simple reproduced case: NOT_RUN
+- Raw performance: NOT_MEASURED
+- Author-declared limits/TODO: beta status; source documents correctness caveats for some devices lacking required atomics
+- Integration risks: GPU feature detection, GPL, work attribution, and cross-driver reproducibility
+- Redistribution decision: no bundled executable
+- PrimeForge decision: ADAPTER after a later explicit workload decision

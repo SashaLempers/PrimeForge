@@ -1,0 +1,27 @@
+# PRST 14.0
+
+- Name: PRST
+- Primary URL: https://github.com/patnashev/prst
+- Revision: tag v14.0, commit 4c01b7a5ba0f63a202951797476c4f2d6ac6907a
+- Source/archive SHA-256: 9B09AB4A3AD669AAFCB275F20A43A0B2FF71535E45B1D6EBC73AF3285773FEDC
+- License at revision: UNKNOWN; no project-wide license file or unambiguous grant was found
+- License-file SHA-256: UNKNOWN
+- Evidence level: SOURCE_AUDITED
+- Mathematical domain: Proth, Riesel, Fermat PRP, LLR and structured-form proofs
+- Main algorithms: Fermat PRP, Proth, Pocklington/Morrison and LLR-family tests
+- Supported sizes/forms: multiple k*b^n+c forms documented by README and source
+- CPU/GPU: CPU
+- Vectorization/assembly/FFT/NTT: gwnum-style transform backend and CPU-specific paths
+- Threading: multithreaded transforms
+- Memory structures and block sizes: transform buffers selected for candidate form/size
+- Checkpoints and error controls: save files, residues, proof-related output
+- Proofs/certificates: Proth/Pocklington-style proof workflows documented; Fermat PRP remains PRP
+- Input/output formats: command line and PrimeGrid/NewPGen-style candidate files
+- Platform status: source inspected; local build prohibited by unresolved license/provenance and unselected backend chain
+- Supplied test status: NOT_RUN
+- Simple reproduced case: NOT_RUN
+- Raw performance: NOT_MEASURED
+- Author-declared limits/TODO: exact supported modes vary by release
+- Integration risks: absent license grant is a hard distribution/integration blocker; backend terms also require review
+- Redistribution decision: forbidden
+- PrimeForge decision: REFERENCE_ONLY until the author supplies an unambiguous license

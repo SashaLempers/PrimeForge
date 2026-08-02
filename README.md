@@ -1,10 +1,28 @@
 # PrimeForge
 
-PrimeForge is a C++23 research platform for auditable prime search, proof, verification, and coverage workflows. Correctness, evidence, and reproducibility take precedence over optimization.
+PrimeForge is a C++23 prime-search engine being specialized for one performance target: AMD Ryzen 9 9950X3D, NVIDIA GeForce RTX 5080, 64 GB-class DDR5, and Windows/MSVC/CUDA. Correctness, evidence, reproducibility and safe recovery take precedence over optimization.
 
 The project currently makes no claim of superior performance, mathematical novelty, or discovery of a new prime. A probable prime is never reported as a proven prime.
 
-## Current milestone: stage 11
+## Current milestone: hardware pivot
+
+The generic stage 0-20 order has been superseded. The governing plan is
+`docs/pivot/NEW_ROADMAP.md`; the complete audit is
+`docs/pivot/PIVOT_REPORT.md`. Windows/MSVC/CUDA is the performance path.
+Linux/GCC remains mandatory portable-correctness CI and does not prohibit
+target-specific translation units or measured hardware specialization.
+
+PIVOT-00 changes priorities and documentation, not mathematical results. The
+pre-pivot baseline is secured at commit `35dde4a`. PIVOT-01 next creates a fresh,
+source-labelled `hardware_profile.json`; historical hardware observations are not
+silently reused as current measurements.
+
+Prolonged benchmarks may eventually run for hours or days without an arbitrary
+duration ceiling, but only after an independent watchdog, continuous monitoring,
+documented thresholds, tested stop/recovery paths and progressive checkpoints are
+implemented. See `docs/pivot/PERFORMANCE_PROTOCOL.md`.
+
+## Preserved components
 
 - `primeforge_core`: portable core interfaces and foundational types;
 - `primeforge-selftest`: compiler, OS, architecture, CPU, GPU-presence, and policy checks;
@@ -25,9 +43,19 @@ The project currently makes no claim of superior performance, mathematical novel
 - `primeforge-adaptive-bound-tests`: measured-selectivity model and PRP/proof-separation gate;
 - `primeforge-adaptive-bound-benchmark`: calibration/validation study for five bound strategies.
 
-No external numerical, JSON, cryptographic, or GPU library is linked at this stage. Stage 8 uses a small original arbitrary-precision integer solely for family-definition correctness; it is not presented as a performance engine. The source audit selects only future integration modes and adds no runtime dependency.
+No external numerical, JSON, cryptographic, CUDA or GPU library is linked at this
+milestone. Stage 8 uses a small original arbitrary-precision integer solely for
+family-definition correctness; it is not presented as a performance engine. The
+partial external-process adapter is pre-pivot reference material, not an accepted
+engine integration.
 
-The adaptive-bound decision is specified in `docs/ADAPTIVE_BOUND.md`; the CPU experiment boundary is in `docs/FAMILY_SIEVE.md`; the congruence rules and local compositeness proof are in `docs/CONGRUENCE_COMPILER.md`; the closed, bounded family grammar is in `docs/FAMILY_LANGUAGE.md`. The work-unit identity and mathematical coverage proof are in `docs/WORK_UNITS.md`; the stage-6 algorithm and toggle boundary are in `docs/SIEVE.md`. The state-of-the-art inventory is in `docs/STATE_OF_THE_ART.md`. The 68-case correctness corpus and its independent evidence are documented in `docs/CORPUS.md`. The claim-safe measurement rules are in `docs/BENCHMARK_PROTOCOL.md`. Pinned component evidence and unresolved gaps are indexed by `audits/INDEX.md`.
+The target, pipeline, memory, CUDA, autotuning and measurement designs are under
+`docs/pivot/`. The adaptive-bound decision remains in `docs/ADAPTIVE_BOUND.md`;
+the CPU experiment boundary is in `docs/FAMILY_SIEVE.md`; the congruence rules and
+local compositeness proof are in `docs/CONGRUENCE_COMPILER.md`; the closed,
+bounded family grammar is in `docs/FAMILY_LANGUAGE.md`. Work-unit identity and
+coverage are in `docs/WORK_UNITS.md`; the scalar/portable sieve is in
+`docs/SIEVE.md`; audit evidence is indexed by `audits/INDEX.md`.
 
 The licensing/provenance boundary is documented in `LICENSING.md`, `docs/PROVENANCE_POLICY.md`, and `licenses/DISTRIBUTION_MANIFEST.tsv`. Verify a distribution with:
 
@@ -59,7 +87,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/run_all.ps1 -Cle
 
 See `docs/BUILD_WINDOWS.md` and `docs/CANONICAL_JSON.md`.
 
-Milestone evidence is kept in `docs/reports/`. Stage 11 measures fixed and adaptive sieve bounds against an internal base-2 strong PRP workload. A positive PRP is recorded only as `PROBABLE_PRIME`; the test suite proves this separation with a known strong pseudoprime. Across 210 validation samples, offline adaptation only reproduced fixed-low and online exploration added cost, so H2 is `FAILED` for all three retained regimes. Telemetry-incomplete timings carry `performance_claim=NONE`. No search campaign is started. primesieve, FLINT, PARI/GP, and proth20 remain isolated local oracles only.
+Milestone evidence is kept in `docs/reports/`. Stage 11 remains a scoped negative
+result: offline adaptation reproduced fixed-low and online exploration added cost
+on its retained regimes. Old telemetry-incomplete timings keep
+`performance_claim=NONE`. No search campaign has started. primesieve, FLINT,
+PARI/GP and proth20 remain isolated local oracles only.
 
 ## Governance and licensing
 

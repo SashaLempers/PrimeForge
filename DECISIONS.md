@@ -271,3 +271,66 @@ The pre-adapter next-test workload is a base-2 strong PRP over bounded unsigned-
 **Status:** Accepted — 2026-08-02
 
 Families are labeled calibration or validation before timing. Offline choices use only calibration rows. The fixed-low, fixed-medium, fixed-high, offline, and online strategies are compared only on distinct validation families and report uncertainty per regime.
+
+## D-0046 — Hardware pivot supersedes the generic execution order
+
+**Status:** Accepted — 2026-08-02
+
+The original stage 0-20 specification remains immutable historical and scientific
+context, but D-0009's generic order no longer governs implementation. The current
+order is PIVOT-00 through PIVOT-12 in `docs/pivot/NEW_ROADMAP.md`. Completed proofs,
+tests, evidence and negative results retain their meaning.
+
+## D-0047 — One machine owns the performance path
+
+**Status:** Accepted — 2026-08-02
+
+The exclusive optimized target is the declared Ryzen 9 9950X3D, RTX 5080,
+64 GB-class DDR5 Windows machine. MSVC/CUDA-specific implementations are allowed
+behind reference-checked boundaries. Linux/GCC remains portable-correctness CI and
+cannot by itself block a target fast path.
+
+## D-0048 — Hardware facts carry source classifications
+
+**Status:** Accepted — 2026-08-02
+
+PIVOT-01 distinguishes `DECLARED`, `DETECTED`, `MEASURED` and `UNKNOWN`. A profile
+stores the source of each value and preserves conflicts. Marketing capacities,
+TDP and old reports never silently become current measurements.
+
+## D-0049 — Duration is not a benchmark stop condition
+
+**Status:** Accepted — 2026-08-02
+
+Prolonged benchmarks and autotuning may run for hours or days without an arbitrary
+duration ceiling after the independent watchdog, thresholds, checkpoint and
+recovery gates pass. Mathematical divergence, hardware/CUDA error, unsafe
+resource state, lost watchdog or failed recovery remain stop conditions.
+
+## D-0050 — The watchdog is an independent safety boundary
+
+**Status:** Accepted — 2026-08-02
+
+The benchmark process does not monitor itself exclusively. A separate process
+logs observations, can reduce/pause load, requests checkpointed graceful stop and
+forces termination after a configured timeout. Its failure invalidates the series
+and stops new work. Fault injection is mandatory before a long campaign.
+
+## D-0051 — Process interference prefers pause over closure
+
+**Status:** Accepted — 2026-08-02
+
+Automatic closure is limited to an explicit campaign allowlist of nonessential
+same-session processes with no known unsaved work. System, driver, security,
+hardware-service, Visual Studio, Codex, Git, project-terminal, unknown and
+potentially unsaved applications are protected. Doubt causes pause or load
+reduction.
+
+## D-0052 — No invasive hardware tuning is implicit
+
+**Status:** Accepted — 2026-08-02
+
+Ordinary profiling and autotuning do not modify BIOS, EXPO, overclock, undervolt,
+voltages, durable power limits, fan curves, thermal protection, Windows security
+or drivers. Any such later action needs separate explicit authorization and does
+not follow from permission to run a long benchmark.

@@ -1,5 +1,18 @@
 # PrimeForge benchmark protocol
 
+## Pivot scope
+
+This document preserves the generic statistics and evidence contract. The target
+machine, independent-watchdog, competing-process, prolonged-run and final-report
+requirements in `pivot/PERFORMANCE_PROTOCOL.md` are additionally mandatory for
+all new target benchmarks. Where the earlier stage-5 harness merely records
+telemetry as unavailable, PIVOT-02 must implement monitored execution before any
+long run or performance-valid target tuning.
+
+Duration alone is not a stop condition. A run may last hours or days only after
+the PIVOT-02 watchdog and recovery gates pass. Missing sensors remain `UNKNOWN`;
+loss of the watchdog invalidates and stops a run.
+
 ## Claim boundary
 
 `primeforge-benchmark` is a measurement harness established before the numerical engine. Its stage-5 `reference-a` and `reference-b` variants intentionally execute the same deterministic validation workload over the same 68 corpus values. Their timings validate scheduling, measurement, serialization, statistics, and compatibility checks; they do not compare algorithms and support no performance claim.
@@ -32,7 +45,7 @@ Two successive runs are compatible only when every variant has the same candidat
 
 `scripts/run_benchmark_gate.ps1` records the Git commit and dirty state, exact compiler path/version, Windows version and architecture, CPU, installed RAM, BIOS manufacturer/version, GPU names and driver versions, active Windows power-plan GUID, process count, hardware-setting statement, ventilation statement, and approximate ambient temperature when supplied.
 
-Unknown values remain `UNKNOWN`. TDP is never substituted for measured power. The script accepts an optional non-negative wall-energy value only together with a meter identifier; otherwise wall energy and power remain `UNKNOWN`. Initial hardware limits are reported as default but unverified unless an operator supplies separately verified evidence. PrimeForge never closes background applications or changes the Windows profile automatically.
+Unknown values remain `UNKNOWN`. TDP is never substituted for measured power. The script accepts an optional non-negative wall-energy value only together with a meter identifier; otherwise wall energy and power remain `UNKNOWN`. Initial hardware limits are reported as default but unverified unless an operator supplies separately verified evidence. PrimeForge does not change the Windows power profile automatically. A future watchdog may pause or reduce load on interference. It may close only explicitly allowlisted nonessential same-session processes known not to contain unsaved work; protected, project, security and unknown processes are never closed automatically.
 
 ## Telemetry and invalidation
 

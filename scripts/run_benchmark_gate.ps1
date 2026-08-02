@@ -23,7 +23,7 @@ $resolvedOutput = if ([System.IO.Path]::IsPathRooted($OutputDirectory)) {
 $candidatePath = Join-Path $repositoryRoot 'corpus\v1\cases.tsv'
 $candidateHash = (Get-FileHash -LiteralPath $candidatePath -Algorithm SHA256).Hash
 $commit = (& git -C $repositoryRoot rev-parse HEAD).Trim()
-$dirty = if ((& git -C $repositoryRoot status --porcelain).Count -eq 0) { 'NO' } else { 'YES' }
+$dirty = if (@(& git -C $repositoryRoot status --porcelain).Count -eq 0) { 'NO' } else { 'YES' }
 if ($WallEnergyMillijoules -ne 'UNKNOWN') {
     $parsedEnergy = 0L
     if (-not [int64]::TryParse($WallEnergyMillijoules, [ref]$parsedEnergy) -or $parsedEnergy -lt 0) {

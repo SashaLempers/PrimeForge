@@ -147,3 +147,12 @@ Each future entry must include:
 - **Failure criterion:** Windows CI passed 4/5 rather than the required 5/5.
 - **Conclusion:** `.gitattributes` now marks `corpus/v1/certificates/*.txt` as `text eol=lf`. The user-provided specification remains explicitly `-text`, preserving its original bytes and SHA-256.
 - **Retry condition:** every new corpus extension needs an explicit line-ending rule and a passing Windows/Linux checkout test.
+
+## NR-0015 — Clean-worktree benchmark metadata hit scalar PowerShell semantics
+
+- **Date:** 2026-08-02
+- **Change tested:** first final stage-5 evidence generation on a clean Git tree.
+- **Evidence:** under PowerShell `StrictMode`, the empty output of `git status --porcelain` had no `.Count` property, although preliminary dirty-tree runs returned multiple lines and passed that expression.
+- **Failure criterion:** the gate stopped before creating any final evidence file.
+- **Conclusion:** the Git output is now wrapped in `@(...)`, so zero, one, and many status lines have stable array-count semantics.
+- **Retry condition:** the benchmark gate is executed on a clean tree in every milestone reproduction.

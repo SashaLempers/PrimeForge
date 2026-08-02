@@ -43,6 +43,7 @@ function(primeforge_enable_strict_warnings target)
 endfunction()
 
 add_library(primeforge_core STATIC
+    src/congruence/compiler.cpp
     src/core/sha256.cpp
     src/core/status.cpp
     src/core/system_info.cpp
@@ -131,6 +132,16 @@ target_link_libraries(primeforge-family PRIVATE PrimeForge::core)
 target_compile_features(primeforge-family PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge-family)
 
+add_executable(primeforge-congruence-tests tests/congruence_test.cpp)
+target_link_libraries(primeforge-congruence-tests PRIVATE PrimeForge::core)
+target_compile_features(primeforge-congruence-tests PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-congruence-tests)
+
+add_executable(primeforge-congruence src/congruence/main.cpp)
+target_link_libraries(primeforge-congruence PRIVATE PrimeForge::core)
+target_compile_features(primeforge-congruence PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-congruence)
+
 if(BUILD_TESTING)
     add_test(NAME primeforge.unit COMMAND primeforge-tests)
     add_test(NAME primeforge.selftest COMMAND primeforge-selftest)
@@ -156,6 +167,24 @@ if(BUILD_TESTING)
             --set k=3
             --set n=5
             --modulus 11
+    )
+    add_test(NAME primeforge.congruence_compiler COMMAND primeforge-congruence-tests)
+    add_test(
+        NAME primeforge.congruence_cli
+        COMMAND primeforge-congruence
+            --base 2
+            --constant 1
+            --k-min 1
+            --k-max 31
+            --k-step 2
+            --n-min 0
+            --n-max 12
+            --n-step 2
+            --k-parity odd
+            --prime 3
+            --prime 5
+            --prime 7
+            --period-multiplier 2
     )
     add_test(
         NAME primeforge.work_units_cli

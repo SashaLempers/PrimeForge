@@ -205,3 +205,27 @@ PrimeForge uses a small original signed base-10^9 integer for exact family-defin
 **Status:** Accepted — 2026-08-02
 
 Ninja's MSVC dependency extraction depends on the exact `/showIncludes` prefix. On the French host, CMake 4.3 detected the prefix but double-encoded its non-breaking spaces. PrimeForge repairs only that byte sequence after compiler detection and leaves all correctly detected locale prefixes unchanged. The normalization never relaxes `/W4`, `/WX`, `/permissive-`, Application Control, or any test gate.
+
+## D-0035 — Congruence rules are potential matches until locally witnessed
+
+**Status:** Accepted — 2026-08-02
+
+A compiled residue rule cannot by itself mark a candidate composite. Application must recheck that `q` is prime, exact modular evaluation is zero, `abs(F)>q`, and the candidate is semantically valid (`F>1`). This separately protects `F=q`, excluded values, corrupted tables, and later caller errors. Survivors receive no primality promotion.
+
+## D-0036 — Noninvertible bases never enter the inverse formula
+
+**Status:** Accepted — 2026-08-02
+
+For `q|b`, stage 9 treats `n=0` and `n>0` separately and never computes an inverse of `b^n`. Divisibility of `c` is an independent period-table fact. The convention `b^0=1`, including integer `0^0=1`, is explicit and test-gated.
+
+## D-0037 — Parameter steps compile in index space
+
+**Status:** Accepted — 2026-08-02
+
+Finite signed-64-bit progressions carry a positive unsigned step. Exponent periods and forbidden `k` classes are transformed into index congruences, including the `q|step` all-or-none case. Parity remains an independent semantic filter. This avoids silently assuming unit steps or merging validity constraints into factor mathematics.
+
+## D-0038 — Congruence table identity is not authentication
+
+**Status:** Accepted — 2026-08-02
+
+Canonical SHA-256 detects ordinary mutation. Validation also deterministically recompiles the table and compares canonical bytes, catching a mutated rule even when its hash is recomputed. This does not authenticate an untrusted family definition or signer; later provenance layers remain necessary.

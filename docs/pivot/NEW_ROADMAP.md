@@ -7,9 +7,10 @@ Windows/Linux CI. Linux validates portable correctness; Windows validates the
 target fast path.
 
 Current progress: PIVOT-00 is accepted at commit `ce22b91`. PIVOT-01, including
-CUDA Toolkit 13.3 detection, is accepted at commit `9379303`; private Windows and
-Linux CI run `30766835906` is green. PIVOT-02 is implemented and locally gated;
-its private CI remains the closure gate before PIVOT-03 work begins.
+CUDA Toolkit 13.3 detection, is accepted at commit `9379303`. PIVOT-02 is accepted
+at commit `10699d3`; private Windows/Linux CI run `30767609057` is green. PIVOT-03
+has begun with topology-aware Ryzen worker placement; no fastest configuration is
+claimed yet.
 
 ## PIVOT-00 — Audit and reorientation
 

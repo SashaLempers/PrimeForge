@@ -20,7 +20,8 @@ The public options isolate the planned variables:
 - scalar, AVX2, or AVX-512 dense-bitset merge with runtime dispatch;
 - explicit prefetch;
 - a nonmandatory huge-page allocation probe;
-- scheduler-managed or temporarily pinned Windows worker threads;
+- scheduler-managed, physical-core-spread or logical-processor-spread Windows CPU
+  sets, with physical cores filled before SMT siblings and L3 domains interleaved;
 - physical-core or logical/SMT thread counts.
 
 AVX2 and AVX-512 currently vectorize only the deterministic merge of per-worker bitsets. This limited scope is recorded so a capability flag cannot be misreported as a sieve-wide speedup. Unsupported SIMD paths fall back to scalar. The huge-page option probes whether a reversible large-page allocation is permitted and immediately releases it; it does not request privileges and is never a dependency. Linux remains compilable, but pinning and huge-page probing currently report not applied there.
@@ -29,7 +30,13 @@ AVX2 and AVX-512 currently vectorize only the deterministic merge of per-worker 
 
 `primeforge-family-sieve-benchmark` performs warmup, uses a fixed-seed randomized schedule, runs at least seven repetitions, and times congruence compilation, the complete sieve, and result hashing. It compares every timed result to the scalar output before accepting a row. The retained matrix changes one variable from the baseline at a time over small, medium, and large finite regimes.
 
-The host currently has no integrated reliable provider for temperature, effective frequency, throttling, hardware errors, or wall energy. Those fields remain `UNKNOWN`, telemetry is `UNAVAILABLE`, every row has `performance_valid=NO`, and `performance_claim=NONE`. The retained data locates segment parallelism as a bottleneck, but it cannot establish an optimal production configuration or support a performance assertion.
+The historical stage-10 evidence had no integrated reliable provider for
+temperature, effective frequency, throttling, hardware errors or wall energy.
+Those retained rows remain `performance_valid=NO` and `performance_claim=NONE`.
+PIVOT-02 now supplies CPU frequency plus NVIDIA telemetry/throttling, but CPU
+temperature and package power remain `UNKNOWN`; old timings are never promoted.
+PIVOT-03 must collect new disjoint calibration/validation data before selecting a
+production configuration.
 
 Run a clean retained diagnostic collection with:
 

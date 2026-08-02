@@ -78,7 +78,12 @@ int main() {
         add([](auto& value) { value.vector_mode = fsieve::VectorMode::avx512; });
         add([](auto& value) { value.explicit_prefetch = true; });
         add([](auto& value) { value.request_huge_pages = true; });
-        add([](auto& value) { value.thread_placement = fsieve::ThreadPlacement::pinned; });
+        add([](auto& value) {
+            value.thread_placement = fsieve::ThreadPlacement::physical_core_spread;
+        });
+        add([](auto& value) {
+            value.thread_placement = fsieve::ThreadPlacement::logical_processor_spread;
+        });
         add([](auto& value) { value.threads = 1U; });
         add([](auto& value) { value.threads = 4U; });
 
@@ -101,6 +106,22 @@ int main() {
               "AVX2 dispatch follows runtime capability");
         check(avx512_result.vector_mode_applied == capabilities.avx512f,
               "AVX-512 dispatch follows runtime capability");
+        const auto physical_affinity = fsieve::run(table, sha256, variants[15]);
+        const auto logical_affinity = fsieve::run(table, sha256, variants[16]);
+        check(physical_affinity.affinity_workers_requested == baseline.threads,
+              "physical-core placement records every requested worker");
+        check(logical_affinity.affinity_workers_requested == baseline.threads,
+              "logical placement records every requested worker");
+#ifdef _WIN32
+        check(physical_affinity.affinity_workers_applied == baseline.threads,
+              "physical-core CPU sets apply to every Windows worker");
+        check(logical_affinity.affinity_workers_applied == baseline.threads,
+              "logical CPU sets apply to every Windows worker");
+#else
+        check(physical_affinity.affinity_workers_applied == 0U &&
+                  logical_affinity.affinity_workers_applied == 0U,
+              "portable CI does not fabricate CPU-set affinity");
+#endif
 
         const auto first_hash = fsieve::result_sha256(expected, sha256);
         const auto second_hash = fsieve::result_sha256(

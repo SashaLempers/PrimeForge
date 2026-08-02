@@ -3,6 +3,7 @@
 #include "primeforge/family_sieve/family_sieve.hpp"
 
 #include "primeforge/core/system_info.hpp"
+#include "primeforge/cpu/cpu_topology.hpp"
 #include "primeforge/sieve/sieve.hpp"
 #include "vector_merge.hpp"
 
@@ -289,30 +290,6 @@ void scan_segment(
     }
 }
 
-[[nodiscard]] bool try_pin_thread(const unsigned int worker_index, std::uintptr_t& prior) noexcept {
-#if defined(_WIN32)
-    if (worker_index >= sizeof(DWORD_PTR) * 8U) return false;
-    const DWORD_PTR mask = static_cast<DWORD_PTR>(1) << worker_index;
-    const auto previous = SetThreadAffinityMask(GetCurrentThread(), mask);
-    prior = static_cast<std::uintptr_t>(previous);
-    return previous != 0U;
-#else
-    static_cast<void>(worker_index);
-    prior = 0U;
-    return false;
-#endif
-}
-
-void restore_thread_pin(const std::uintptr_t prior) noexcept {
-#if defined(_WIN32)
-    if (prior != 0U) {
-        static_cast<void>(SetThreadAffinityMask(GetCurrentThread(), static_cast<DWORD_PTR>(prior)));
-    }
-#else
-    static_cast<void>(prior);
-#endif
-}
-
 [[nodiscard]] bool probe_huge_pages() noexcept {
 #if defined(_WIN32)
     const auto size = GetLargePageMinimum();
@@ -462,6 +439,14 @@ Result run(
     const auto thread_count = std::max(1U, std::min<unsigned int>(
         options.threads, static_cast<unsigned int>(std::min<std::uint64_t>(
                              segment_count, std::numeric_limits<unsigned int>::max()))));
+    std::vector<cpu::CpuSet> affinity_plan;
+    if (options.thread_placement != ThreadPlacement::scheduler_managed) {
+        const auto topology = cpu::collect_topology();
+        const auto strategy = options.thread_placement == ThreadPlacement::physical_core_spread
+                                  ? cpu::AffinityStrategy::physical_core_spread
+                                  : cpu::AffinityStrategy::logical_processor_spread;
+        affinity_plan = cpu::build_affinity_plan(topology.cpu_sets, strategy, thread_count);
+    }
     std::vector<WorkerOutput> outputs(thread_count);
     for (auto& output : outputs) {
         if (options.storage == CandidateStorage::dense_bitset) {
@@ -474,9 +459,8 @@ Result run(
     workers.reserve(thread_count);
     for (unsigned int worker = 0U; worker < thread_count; ++worker) {
         workers.emplace_back([&, worker] {
-            std::uintptr_t prior_affinity{};
-            if (options.thread_placement == ThreadPlacement::pinned) {
-                outputs[worker].pinning_applied = try_pin_thread(worker, prior_affinity);
+            if (worker < affinity_plan.size()) {
+                outputs[worker].pinning_applied = cpu::apply_current_thread_cpu_set(affinity_plan[worker]);
             }
             try {
                 const auto process_segment = [&](const std::uint64_t segment) {
@@ -500,7 +484,9 @@ Result run(
             } catch (...) {
                 failures[worker] = std::current_exception();
             }
-            restore_thread_pin(prior_affinity);
+            if (outputs[worker].pinning_applied) {
+                cpu::clear_current_thread_cpu_set();
+            }
         });
     }
     for (auto& worker : workers) worker.join();
@@ -512,6 +498,8 @@ Result run(
     result.candidate_count = candidate_count;
     result.eliminated_words = std::move(premarked);
     result.crt_applied = crt_applied;
+    result.affinity_workers_requested =
+        options.thread_placement == ThreadPlacement::scheduler_managed ? 0U : thread_count;
     result.huge_pages_applied = options.request_huge_pages && probe_huge_pages();
     result.rule_checks = premark_counters.rule_checks;
     result.modular_checks = premark_counters.modular_checks;
@@ -541,6 +529,9 @@ Result run(
         result.exact_checks += output.counters.exact_checks;
         result.thread_pinning_applied =
             result.thread_pinning_applied || output.pinning_applied;
+        if (output.pinning_applied) {
+            ++result.affinity_workers_applied;
+        }
     }
     result.vector_mode_applied =
         options.storage == CandidateStorage::dense_bitset && vector_supported;
@@ -593,7 +584,15 @@ std::string describe(const Options& options) {
     else stream << "scalar";
     stream << ";prefetch=" << (options.explicit_prefetch ? "yes" : "no")
            << ";huge-pages=" << (options.request_huge_pages ? "requested" : "no")
-           << ";placement=" << (options.thread_placement == ThreadPlacement::pinned ? "pinned" : "scheduler")
+           << ";placement=";
+    if (options.thread_placement == ThreadPlacement::physical_core_spread) {
+        stream << "physical-core-spread";
+    } else if (options.thread_placement == ThreadPlacement::logical_processor_spread) {
+        stream << "logical-processor-spread";
+    } else {
+        stream << "scheduler";
+    }
+    stream
            << ";threads=" << options.threads;
     return stream.str();
 }

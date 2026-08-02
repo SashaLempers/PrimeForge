@@ -393,3 +393,14 @@ throttling, writes durable bounded-memory logs, validates resumable atomic
 checkpoints, and proves graceful/forced process stop. It does not add a dashboard,
 database, scheduler or generic process manager. Detailed interference attribution
 is deferred until a concrete engine benchmark supplies a measurable workload.
+
+## D-0059 — Sieve affinity is expressed as topology-aware CPU sets
+
+**Status:** Accepted — 2026-08-02
+
+PIVOT-03 replaces ordinal bit-mask pinning with Windows CPU-set plans derived from
+`GetSystemCpuSetInformation`. Physical-core placement chooses one logical
+processor per core and interleaves last-level-cache domains; logical placement
+fills all physical cores before adding SMT siblings. Parked processors and CPU
+sets allocated to another process are excluded. Scheduler-managed placement
+remains the unclaimed default until a valid benchmark selects otherwise.

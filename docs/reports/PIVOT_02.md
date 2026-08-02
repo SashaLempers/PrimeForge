@@ -1,7 +1,7 @@
 # PIVOT-02 — target measurement and independent watchdog
 
-Date: 2026-08-02. Status: PASS locally; private Windows/Linux CI required for
-closure.
+Date: 2026-08-02. Status: PASS at commit `10699d3`, locally and in private
+Windows/Linux CI.
 
 ## Outcome
 
@@ -55,6 +55,9 @@ Final clean results:
 
 `primeforge.watchdog_process` passed in 0.63 s Debug and 0.62 s Release. The
 in-process fault suite passed in 0.04 s for both configurations.
+
+Private CI run `30767609057` passed Linux in 1 min 18 s and Windows in 5 min
+46 s. PIVOT-03 began only after both jobs completed successfully.
 
 ## Contribution directe au logiciel final
 

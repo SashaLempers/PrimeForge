@@ -17,7 +17,11 @@ enum class LoopOrder { prime_major, candidate_major };
 enum class MetadataLayout { array_of_structures, structure_of_arrays };
 enum class Scheduling { static_partition, dynamic_segments };
 enum class VectorMode { scalar, avx2, avx512 };
-enum class ThreadPlacement { scheduler_managed, pinned };
+enum class ThreadPlacement {
+    scheduler_managed,
+    physical_core_spread,
+    logical_processor_spread
+};
 
 struct Options {
     CandidateStorage storage{CandidateStorage::dense_bitset};
@@ -49,6 +53,8 @@ struct Result {
     bool crt_applied{};
     bool huge_pages_applied{};
     bool thread_pinning_applied{};
+    unsigned int affinity_workers_requested{};
+    unsigned int affinity_workers_applied{};
 };
 
 [[nodiscard]] Result run(

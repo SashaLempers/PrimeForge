@@ -75,6 +75,7 @@ add_library(primeforge_core STATIC
     src/core/sha256.cpp
     src/core/status.cpp
     src/core/system_info.cpp
+    src/cpu/cpu_topology.cpp
     src/engine/external_adapter.cpp
     src/family/family.cpp
     src/math/big_integer.cpp
@@ -270,6 +271,16 @@ add_executable(primeforge-watchdog-process-tests tests/watchdog_process_test.cpp
 target_compile_features(primeforge-watchdog-process-tests PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge-watchdog-process-tests)
 
+add_executable(primeforge-cpu-topology src/cpu/main.cpp)
+target_link_libraries(primeforge-cpu-topology PRIVATE PrimeForge::core)
+target_compile_features(primeforge-cpu-topology PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-cpu-topology)
+
+add_executable(primeforge-cpu-topology-tests tests/cpu_topology_test.cpp)
+target_link_libraries(primeforge-cpu-topology-tests PRIVATE PrimeForge::core)
+target_compile_features(primeforge-cpu-topology-tests PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-cpu-topology-tests)
+
 if(BUILD_TESTING)
     add_test(NAME primeforge.unit COMMAND primeforge-tests)
     add_test(NAME primeforge.selftest COMMAND primeforge-selftest)
@@ -306,6 +317,8 @@ if(BUILD_TESTING)
             ${CMAKE_CURRENT_BINARY_DIR}/external-adapter-test-work
     )
     add_test(NAME primeforge.runtime COMMAND primeforge-runtime-tests)
+    add_test(NAME primeforge.cpu_topology COMMAND primeforge-cpu-topology-tests)
+    add_test(NAME primeforge.cpu_topology_cli COMMAND primeforge-cpu-topology)
     add_test(
         NAME primeforge.watchdog_process
         COMMAND primeforge-watchdog-process-tests

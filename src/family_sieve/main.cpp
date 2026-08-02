@@ -59,6 +59,8 @@ struct Sample {
     bool crt_applied{};
     bool huge_pages_applied{};
     bool pinning_applied{};
+    unsigned int affinity_workers_requested{};
+    unsigned int affinity_workers_applied{};
 };
 
 [[nodiscard]] std::uint64_t parse_u64(const std::string_view text) {
@@ -120,7 +122,12 @@ struct Sample {
     add("avx512-merge", [](auto& value) { value.vector_mode = fsieve::VectorMode::avx512; });
     add("explicit-prefetch", [](auto& value) { value.explicit_prefetch = true; });
     add("huge-page-probe", [](auto& value) { value.request_huge_pages = true; });
-    add("pinned-threads", [](auto& value) { value.thread_placement = fsieve::ThreadPlacement::pinned; });
+    add("physical-core-spread", [](auto& value) {
+        value.thread_placement = fsieve::ThreadPlacement::physical_core_spread;
+    });
+    add("logical-processor-spread", [](auto& value) {
+        value.thread_placement = fsieve::ThreadPlacement::logical_processor_spread;
+    });
     add("logical-smt", [&](auto& value) {
         value.threads = std::max(1U, system.cpu.logical_cores);
     });
@@ -198,11 +205,13 @@ int main(const int argc, char** argv) {
                     result.crt_applied,
                     result.huge_pages_applied,
                     result.thread_pinning_applied,
+                    result.affinity_workers_requested,
+                    result.affinity_workers_applied,
                 });
             }
         }
 
-        std::string raw = "schema_version\tregime\tvariant\trepetition\torder\telapsed_nanoseconds\tcandidates\teliminated\trule_checks\tmodular_checks\texact_checks\tresult_sha256\tvector_applied\tcrt_applied\thuge_pages_applied\tpinning_applied\ttelemetry_status\tperformance_valid\tperformance_claim\n";
+        std::string raw = "schema_version\tregime\tvariant\trepetition\torder\telapsed_nanoseconds\tcandidates\teliminated\trule_checks\tmodular_checks\texact_checks\tresult_sha256\tvector_applied\tcrt_applied\thuge_pages_applied\tpinning_applied\taffinity_workers_requested\taffinity_workers_applied\ttelemetry_status\tperformance_valid\tperformance_claim\n";
         for (const auto& sample : samples) {
             raw += "1\t" + sample.regime + '\t' + sample.variant + '\t' +
                    std::to_string(sample.repetition) + '\t' + std::to_string(sample.order) + '\t' +
@@ -212,6 +221,8 @@ int main(const int argc, char** argv) {
                    std::to_string(sample.exact_checks) + '\t' + sample.result_sha256 + '\t' +
                    yes_no(sample.vector_applied) + '\t' + yes_no(sample.crt_applied) + '\t' +
                    yes_no(sample.huge_pages_applied) + '\t' + yes_no(sample.pinning_applied) +
+                   '\t' + std::to_string(sample.affinity_workers_requested) +
+                   '\t' + std::to_string(sample.affinity_workers_applied) +
                    "\tUNAVAILABLE\tNO\tNONE\n";
         }
         write_text(arguments.output_directory / "raw.tsv", raw);

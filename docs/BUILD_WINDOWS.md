@@ -34,7 +34,7 @@ From an ordinary PowerShell prompt:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/run_all.ps1 -Clean
 ```
 
-The script locates Visual Studio with `vswhere`, loads its developer environment, deletes only the two known build directories when `-Clean` is supplied, and stops at the first failure.
+The script locates Visual Studio with `vswhere`, loads its developer environment, deletes only the two known build directories when `-Clean` is supplied, and stops at the first failure. During CMake generation, PrimeForge repairs the specific double-encoded non-breaking-space sequence observed in CMake 4.3's detection of localized MSVC `/showIncludes` output. Correctly detected locale prefixes are left unchanged. This stabilizes Ninja header dependency metadata; it does not suppress or downgrade diagnostics.
 
 ## Smart App Control / Application Control
 

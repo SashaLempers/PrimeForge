@@ -199,3 +199,9 @@ Stage-8 canonical identity covers statement/parameter/constraint ordering, dupli
 **Status:** Accepted — 2026-08-02
 
 PrimeForge uses a small original signed base-10^9 integer for exact family-definition evaluation and its existing 128-bit modular primitive for modular evaluation. This code is a correctness baseline, not a performance engine. Exact values and exact constraint operands are rejected before construction when the conservative domain-derived estimate exceeds 10,000,000 bits. GMP and FLINT remain external until a later stage technically justifies an individually licensed integration.
+
+## D-0034 — Localized MSVC dependency prefixes are normalized narrowly
+
+**Status:** Accepted — 2026-08-02
+
+Ninja's MSVC dependency extraction depends on the exact `/showIncludes` prefix. On the French host, CMake 4.3 detected the prefix but double-encoded its non-breaking spaces. PrimeForge repairs only that byte sequence after compiler detection and leaves all correctly detected locale prefixes unchanged. The normalization never relaxes `/W4`, `/WX`, `/permissive-`, Application Control, or any test gate.

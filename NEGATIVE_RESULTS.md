@@ -201,3 +201,21 @@ Each future entry must include:
 - **Failure criterion:** the single clean `run_all.ps1 -Clean` orchestration could not finish its Debug phase.
 - **Conclusion:** the enforced host policy remains unchanged. The failure is not a test assertion or coverage disagreement. Private hosted Windows/Linux CI is required before stage 7 closes.
 - **Retry condition:** full hosted CI, or a trusted-signing/authorized-development path documented in NR-0009.
+
+## NR-0021 — GCC rejected nodiscard on a friend declaration
+
+- **Date:** 2026-08-02
+- **Change tested:** stage-8 private workflow run `30763201015`, Linux/GCC build of the new arbitrary-precision integer.
+- **Evidence:** GCC treated `[[nodiscard]]` on a non-defining friend declaration as an ignored attribute; project `-Werror` correctly stopped `big_integer.cpp` and `family.cpp`. Windows/MSVC completed the entire clean Debug/Release job successfully in 1 min 59 s.
+- **Failure criterion:** Linux did not compile, so the cross-platform stage gate remained open despite all local Windows tests passing.
+- **Conclusion:** the redundant attribute was removed from the friend declaration. The comparison operator semantics and ABI are unchanged; no warning suppression or weakening of `-Werror` was introduced.
+- **Retry condition:** a new private workflow must compile and pass all 12 tests under Linux/GCC and Windows/MSVC.
+
+## NR-0022 — Localized MSVC include records produced an empty Ninja dependency set
+
+- **Date:** 2026-08-02
+- **Change tested:** non-clean local rebuild after the NR-0021 header-only correction.
+- **Evidence:** the header timestamp was newer than `big_integer.cpp.obj`, yet Ninja reported no work; `ninja -t deps` showed `#deps 0`. MSVC emitted the French `/showIncludes` prefix `Remarque : inclusion du fichier`, which the active Ninja rule did not recognize.
+- **Failure criterion:** an incremental build must not leave an object stale after a tracked header changes.
+- **Conclusion:** CMake now repairs only the observed UTF-8 double-encoding of the localized non-breaking spaces before Ninja rules are generated. Correctly detected prefixes in any locale remain unchanged. No compiler warning or security control is disabled.
+- **Retry condition:** a clean configure/build must populate nonzero header dependencies, and a touched tracked header must make the dependent object dirty.

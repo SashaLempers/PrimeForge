@@ -23,8 +23,8 @@ The example CLI reports candidate `97`, residue `9 mod 11`, satisfied constraint
 
 `scripts/run_all.ps1 -Clean` removed only the two known build trees and completed successfully:
 
-- Debug: 33 compilation/link steps, zero PrimeForge warnings, CTest 12/12 passed in 15.87 s on the subsequent concise run; the family gate took 14.67 s;
-- Release: 33 compilation/link steps, zero PrimeForge warnings, CTest 12/12 passed in 1.89 s on the subsequent concise run; the family gate took 1.52 s;
+- Debug: 33 compilation/link steps, zero PrimeForge warnings, CTest 12/12 passed in 16.19 s on the final clean run; the family gate took 14.70 s;
+- Release: 33 compilation/link steps, zero PrimeForge warnings, CTest 12/12 passed in 2.27 s on the final clean run; the family gate took 1.53 s;
 - both explicit self-tests reported MSVC 19.51.36252.0, C++23 (`__cplusplus=202400`), and `PASS`;
 - complete clean orchestration reported `PrimeForge complete local verification: PASS`.
 
@@ -38,5 +38,11 @@ Host metadata remains Windows 11 `10.0.26200`, x86_64, AMD Ryzen 9 9950X3D (16 p
 - The internal integer is a correctness implementation and carries no throughput claim.
 - No external engine, OpenSSL, GMP, FLINT, CUDA component, work assignment, network service, or real campaign is used.
 - Hosted Windows/Linux CI evidence is recorded by the follow-up closure commit after the private workflow completes.
+
+The first hosted run `30763201015` passed Windows/MSVC in 1 min 59 s but exposed GCC's `-Werror=attributes` rejection of a redundant `[[nodiscard]]` on a non-defining friend declaration. NR-0021 records the failure and conservative correction; no warning was suppressed.
+
+The correction audit also found that CMake had double-encoded non-breaking spaces in the French-localized `/showIncludes` prefix, leaving Ninja with zero header dependencies locally. NR-0022 records the issue. CMake now narrowly normalizes that sequence while preserving correctly detected locales; the final clean run verifies a populated dependency set before closure.
+
+After normalization, `ninja -t deps` records both PrimeForge headers for `big_integer.cpp.obj`. Advancing the timestamp of `big_integer.hpp` made 13 dependent build steps dirty; the subsequent Debug and Release rebuilds executed those steps and again passed 12/12 tests. This closes NR-0022's local retry condition.
 
 **Local status:** Accepted — 2026-08-02

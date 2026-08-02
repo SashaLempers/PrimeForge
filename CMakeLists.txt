@@ -11,6 +11,25 @@ project(
 
 include(CTest)
 
+# CMake 4.3 can double-encode a non-breaking space while detecting localized
+# MSVC /showIncludes output. Ninja then records zero header dependencies. Repair
+# only that byte sequence and preserve every correctly detected locale prefix.
+if(MSVC AND CMAKE_GENERATOR MATCHES "^Ninja")
+    string(ASCII 194 160 primeforge_nbsp)
+    string(ASCII 195 130 194 160 primeforge_double_encoded_nbsp)
+    string(REPLACE
+        "${primeforge_double_encoded_nbsp}"
+        "${primeforge_nbsp}"
+        primeforge_showincludes_prefix
+        "${CMAKE_CXX_CL_SHOWINCLUDES_PREFIX}"
+    )
+    if(NOT primeforge_showincludes_prefix STREQUAL CMAKE_CXX_CL_SHOWINCLUDES_PREFIX)
+        set(CMAKE_CXX_CL_SHOWINCLUDES_PREFIX "${primeforge_showincludes_prefix}")
+        set(CMAKE_CL_SHOWINCLUDES_PREFIX "${primeforge_showincludes_prefix}")
+        message(STATUS "Normalized localized MSVC /showIncludes prefix for Ninja")
+    endif()
+endif()
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)

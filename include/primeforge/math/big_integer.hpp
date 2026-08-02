@@ -41,7 +41,7 @@ public:
         return left;
     }
     [[nodiscard]] friend bool operator==(const BigInteger&, const BigInteger&) = default;
-    [[nodiscard]] friend std::strong_ordering operator<=> (
+    friend std::strong_ordering operator<=> (
         const BigInteger& left, const BigInteger& right) noexcept;
 
 private:

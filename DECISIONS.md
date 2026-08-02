@@ -334,3 +334,28 @@ Ordinary profiling and autotuning do not modify BIOS, EXPO, overclock, undervolt
 voltages, durable power limits, fan curves, thermal protection, Windows security
 or drivers. Any such later action needs separate explicit authorization and does
 not follow from permission to run a long benchmark.
+
+## D-0053 — Profile identity contains stable observations only
+
+**Status:** Accepted — 2026-08-02
+
+`hardware_profile.json` contains stable inventory and sensor-availability facts,
+not current free memory, temperature, utilization or power samples. Its id hashes
+canonical identity bytes including the toolchain and driver environment. Dynamic
+watchdog samples belong to later append-only campaign logs.
+
+## D-0054 — Hardware inventory excludes unique device identifiers
+
+**Status:** Accepted — 2026-08-02
+
+The tracked profile excludes motherboard/BIOS serials, CPU processor id, GPU UUIDs
+and PNP instance suffixes. Model, firmware, bus location, capacities and versions
+are sufficient for compatibility while avoiding unnecessary unique identifiers.
+
+## D-0055 — Provider fields are not sustained measurements
+
+**Status:** Accepted — 2026-08-02
+
+WMI/SMBIOS clock, cache, capacity and topology fields are `DETECTED`, never
+`MEASURED`. NVIDIA query availability does not assert a safe threshold. Only a
+defined experiment may create a `MEASURED` value, and PIVOT-01 runs no load.

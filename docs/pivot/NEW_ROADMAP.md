@@ -6,6 +6,10 @@ documentation, a milestone commit, a push to the private repository and green
 Windows/Linux CI. Linux validates portable correctness; Windows validates the
 target fast path.
 
+Current progress: PIVOT-00 is accepted at commit `ce22b91` with private Windows
+and Linux CI green. PIVOT-01 is implemented and locally validated; its milestone
+CI is the remaining closure gate.
+
 ## PIVOT-00 — Audit and reorientation
 
 Classify all existing work, establish the exclusive hardware target, preserve

@@ -30,18 +30,17 @@ canonical identities, independent status axes and checkpoint guarantees remain
 mandatory on every path. A result from an optimized path is rejected on any
 disagreement with its reference.
 
-## Current evidence and unknowns
+## Current profile
 
-Earlier stage-1 evidence detected the named Ryzen processor, 16 physical/32
-logical processors, SSE2, AVX, AVX2, AVX-512F and BMI2, plus an RTX 5080 and AMD
-integrated graphics. Stage-5 evidence detected 66,184,978,432 bytes of installed
-RAM. These are historical observations and are not the PIVOT-01 profile.
+PIVOT-01 produced the source-labelled canonical profile documented in
+`HARDWARE_PROFILE.md`. It detects the target CPU, GPU, memory modules, one Windows
+processor group, toolchain and available NVIDIA queries. The profile id is
+`sha256:a7a1af6ead57778ce7cadc240c7f4f14e103701d4e791228119ba2e901ae5648`.
 
-The fresh profile must determine what the current host actually exposes. CPU
-cache topology, CCD/cache asymmetry, processor groups, sustained frequencies,
-memory channels/speed/timings, usable RAM, GPU compute capability, exact VRAM,
-CUDA toolkit, temperature sensors, power sensors, throttling and hardware-error
-feeds remain `UNKNOWN` until recorded by a named source. TDP is never power.
+CCD/cache asymmetry, sustained frequencies, measured bandwidth/latency, memory
+timings, CPU temperature/power, GPU hotspot/VRAM temperature, safe thresholds and
+throttling state remain `UNKNOWN`. The CUDA toolkit is not detected because
+`nvcc` is absent. TDP is never power.
 
 ## Safety boundary
 

@@ -313,6 +313,19 @@ if(BUILD_TESTING)
             -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyDistributionLicenses.cmake
     )
     set_tests_properties(primeforge.license_missing_negative PROPERTIES WILL_FAIL TRUE)
+
+    if(WIN32)
+        add_test(
+            NAME primeforge.hardware_profile
+            COMMAND powershell.exe
+                -NoProfile
+                -ExecutionPolicy Bypass
+                -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_hardware_profile.ps1
+                -Collector ${CMAKE_CURRENT_SOURCE_DIR}/scripts/collect_hardware_profile.ps1
+                -SelfTestPath $<TARGET_FILE:primeforge-selftest>
+                -WorkingDirectory ${CMAKE_CURRENT_BINARY_DIR}/hardware-profile-test
+        )
+    endif()
 endif()
 
 add_custom_target(

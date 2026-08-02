@@ -13,9 +13,10 @@ Linux/GCC remains mandatory portable-correctness CI and does not prohibit
 target-specific translation units or measured hardware specialization.
 
 PIVOT-00 changes priorities and documentation, not mathematical results. The
-pre-pivot baseline is secured at commit `35dde4a`. PIVOT-01 next creates a fresh,
-source-labelled `hardware_profile.json`; historical hardware observations are not
-silently reused as current measurements.
+pre-pivot baseline is secured at commit `35dde4a`. PIVOT-01 provides the fresh,
+source-labelled `profiles/hardware_profile.json`, documented in
+`docs/pivot/HARDWARE_PROFILE.md`; historical observations are not silently reused
+as current measurements.
 
 Prolonged benchmarks may eventually run for hours or days without an arbitrary
 duration ceiling, but only after an independent watchdog, continuous monitoring,
@@ -83,6 +84,15 @@ Complete clean verification from any PowerShell prompt:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/run_all.ps1 -Clean
+```
+
+Regenerate the stable local hardware profile after a Release build:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File scripts\collect_hardware_profile.ps1 `
+  -OutputPath profiles\hardware_profile.json `
+  -SelfTestPath out\build\msvc-release\primeforge-selftest.exe
 ```
 
 See `docs/BUILD_WINDOWS.md` and `docs/CANONICAL_JSON.md`.

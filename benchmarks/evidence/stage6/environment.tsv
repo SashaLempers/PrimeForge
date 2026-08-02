@@ -1,0 +1,14 @@
+key	value
+schema_version	1
+commit	0a284b97787e21ec14cb44f7d132f88cde1ff1d5
+dirty	NO
+repetitions	7
+thread_parameter	4
+clock	System.Diagnostics.Stopwatch
+timed_region	child process start through exit; executable startup included
+temperature_celsius	UNKNOWN
+frequency_hz	UNKNOWN
+electrical_power_watts	UNKNOWN
+wall_energy_joules	UNKNOWN
+ambient_temperature_celsius	UNKNOWN
+performance_claim	NONE

@@ -21,7 +21,11 @@ The stage-6 script schedules nine variants over three 10000000-integer ranges wi
 
 No result claims that PrimeForge is faster than primesieve. Wheel 210 and SIMD were not retained. The first preliminary timing run had invalid PowerShell aggregation and is recorded as NR-0016.
 
-The retained corrected run is generated only after the canonical-LF evidence writer itself is committed and the worktree is clean. Every retained row remains ineligible for performance use.
+The retained corrected run measured clean commit `0a284b97787e21ec14cb44f7d132f88cde1ff1d5`: repository dirty `NO`, 189 complete samples, and one identical count across all nine variants for each range (664579, 482449, and 361726). Every row remains ineligible for performance use. All files are UTF-8/LF with zero CR bytes; evidence hashes are:
+
+- `environment.tsv`: `637BE824127B82024A00EA12BCE4E88E9D7C5AFA5E868DAE4BD0DD93465AF0EE`;
+- `raw.tsv`: `3EF39DD5DF2FBF394ED3A645AAFDAC1F5C6806FB6F3700416A941EE080676534`;
+- `summary.tsv`: `41BD88B505183D1D9A35B6D6E340AD03E8C5768CE0D9FF5D5F0589C95164670F`.
 
 ## Build status
 

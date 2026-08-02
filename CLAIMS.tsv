@@ -1,0 +1,9 @@
+id	claim	status	evidence	commit	date	owner
+H1	An automatic compiler can generate correct and competitive modular residue sieves for structured families k*b^n+c.	HYPOTHESIS	Research specification section 3 H1	stage-0-governance	2026-08-02	Sasha Lempers
+H2	An adaptive sieve bound can improve end-to-end time or energy on at least some regimes.	HYPOTHESIS	Research specification section 3 H2	stage-0-governance	2026-08-02	Sasha Lempers
+H3	Automatic engine routing can remain within 3 percent of the best measured static engine on held-out workloads.	HYPOTHESIS	Research specification section 3 H3	stage-0-governance	2026-08-02	Sasha Lempers
+H4	An asynchronous CPU/GPU pipeline can reduce idle time and total processing time on target workloads.	HYPOTHESIS	Research specification section 3 H4	stage-0-governance	2026-08-02	Sasha Lempers
+H5	Generic fixed-size CUDA modular arithmetic can beat CPU GMP/FLINT end-to-end on sufficiently large uniform batches.	HYPOTHESIS	Research specification section 3 H5	stage-0-governance	2026-08-02	Sasha Lempers
+H6	Proof integration from the start can reduce recalculation and validation risk at acceptable total cost.	HYPOTHESIS	Research specification section 3 H6	stage-0-governance	2026-08-02	Sasha Lempers
+H7	A portfolio scheduler using frequent intermediate signals can improve a selected objective over fixed allocation.	HYPOTHESIS	Research specification section 3 H7	stage-0-governance	2026-08-02	Sasha Lempers
+H8	The combination of a family language, congruence compilation, routing, and certification can constitute a distinct contribution.	HYPOTHESIS	Research specification section 3 H8	stage-0-governance	2026-08-02	Sasha Lempers

@@ -1,0 +1,5 @@
+PrimeForge stage 0 integrates no third-party library or runtime component into its binaries.
+
+Git and GitHub CLI are development tools and are not redistributed by this repository. Their individual provenance and current audit status are recorded in SOURCES.lock.
+
+No conclusion about a future dependency's license, redistribution, or integration mode may be inferred from this file.

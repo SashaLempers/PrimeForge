@@ -1,0 +1,2475 @@
+PROGRAMME DE RECHERCHE PRIMEFORGE
+=================================
+
+Conception d'un logiciel adaptatif, auditable et ultra-optimisé pour la recherche,
+la preuve et la vérification de nombres premiers
+
+Version : 1.0
+Date : 2 août 2026
+Plateforme cible initiale : Windows 11, C++23, CPU AMD Ryzen 9 9950X3D,
+GPU NVIDIA GeForce RTX 5080, 64 Go de RAM
+Nom provisoire du projet : PrimeForge
+
+
+TABLE DES MATIÈRES
+==================
+
+0. Statut scientifique du document
+1. Mission et définition de « logiciel ultra-optimisé »
+2. Résultat final attendu
+3. Hypothèses de recherche falsifiables
+4. Périmètre initial et exclusions
+5. Cartographie initiale des logiciels existants
+6. Architecture proposée de PrimeForge
+7. Programme de recherche pas à pas
+8. Protocoles mathématiques de correction
+9. Protocole de benchmark et d'évaluation énergétique
+10. Formats de données et traçabilité
+11. Structure recommandée du dépôt
+12. Calendrier indicatif et portes de décision
+13. Plan concret des quatorze premiers jours
+14. Risques principaux et mesures de réduction
+15. Critères permettant de déclarer le projet réussi
+16. Sources primaires initiales
+17. Liste de contrôle finale avant une vraie campagne de recherche
+
+
+0. STATUT SCIENTIFIQUE DU DOCUMENT
+==================================
+
+0.1. Ce qui est proposé
+-----------------------
+
+Ce document transforme l'idée précédente en un programme de recherche exécutable.
+L'idée centrale est de construire non pas un test de primalité universel supposé
+« magique », mais un méta-moteur nommé PrimeForge. PrimeForge devra :
+
+1. décrire précisément une famille de nombres ;
+2. compiler automatiquement ses contraintes modulaires ;
+3. éliminer les candidats composites avec des facteurs vérifiables ;
+4. mesurer le matériel disponible ;
+5. choisir automatiquement le meilleur moteur CPU ou GPU pour chaque tâche ;
+6. produire une preuve lorsqu'un candidat survit ;
+7. faire vérifier cette preuve par une implantation indépendante ;
+8. conserver une trace complète de la zone couverte, des versions, des paramètres
+   et des résultats.
+
+0.2. Ce qui n'est pas encore démontré
+-------------------------------------
+
+Aucune affirmation selon laquelle PrimeForge serait déjà le logiciel le plus rapide
+n'est faite ici. Les gains de performance, l'intérêt réel du GPU générique, la
+qualité du routage adaptatif et la nouveauté scientifique du « compilateur de
+familles » sont des hypothèses à tester.
+
+L'analyse des logiciels existants présentée plus loin est une cartographie initiale
+fondée sur leurs documentations et dépôts officiels. Elle ne remplace pas l'audit
+ligne par ligne prévu dans le programme. Une force ou une faiblesse mentionnée ici
+ne devra être considérée comme établie qu'après reproduction locale et benchmark.
+
+0.3. Règle de vérité du projet
+------------------------------
+
+Toute affirmation devra porter l'une des étiquettes suivantes :
+
+- DOC_VERIFIED : confirmée par une documentation ou une source primaire identifiée ;
+- SOURCE_AUDITED : confirmée par lecture d'une version précise du code source ;
+- REPRODUCED : reproduite localement à partir d'un protocole enregistré ;
+- BENCHMARKED : mesurée avec données brutes et protocole comparable ;
+- PROVED : démontrée mathématiquement ou vérifiée par un certificat ;
+- HYPOTHESIS : idée plausible, mais non encore validée ;
+- FAILED : expérience négative ou hypothèse réfutée ;
+- UNKNOWN : information manquante, qui ne doit pas être devinée.
+
+Les résultats de primalité utiliseront une taxonomie séparée :
+
+- COMPOSITE_WITH_FACTOR : un facteur explicite a été trouvé ;
+- COMPOSITE_WITH_WITNESS : un test fournit un témoin de composité ;
+- PRP : probable premier seulement ;
+- PROVEN_PRIME : une preuve rigoureuse a été obtenue ;
+- INDEPENDENTLY_VERIFIED : la preuve a été contrôlée par un second moteur ;
+- NOVELTY_DUE_DILIGENCE_COMPLETE : les vérifications raisonnables de nouveauté ont
+  été effectuées et documentées.
+
+Un PRP ne devra jamais être présenté comme un nombre premier prouvé.
+
+0.4. Limite concernant la « nouveauté » d'un nombre premier
+-----------------------------------------------------------
+
+Il n'existe pas de registre exhaustif contenant tous les nombres premiers déjà
+calculés par toute personne. La nouveauté absolue est donc difficile à démontrer
+pour un entier arbitraire. PrimeForge devra préférer :
+
+- les zones attribuées par un projet organisé comme GIMPS ou PrimeGrid ;
+- les familles disposant d'une base de couverture maintenue ;
+- ou une plage indépendante annoncée, horodatée et définie avant le calcul.
+
+Jusqu'à confirmation par le projet ou les bases pertinentes, un résultat sera
+appelé « candidat retrouvé dans une zone présumée non couverte », et non
+« nouveau nombre premier ».
+
+
+1. MISSION ET DÉFINITION DE « LOGICIEL ULTRA-OPTIMISÉ »
+=======================================================
+
+1.1. Mission principale
+-----------------------
+
+Construire un système Windows facile à lancer qui maximise, sur une famille bien
+définie, le nombre de candidats correctement traités, puis le nombre de premiers
+prouvés et vérifiés, par unité de temps et d'énergie.
+
+1.2. Ce que « le plus rapide » doit signifier
+---------------------------------------------
+
+Il ne faut pas mesurer uniquement la vitesse d'une multiplication ou d'un test PRP.
+Le coût pertinent est le coût complet :
+
+T_total = T_generation
+        + T_sieve
+        + T_PRP
+        + T_proof
+        + T_independent_verification
+        + T_checkpoint
+        + T_input_output
+        + T_recovery_from_failures.
+
+Les métriques principales seront :
+
+- temps pour couvrir une plage de travail fixée ;
+- candidats survivants traités par seconde ;
+- temps moyen par candidat après criblage ;
+- joules ou wattheures par unité de travail ;
+- temps entre un PRP et une preuve vérifiée ;
+- nombre de premiers vérifiés par heure ;
+- nombre de premiers vérifiés par kilowattheure ;
+- taux de perte de travail après interruption ;
+- taux d'erreur détectée et non détectée ;
+- taux d'occupation utile du CPU et du GPU.
+
+Comme les nombres premiers trouvés sont rares, les comparaisons quotidiennes ne
+pourront pas reposer seulement sur « le nombre de découvertes ». Elles utiliseront
+des charges de travail fixes et reproductibles.
+
+1.3. Objectif réaliste
+----------------------
+
+L'objectif réaliste n'est pas de battre simultanément primesieve, Prime95,
+Genefer et tous les autres sur leur propre spécialité. Le projet sera considéré
+comme réellement innovant s'il obtient au moins l'un des résultats suivants :
+
+- une amélioration robuste de bout en bout sur une famille et une plage précises ;
+- un compilateur de contraintes modulaires correct et réutilisable ;
+- un meilleur routage automatique entre plusieurs moteurs ;
+- une pipeline de preuve et de vérification plus sûre et plus reproductible ;
+- un résultat mathématique ou algorithmique nouveau, même limité à une sous-famille ;
+- un résultat négatif bien établi montrant où le GPU ou une optimisation échoue.
+
+
+2. RÉSULTAT FINAL ATTENDU
+=========================
+
+PrimeForge devra accepter une description de recherche proche de celle-ci :
+
+family: proth
+expression: k * 2^n + 1
+parameters:
+  k:
+    start: 1
+    stop: 1000000000
+    step: 2
+  n:
+    start: 100000
+    stop: 200000
+constraints:
+  - k < 2^n
+  - gcd(k, 2) = 1
+objective: verified_primes_per_kwh
+proof_policy: proth_then_pocklington_then_ecpp
+coverage_policy: exact
+
+Il devra ensuite produire automatiquement :
+
+1. une forme canonique de la famille ;
+2. un plan de partition sans trou de l'espace des paramètres ;
+3. des unités de travail identifiées par hash ;
+4. des tables de résidus interdits ;
+5. un plan de criblage ;
+6. un choix de moteur pour chaque étape ;
+7. des checkpoints atomiques ;
+8. des résultats bruts ;
+9. une preuve de primalité lorsqu'elle est disponible ;
+10. une vérification indépendante ;
+11. un manifeste final reproductible.
+
+Les exécutables finaux recommandés sont :
+
+- primeforge.exe          : lance une campagne ;
+- primeforge-bench.exe    : calibre et compare les moteurs ;
+- primeforge-verify.exe   : vérifie résultats et certificats ;
+- primeforge-inspect.exe  : inspecte une unité de travail ou un manifeste ;
+- primeforge-selftest.exe : exécute tous les tests rapides de correction.
+
+La première version doit rester en ligne de commande. Une interface graphique ne
+doit être développée qu'après stabilisation du moteur et des formats.
+
+
+3. HYPOTHÈSES DE RECHERCHE FALSIFIABLES
+=======================================
+
+H1 — Compilation automatique de résidus
+----------------------------------------
+
+Hypothèse : pour des familles structurées comme k*b^n+c, un compilateur peut
+générer automatiquement un crible modulaire dont la correction est démontrable,
+et dont la vitesse se rapproche d'un crible écrit à la main.
+
+Test : comparer le compilateur à une énumération exhaustive sur de petites plages,
+puis à des implémentations spécialisées sur des plages plus grandes.
+
+Réfutation : au moins un candidat premier est éliminé, un composite attendu est
+omis sans raison documentée, ou le coût du compilateur rend la méthode inutile.
+
+H2 — Borne de criblage adaptative
+---------------------------------
+
+Hypothèse : une borne de criblage déterminée par le coût mesuré du test suivant est
+meilleure qu'une borne fixe sur au moins certains régimes.
+
+Modèle initial, à considérer comme heuristique :
+
+bénéfice_attendu(q)
+  = candidats_vivants * taux_d_elimination_mesuré(q)
+    * coût_moyen_du_traitement_suivant ;
+
+gain_net(q)
+  = bénéfice_attendu(q) - coût_du_criblage_par_q.
+
+On continue à inclure q lorsque le gain net prévu reste positif, avec une marge de
+sécurité pour le bruit de mesure.
+
+Réfutation : sur les plages de validation non utilisées pour calibrer le modèle,
+la stratégie adaptative n'améliore pas le temps total ou l'énergie totale.
+
+H3 — Routage automatique des moteurs
+------------------------------------
+
+Hypothèse : un modèle basé sur la forme, le nombre de bits, la taille du lot et le
+matériel peut choisir un moteur presque aussi bien que la meilleure configuration
+connue a posteriori.
+
+Critère : sur un jeu de validation, le temps choisi automatiquement ne doit pas
+être supérieur de plus de 3 % au meilleur choix statique mesuré pour la même tâche,
+hors bruit et démarrage.
+
+H4 — Pipeline CPU/GPU asynchrone
+--------------------------------
+
+Hypothèse : produire et cribler le lot N+1 sur CPU pendant que le GPU traite le lot
+N réduit les périodes d'inactivité et le temps total.
+
+Réfutation : les transferts, synchronisations et variations de durée annulent le
+gain sur les charges visées.
+
+H5 — GPU multiprécision générique
+---------------------------------
+
+Hypothèse : pour de grands lots de nombres de taille fixe, une exponentiation
+modulaire CUDA générique peut battre GMP/FLINT sur CPU, transfert compris.
+
+Réfutation : aucun régime réaliste ne fournit au moins 20 % de gain de bout en bout,
+ou la correction ne peut pas être garantie à un coût raisonnable.
+
+H6 — Preuve intégrée dès la conception
+--------------------------------------
+
+Hypothèse : intégrer la génération, la conservation et la vérification des preuves
+dès le départ réduit les recalculs, les faux résultats et le coût de validation.
+
+Test : mesurer le coût complet avec et sans génération de preuve, y compris le
+coût futur des doubles vérifications évitées.
+
+H7 — Planificateur de portefeuille
+----------------------------------
+
+Hypothèse : répartir dynamiquement le temps entre plusieurs familles selon des
+métriques intermédiaires améliore l'objectif choisi par rapport à une allocation
+fixe.
+
+Important : le nombre de premiers trouvés est trop rare pour servir seul de signal
+d'apprentissage. Le planificateur devra utiliser des signaux plus fréquents : coût
+du crible, taux de survie, coût du PRP, disponibilité de preuves et énergie.
+
+H8 — Valeur scientifique du compilateur de familles
+---------------------------------------------------
+
+Hypothèse : la combinaison « langage de familles + compilation de congruences +
+routage + certification » apporte une contribution distincte des outils existants.
+
+Cette hypothèse exige une vraie revue de littérature et de logiciels. Elle ne doit
+pas être déclarée nouvelle avant cette revue.
+
+
+4. PÉRIMÈTRE INITIAL ET EXCLUSIONS
+=================================
+
+4.1. Familles prises en charge dans l'ordre
+-------------------------------------------
+
+Niveau A — Entiers inférieurs à 2^64
+
+- génération de tous les premiers dans un intervalle ;
+- comptage et validation de cribles ;
+- test déterministe de primalité 64 bits ;
+- terrain de référence pour la correction et l'optimisation mémoire.
+
+Niveau B — Nombres de Proth
+
+N = k*2^n + 1, avec k impair et k < 2^n.
+
+Cette famille est prioritaire pour le compilateur de résidus et offre une voie de
+preuve spécialisée lorsque les conditions du théorème de Proth sont satisfaites.
+
+Niveau C — Nombres de Riesel
+
+N = k*2^n - 1.
+
+Ils utilisent le même type de structure modulaire, mais leur preuve peut demander
+une stratégie différente. Le projet ne supposera pas qu'un test de Proth s'applique
+au cas négatif.
+
+Niveau D — Nombres de Mersenne
+
+N = 2^p - 1.
+
+Ils servent surtout à valider l'orchestration d'un moteur externe extrêmement
+spécialisé. PrimeForge ne tentera pas d'abord de remplacer Prime95 ou PRPLL.
+
+Niveau E — Nombres de Fermat généralisés
+
+N = b^(2^n) + 1.
+
+Ils permettent d'utiliser Genefer sur CPU/GPU et de tester la gestion des preuves,
+des checkpoints et des lots GPU.
+
+4.2. Exclusions de la première version
+--------------------------------------
+
+- interface graphique complexe ;
+- calcul distribué public avant stabilisation locale ;
+- réécriture immédiate d'une FFT/NTT géante ;
+- recherche indépendante dans une zone dont la couverture n'est pas documentée ;
+- affirmation de record sans confirmation externe ;
+- utilisation d'un modèle d'IA comme oracle mathématique ;
+- copie de code dont la licence ou la provenance n'est pas claire ;
+- optimisation par overclocking avant d'avoir une référence stable aux réglages
+  matériels par défaut.
+
+
+5. CARTOGRAPHIE INITIALE DES LOGICIELS EXISTANTS
+================================================
+
+La liste suivante est un point de départ. Le programme impose une recherche
+systématique d'autres outils, notamment les cribles et tests spécialisés pour
+Proth/Riesel. Il ne faut pas présenter cette liste comme exhaustive.
+
+5.1. primesieve
+---------------
+
+Rôle envisagé :
+
+- référence pour le crible segmenté inférieur à 2^64 ;
+- production rapide des petits nombres premiers ;
+- baseline de performance CPU et de gestion du cache.
+
+Forces documentées :
+
+- crible segmenté d'Ératosthène ;
+- factorisation par roue ;
+- bucket sieve pour les grandes zones ;
+- adaptation aux caches ;
+- multithreading ;
+- interface C et C++.
+
+Limites pour PrimeForge :
+
+- domaine limité aux recherches dans l'espace 64 bits ;
+- ce n'est pas un système général de preuve pour de très grands entiers ;
+- l'optimisation est spécialisée dans l'énumération et le comptage de premiers.
+
+Intégration : bibliothèque liée ou processus externe, après vérification de la
+version et de la licence BSD-2-Clause du commit retenu.
+
+5.2. GMP
+--------
+
+Rôle envisagé :
+
+- arithmétique multiprécision CPU de référence ;
+- backend fiable pour les opérations générales ;
+- oracle différentiel pour les noyaux maison.
+
+Forces :
+
+- arithmétique entière multiprécision mature ;
+- nombreux algorithmes et seuils internes selon la taille ;
+- optimisations assembleur sur plusieurs architectures.
+
+Limites :
+
+- bibliothèque généraliste, donc pas automatiquement optimale pour une forme
+  spéciale telle que 2^p-1 ;
+- intégration et distribution sous Windows à tester précisément ;
+- conditions de licence exactes à relever dans le commit ou paquet retenu.
+
+5.3. FLINT
+----------
+
+Rôle envisagé :
+
+- tests de primalité et de probable primalité ;
+- arithmétique et théorie des nombres ;
+- oracle indépendant ;
+- APRCL pour certaines tailles ;
+- validation de l'implémentation 64 bits.
+
+Forces :
+
+- large couverture d'algorithmes de théorie des nombres ;
+- fonctions optimisées pour les entiers machine et multiprécision ;
+- tests BPSW et primalité rigoureuse ;
+- documentation et vaste suite de tests.
+
+Limites :
+
+- moins spécialisé qu'un moteur FFT/NTT consacré à une seule famille géante ;
+- dépendances et compilation Windows à figer ;
+- version exacte de la licence LGPL à lire dans le code épinglé, plutôt que de la
+  déduire d'une page secondaire.
+
+5.4. Prime95 / gwnum / GIMPS
+----------------------------
+
+Rôle envisagé :
+
+- moteur externe de référence pour les nombres de Mersenne et certaines formes
+  supportées par gwnum ;
+- comparaison de performance ;
+- preuve PRP et vérification selon les formats GIMPS.
+
+Forces :
+
+- très forte spécialisation ;
+- transformations et noyaux optimisés depuis de nombreuses années ;
+- mécanismes de checkpoint et de preuve ;
+- infrastructure d'attribution des zones.
+
+Limites :
+
+- ce n'est pas un composant libre universel à intégrer arbitrairement ;
+- licence et conditions de redistribution spécifiques ;
+- conception centrée sur les familles prises en charge.
+
+Intégration recommandée : processus externe isolé, sans fusionner son code dans le
+cœur de PrimeForge.
+
+5.5. PRPLL-NTT et dérivés GPU
+-----------------------------
+
+Rôle envisagé :
+
+- backend GPU Mersenne ;
+- validation de l'orchestrateur sur la RTX 5080 ;
+- comparaison entre FFT flottante et NTT entière lorsqu'elles sont disponibles.
+
+Précaution :
+
+La distribution, le dépôt de référence et la licence exacts doivent être validés
+au moment de l'audit. Un fork GitHub ne doit pas être présenté automatiquement
+comme la version officielle de GIMPS.
+
+5.6. Mlucas
+-----------
+
+Rôle envisagé :
+
+- vérification CPU indépendante de calculs Mersenne/Fermat ;
+- référence ouverte pour Lucas-Lehmer, PRP, P-1 et Pépin ;
+- contrôle croisé de résultats produits par un autre moteur.
+
+Forces documentées :
+
+- code ouvert ;
+- support de plusieurs architectures ;
+- contrôles d'erreurs tels que Gerbicz pour certains travaux.
+
+Limites :
+
+- les builds Windows natifs sont décrits comme expérimentaux ;
+- WSL peut être nécessaire ;
+- performances généralement inférieures à Prime95 sur les configurations où ce
+  dernier est fortement optimisé ;
+- absence de certaines fonctions de preuve de Prime95 selon la version auditée.
+
+5.7. OpenPFGW
+-------------
+
+Rôle envisagé :
+
+- PRP et tests pour des nombres de formes spéciales ;
+- backend x86/Windows pour k*b^n+c ;
+- référence pratique avant d'écrire tous les moteurs spécialisés.
+
+Forces :
+
+- prise en charge de formes structurées ;
+- utilisation de gwnum ;
+- disponibilité Windows ;
+- outil en ligne de commande facile à isoler.
+
+Limites :
+
+- dépendance à gwnum et à ses contraintes ;
+- interface et formats à auditer ;
+- ne remplace pas un système général de certificats.
+
+5.8. Genefer22
+--------------
+
+Rôle envisagé :
+
+- backend CPU/GPU pour b^(2^n)+1 ;
+- test de l'intégration OpenCL/GPU ;
+- génération de preuves et contrôle d'erreurs lorsque la version le permet.
+
+Forces documentées :
+
+- multithreading CPU et OpenCL GPU ;
+- test probable rapide et test déterministe plus lent ;
+- preuve et contrôle d'erreurs dans les versions récentes ;
+- Windows x64 pris en charge ;
+- licence MIT annoncée par le dépôt.
+
+Limite principale :
+
+- spécialisation exclusive dans les nombres de Fermat généralisés.
+
+5.9. PARI/GP
+------------
+
+Rôle envisagé :
+
+- preuve générale de primalité ;
+- génération et validation de certificats ECPP ;
+- oracle indépendant pour les candidats de taille modérée ;
+- export de certificats dans des formats documentés.
+
+Forces documentées :
+
+- isprime fournit une décision rigoureuse ;
+- primecert produit un certificat ;
+- primecertisvalid le vérifie ;
+- combinaison de BPSW, p-1, APRCL et ECPP selon la taille et les options.
+
+Limites :
+
+- beaucoup trop coûteux pour servir de premier filtre à des millions de candidats ;
+- les très grands nombres peuvent rendre ECPP long ou impraticable ;
+- la preuve spécialisée doit être préférée lorsqu'elle existe.
+
+5.10. GMP-ECM
+-------------
+
+Rôle envisagé :
+
+- préfactorisation P-1, P+1 ou ECM lorsque le coût attendu est inférieur au coût du
+  test suivant ;
+- élimination de facteurs de taille moyenne avant un PRP très coûteux.
+
+Limite :
+
+- ce n'est pas un test de primalité ;
+- l'usage automatique doit être guidé par un modèle coût/bénéfice mesuré.
+
+5.11. CGBN
+----------
+
+Rôle envisagé :
+
+- référence de recherche pour l'arithmétique multiprécision CUDA par groupes de
+  threads ;
+- prototype pour des lots de nombres de taille fixe.
+
+Limites :
+
+- projet de recherche et non dépendance de production garantie ;
+- compatibilité Windows et versions CUDA à tester ;
+- intérêt limité pour les nombres gigantesques exigeant une FFT/NTT spécialisée ;
+- licence et maintenance à vérifier sur le commit épinglé.
+
+5.12. Outils supplémentaires à rechercher obligatoirement
+----------------------------------------------------------
+
+Avant de déclarer l'état de l'art couvert, l'audit devra rechercher et évaluer au
+minimum les catégories suivantes :
+
+- cribles spécialisés Proth/Riesel ;
+- LLR et successeurs éventuels ;
+- NewPGen, SR2sieve ou équivalents actuels ;
+- mfaktc, mfakto ou autres moteurs de factorisation Mersenne GPU ;
+- outils de preuve Proth/Pocklington ;
+- bases de couverture et formats de travail PrimeGrid ;
+- programmes modernes qui auraient remplacé des outils historiques ;
+- publications sur les compilateurs de cribles et le routage adaptatif.
+
+Aucun outil ne sera qualifié de « meilleur » sans benchmark comparable.
+
+
+6. ARCHITECTURE PROPOSÉE DE PRIMEFORGE
+======================================
+
+6.1. Vue générale
+-----------------
+
+Description de famille
+        |
+        v
+Analyse syntaxique et canonisation
+        |
+        v
+Plan de couverture déterministe
+        |
+        v
+Compilation des congruences
+        |
+        v
+Criblage CPU / GPU
+        |
+        v
+File de candidats survivants
+        |
+        v
+Routeur de moteurs
+   +----+-------------------+--------------------+
+   |                        |                    |
+   v                        v                    v
+Moteur général CPU    Moteur spécialisé CPU   Moteur spécialisé GPU
+   |                        |                    |
+   +------------------------+--------------------+
+                            |
+                            v
+                         Statut PRP
+                            |
+                            v
+                     Preuve spécialisée
+                        ou ECPP/APRCL
+                            |
+                            v
+                    Vérification indépendante
+                            |
+                            v
+                Manifestes, certificats et couverture
+
+6.2. Composants
+---------------
+
+A. Family DSL
+
+Langage déclaratif limité et sûr pour décrire une famille. La première version ne
+doit pas accepter du code arbitraire. Elle doit prendre en charge une grammaire
+restreinte : constantes, paramètres entiers, addition, soustraction,
+multiplication contrôlée et puissances dont l'exposant suit un schéma accepté.
+
+B. Canonicalizer
+
+Transforme les expressions équivalentes vers une représentation canonique. La
+canonisation sert à calculer les identifiants, éviter les ambiguïtés et comparer
+deux campagnes.
+
+C. Coverage Planner
+
+Découpe l'espace des paramètres en intervalles disjoints semi-ouverts. Il doit
+pouvoir démontrer que l'union des unités de travail égale exactement le domaine
+annoncé.
+
+D. Residue Compiler
+
+Pour chaque petit premier q, calcule les classes de paramètres donnant :
+
+F(paramètres) = 0 mod q.
+
+Il produit une table compacte et, pour chaque élimination, la possibilité de
+reconstruire un facteur témoin.
+
+E. Sieve Engine
+
+Implémentations successives :
+
+- scalaire de référence ;
+- bitset des impairs ;
+- roue modulo 30 ;
+- roue modulo 210 si elle est rentable ;
+- crible segmenté ;
+- bucket sieve ;
+- noyaux SIMD ;
+- éventuel crible GPU par lots.
+
+F. Candidate Store
+
+Représentation compacte des paramètres plutôt que matérialisation systématique de
+l'entier complet. Un candidat de forme k*2^n+1 doit être stocké par k, n et le hash
+de la définition de famille.
+
+G. Engine Router
+
+Choisit un backend selon :
+
+- la forme ;
+- le nombre de bits ;
+- la taille du lot ;
+- le coût de transfert ;
+- la disponibilité CPU/GPU ;
+- les résultats du benchmark local ;
+- les capacités de preuve du moteur.
+
+H. Proof Manager
+
+Sélectionne la preuve spécialisée, conserve les fichiers, vérifie les hashes et
+lance un second vérificateur.
+
+I. Coverage Ledger
+
+Base locale, probablement SQLite au départ, enregistrant :
+
+- les unités créées ;
+- les unités commencées ;
+- les checkpoints ;
+- les unités terminées ;
+- les résultats ;
+- les doublons ;
+- les trous éventuels ;
+- les versions des moteurs.
+
+J. Reproducibility Manager
+
+Génère automatiquement :
+
+- environment.json ;
+- dependencies.lock ;
+- commands.jsonl ;
+- results.jsonl ;
+- benchmark.csv ;
+- SHA256SUMS.txt ;
+- run_all.ps1 ;
+- VERIFY_README.txt.
+
+6.3. Principe d'intégration
+---------------------------
+
+Ne pas fusionner tous les projets dans un seul binaire.
+
+Le cœur de PrimeForge doit être indépendant. Les logiciels sous licences ou
+architectures différentes seront exécutés comme processus externes, via des
+adaptateurs. Les bibliothèques directement liées seront limitées aux composants
+dont la licence, l'ABI et la méthode de redistribution ont été validées.
+
+Chaque adaptateur conservera :
+
+- le chemin de l'exécutable ;
+- sa version ;
+- son hash SHA-256 ;
+- la commande complète ;
+- l'entrée brute ;
+- stdout et stderr bruts ;
+- le parseur utilisé ;
+- le statut interprété ;
+- toute preuve ou checkpoint produit.
+
+
+7. PROGRAMME DE RECHERCHE PAS À PAS
+===================================
+
+ÉTAPE 0 — Écrire la charte et les critères de vérité
+----------------------------------------------------
+
+But : empêcher le projet de devenir une accumulation de code impossible à auditer.
+
+Actions :
+
+1. créer un dépôt PrimeForge vide ;
+2. créer CHARTER.md avec mission, non-objectifs et métriques ;
+3. créer CLAIMS.tsv avec les colonnes : identifiant, affirmation, statut, preuve,
+   commit, date, responsable ;
+4. créer SOURCES.lock avec les sources primaires ;
+5. créer DECISIONS.md pour justifier les choix d'architecture ;
+6. créer NEGATIVE_RESULTS.md afin de conserver les optimisations rejetées.
+
+Critères de passage :
+
+- aucune affirmation de performance non étiquetée ;
+- une définition explicite de ce qu'est un résultat prouvé ;
+- une définition explicite de ce qu'est une zone couverte.
+
+Livrables :
+
+- CHARTER.md ;
+- CLAIMS.tsv ;
+- SOURCES.lock ;
+- DECISIONS.md ;
+- NEGATIVE_RESULTS.md.
+
+
+ÉTAPE 1 — Construire un environnement Windows reproductible
+------------------------------------------------------------
+
+But : obtenir une compilation simple avant d'ajouter les bibliothèques.
+
+Base recommandée :
+
+- Visual Studio avec « Développement Desktop en C++ » ;
+- C++23, sans fonctionnalité expérimentale indispensable ;
+- CMake ;
+- Git ;
+- vcpkg en mode manifeste seulement lorsque les dépendances deviennent utiles ;
+- CUDA Toolkit uniquement à partir de l'étape GPU.
+
+Actions :
+
+1. créer CMakeLists.txt ;
+2. créer CMakePresets.json pour MSVC Debug, MSVC Release et plus tard clang-cl ;
+3. activer les avertissements élevés ;
+4. activer AddressSanitizer dans une configuration de test si supportée ;
+5. créer un exécutable primeforge-selftest affichant la version du compilateur,
+   l'architecture et les capacités CPU détectées ;
+6. ajouter CTest ;
+7. configurer une compilation GitHub Actions Windows, puis Linux pour les outils
+   multi-plateformes ;
+8. enregistrer l'empreinte de l'environnement.
+
+Commandes cibles :
+
+cmake --preset msvc-release
+cmake --build --preset msvc-release --parallel
+ctest --preset msvc-release --output-on-failure
+
+Critères de passage :
+
+- un clone vierge compile avec trois commandes documentées ;
+- les tests passent en Debug et Release ;
+- aucune dépendance manuelle cachée ;
+- la version du compilateur et les options sont enregistrées.
+
+
+ÉTAPE 2 — Revue systématique de l'état de l'art et audit des sources
+--------------------------------------------------------------------
+
+But : remplacer les impressions générales par un inventaire vérifiable.
+
+Pour chaque logiciel candidat :
+
+1. identifier le dépôt ou site officiel ;
+2. sélectionner un tag ou commit précis ;
+3. télécharger et calculer les hashes ;
+4. lire README, documentation de build, licence et changelog ;
+5. construire le logiciel localement ou installer un binaire officiel ;
+6. exécuter les tests fournis ;
+7. localiser les algorithmes principaux ;
+8. relever les structures mémoire, roues, tailles de blocs et méthodes de
+   parallélisme ;
+9. relever SIMD, assembleur, CUDA, OpenCL, FFT ou NTT ;
+10. relever checkpoint, preuve, contrôle d'erreur et format de sortie ;
+11. noter les plateformes réellement testées ;
+12. relever les limites et TODO déclarés par les auteurs ;
+13. mesurer un premier cas simple ;
+14. remplir une fiche d'audit standard.
+
+Modèle de fiche :
+
+- nom ;
+- URL primaire ;
+- commit/tag ;
+- hash ;
+- licence du commit ;
+- domaine mathématique ;
+- algorithme ;
+- tailles prises en charge ;
+- CPU/GPU ;
+- vectorisation ;
+- threading ;
+- checkpoints ;
+- preuves ;
+- formats ;
+- Windows natif, WSL ou non supporté ;
+- test reproduit ;
+- performance brute ;
+- risques d'intégration ;
+- décision : LINK, ADAPTER, REFERENCE_ONLY ou REJECTED.
+
+Critères de passage :
+
+- aucun composant sélectionné sans version et licence ;
+- toutes les affirmations de la cartographie passent à DOC_VERIFIED ou
+  SOURCE_AUDITED ;
+- la liste des outils manquants pour Proth/Riesel est complétée.
+
+Livrable : dossier audits/ contenant une fiche par projet.
+
+
+ÉTAPE 3 — Définir la politique de licences et de provenance
+-----------------------------------------------------------
+
+But : rendre le futur dépôt publiable sans mélange illégal ou ambigu.
+
+Actions :
+
+1. choisir une licence pour le cœur PrimeForge après examen juridique raisonnable ;
+2. enregistrer les licences de toutes les dépendances ;
+3. préférer les adaptateurs de processus pour les logiciels sous EULA, GPL forte
+   ou licence incompatible avec l'objectif de distribution ;
+4. conserver les avis de copyright ;
+5. interdire la copie de fonctions sans attribution ;
+6. documenter toute réimplémentation « clean-room » ;
+7. générer THIRD_PARTY_NOTICES.txt ;
+8. faire échouer la construction de distribution si un fichier de licence requis
+   manque.
+
+Critère de passage : un tiers doit pouvoir comprendre exactement quel code est
+original, lié, appelé comme outil externe ou uniquement étudié.
+
+
+ÉTAPE 4 — Construire un corpus de référence indépendant
+-------------------------------------------------------
+
+But : pouvoir détecter une erreur avant toute optimisation.
+
+Le corpus doit contenir :
+
+- 0, 1, 2, 3 et les petites valeurs ;
+- nombres pairs et puissances parfaites ;
+- carrés de nombres premiers ;
+- semi-premiers ;
+- nombres de Carmichael ;
+- pseudopremiers connus pour les tests utilisés ;
+- valeurs proches de 2^32 et 2^64 ;
+- nombres de Proth premiers et composés connus ;
+- cas k*2^n+1 où le petit facteur q est égal au nombre lui-même ;
+- nombres de Riesel ;
+- Mersenne premiers et composés de petite taille ;
+- Fermat généralisés de petite taille ;
+- certificats valides ;
+- certificats volontairement corrompus ;
+- ensembles aléatoires générés avec graines fixes.
+
+Oracles :
+
+- FLINT ;
+- PARI/GP ;
+- au moins un second outil indépendant pour les formes spéciales ;
+- énumération exhaustive pour les petits domaines.
+
+Règle : si deux oracles fiables sont en désaccord, le cas est bloqué et étudié ;
+PrimeForge ne choisit pas arbitrairement l'un des deux.
+
+Critères de passage :
+
+- format de corpus versionné ;
+- provenance de chaque cas ;
+- zéro désaccord non expliqué ;
+- test automatique de non-régression.
+
+
+ÉTAPE 5 — Construire le laboratoire de benchmark avant le moteur
+---------------------------------------------------------------
+
+But : éviter les comparaisons trompeuses.
+
+Le harness doit :
+
+1. enregistrer CPU, GPU, RAM, BIOS, Windows, pilotes, compilateur et commits ;
+2. désactiver les phases de démarrage dans la mesure stable ;
+3. effectuer un échauffement ;
+4. randomiser l'ordre des variantes pour réduire les biais thermiques ;
+5. répéter au moins sept fois les mesures courtes ;
+6. rapporter médiane, dispersion, minimum, maximum et intervalle de confiance ;
+7. enregistrer les températures, fréquences et puissance ;
+8. comparer exactement les mêmes candidats ;
+9. séparer temps de transfert, temps noyau, preuve et I/O ;
+10. produire les données brutes en CSV/JSON, jamais seulement un graphique ;
+11. détecter le throttling et annuler les mesures invalides ;
+12. supporter une mesure énergétique murale lorsqu'un compteur fiable est présent.
+
+Réglages initiaux :
+
+- fréquences et limites de puissance par défaut ;
+- profil Windows documenté ;
+- aucune application lourde en arrière-plan ;
+- température ambiante approximative enregistrée ;
+- même ventilation entre variantes.
+
+Critères de passage :
+
+- deux exécutions successives donnent des résultats compatibles ;
+- les données brutes permettent de recalculer toutes les conclusions ;
+- aucun gain inférieur au bruit n'est présenté comme réel.
+
+
+ÉTAPE 6 — Implémenter un moteur 64 bits volontairement simple
+-------------------------------------------------------------
+
+But : créer une référence originale correcte, pas encore rapide.
+
+Version 6A :
+
+- crible des impairs ;
+- stockage simple ;
+- un seul thread ;
+- tests exhaustifs sur petites bornes ;
+- comparaison à primesieve et FLINT.
+
+Version 6B :
+
+- crible segmenté ;
+- tailles de segments configurables ;
+- comptage et génération ;
+- multithreading par segments indépendants ;
+- résultat déterministe quel que soit le nombre de threads.
+
+Version 6C :
+
+- roue modulo 30 ;
+- éventuellement modulo 210 après benchmark ;
+- bit-packing ;
+- alignement de cache ;
+- pré-calcul des premiers de base ;
+- élimination du faux partage entre threads.
+
+Version 6D :
+
+- bucket sieve pour les premiers de criblage dont le pas dépasse le segment ;
+- préfetch et disposition SoA/AoS comparés ;
+- dispatch scalaire, AVX2 et éventuellement AVX-512 si CPUID le signale et si le
+  benchmark confirme un gain.
+
+Important sous Windows :
+
+MSVC ne doit pas être supposé fournir unsigned __int128. Créer une couche
+mul128 portable :
+
+- intrinsics _umul128 et opérations associées sous MSVC ;
+- unsigned __int128 sous clang/GCC lorsque disponible ;
+- implantation de référence multiprécision ;
+- tests différentiels massifs.
+
+Critères de passage :
+
+- correction parfaite sur le corpus ;
+- couverture exacte d'intervalles ;
+- benchmark contre primesieve ;
+- toute optimisation peut être activée ou désactivée séparément ;
+- un gain n'est conservé que s'il apparaît sur plusieurs plages.
+
+Aucun objectif arbitraire de battre primesieve n'est imposé à cette étape.
+L'objectif est de comprendre l'écart.
+
+
+ÉTAPE 7 — Construire les unités de travail et la preuve de couverture
+--------------------------------------------------------------------
+
+But : garantir qu'une vraie recherche ne comporte ni trou silencieux ni doublon
+incontrôlé.
+
+Une unité de travail doit contenir :
+
+- identifiant de famille ;
+- hash de la définition canonique ;
+- intervalles de paramètres semi-ouverts ;
+- contraintes ;
+- version du compilateur de résidus ;
+- bornes de criblage ;
+- politique de preuve ;
+- graine éventuelle ;
+- hash du contenu.
+
+Principe :
+
+work_unit_id = SHA256(canonical_json(work_unit_without_id)).
+
+Actions :
+
+1. implémenter la partition déterministe ;
+2. prouver sur papier que les intervalles sont disjoints et couvrants ;
+3. tester exhaustivement des petits domaines ;
+4. simuler des interruptions ;
+5. écrire les checkpoints de façon atomique : nouveau fichier, flush, rename ;
+6. détecter les doublons par identifiant ;
+7. produire un rapport de couverture.
+
+Critère de passage : après suppression, duplication ou corruption volontaire d'une
+unité, le vérificateur doit signaler le problème.
+
+
+ÉTAPE 8 — Définir le langage de familles
+----------------------------------------
+
+But : décrire des recherches sans réécrire le moteur.
+
+Version 1 de la grammaire :
+
+- constantes entières ;
+- paramètres bornés ;
+- addition et soustraction ;
+- multiplication par une constante ou un paramètre explicitement autorisé ;
+- puissance b^n avec base et exposant contrôlés ;
+- contraintes gcd, parité, comparaison et congruence ;
+- objectif et politique de preuve.
+
+Interdictions initiales :
+
+- boucles utilisateur ;
+- appels de fonctions arbitraires ;
+- flottants dans la définition mathématique ;
+- expression dont l'évaluation modulaire n'est pas déterministe ;
+- domaine infini non borné.
+
+Actions :
+
+1. parser ;
+2. AST typé ;
+3. canonisation ;
+4. vérification des bornes ;
+5. estimation du nombre de bits sans construire N ;
+6. évaluation exacte ;
+7. évaluation modulo q ;
+8. sérialisation canonique ;
+9. messages d'erreur explicites.
+
+Critères de passage :
+
+- deux écritures équivalentes prévues donnent le même hash canonique ;
+- les erreurs de domaine sont rejetées avant calcul ;
+- l'évaluation exacte et modulaire concorde sur des millions de petits cas.
+
+
+ÉTAPE 9 — Construire le compilateur de congruences
+--------------------------------------------------
+
+But : cœur mathématique original du projet.
+
+Cas prioritaire :
+
+F(k,n) = k*b^n + c.
+
+Pour un petit premier q tel que gcd(b,q)=1, b^n modulo q est périodique avec une
+période divisant q-1. Pour chaque classe de n de la période pertinente, le
+compilateur peut rechercher les classes de k satisfaisant :
+
+k*b^n + c = 0 mod q.
+
+Lorsque b^n est inversible modulo q :
+
+k = -c*(b^n)^(-1) mod q.
+
+Le compilateur doit traiter séparément :
+
+- q divisant b ;
+- q divisant c ;
+- le cas où le candidat N vaut exactement q ;
+- les contraintes de parité ;
+- les valeurs négatives intermédiaires ;
+- les périodes non minimales ;
+- les paramètres dont les pas ne valent pas 1.
+
+Produits attendus :
+
+- table de périodes ;
+- table de classes interdites ;
+- bitsets ou listes compressées ;
+- fonction permettant de reconstruire q comme facteur témoin ;
+- preuve textuelle générée pour chaque règle ;
+- version scalaire de référence ;
+- version optimisée.
+
+Preuve de correction locale :
+
+Si le compilateur élimine un paramètre theta avec le témoin q, il doit vérifier :
+
+1. q est premier ;
+2. F(theta) mod q = 0 ;
+3. abs(F(theta)) > q ;
+4. F(theta) n'est pas une valeur exclue par la sémantique.
+
+Alors F(theta) est composite.
+
+Validation :
+
+- énumération exhaustive des petits q et petits domaines ;
+- comparaison à l'évaluation directe en entier multiprécision ;
+- fuzzing à graines fixes ;
+- mutation volontaire des tables ;
+- test de la reconstruction des facteurs.
+
+Critère de passage absolu : zéro faux négatif provoqué par le crible, c'est-à-dire
+aucun nombre premier valide éliminé.
+
+
+ÉTAPE 10 — Optimiser le crible CPU de familles
+----------------------------------------------
+
+But : transformer les tables de résidus en débit réel.
+
+Expériences à mener séparément :
+
+1. liste de candidats contre bitset dense ;
+2. bitset par k contre bitset par n ;
+3. boucles q-major contre candidate-major ;
+4. structure de tableaux contre tableau de structures ;
+5. segments adaptés au L1, L2 et L3 ;
+6. planification statique contre dynamique ;
+7. compression des classes ;
+8. combinaison de plusieurs petits q en roue ;
+9. CRT pour regrouper des contraintes lorsque le coût mémoire reste raisonnable ;
+10. AVX2 ;
+11. AVX-512 conditionnel ;
+12. préfetch explicite ;
+13. huge pages comme expérience, non comme dépendance ;
+14. threads épinglés contre planification Windows libre ;
+15. différentes répartitions entre cœurs physiques et SMT.
+
+Règles :
+
+- une seule variable d'optimisation à la fois au début ;
+- profilage par échantillonnage et compteurs matériels si disponibles ;
+- conserver la version de référence ;
+- mesurer le temps complet, pas seulement la boucle centrale ;
+- rejeter les optimisations instables ou spécifiques à un seul exemple.
+
+Critère de passage : établir une courbe claire des goulots d'étranglement et une
+configuration optimale par régime.
+
+
+ÉTAPE 11 — Étudier la borne de criblage adaptative
+--------------------------------------------------
+
+But : décider combien de facteurs chercher avant de lancer un test coûteux.
+
+Méthode :
+
+1. sélectionner plusieurs familles et tailles ;
+2. mesurer le coût marginal de blocs de premiers de criblage ;
+3. mesurer le taux d'élimination supplémentaire ;
+4. mesurer le coût réel du moteur PRP suivant ;
+5. construire un modèle hors ligne ;
+6. séparer plages de calibration et de validation ;
+7. comparer :
+   a. borne fixe faible ;
+   b. borne fixe moyenne ;
+   c. borne fixe élevée ;
+   d. borne adaptative hors ligne ;
+   e. borne adaptative en ligne ;
+8. mesurer temps et énergie complets ;
+9. analyser l'incertitude ;
+10. conserver une stratégie de repli fixe.
+
+Le modèle ne doit pas supposer que chaque premier q élimine exactement 1/q des
+candidats. Le taux doit être calculé ou mesuré pour la famille et les contraintes.
+
+Critère de réussite : gain statistiquement robuste sur au moins un régime de
+validation. Sinon l'hypothèse est marquée FAILED pour ce régime.
+
+
+ÉTAPE 12 — Construire les adaptateurs vers les meilleurs moteurs existants
+--------------------------------------------------------------------------
+
+But : disposer rapidement d'un système utile sans réécrire chaque test.
+
+Interface commune minimale :
+
+- supports(family, bit_length, proof_policy) ;
+- estimate_cost(batch) ;
+- prepare(batch) ;
+- run(batch, checkpoint_dir) ;
+- parse(raw_output) ;
+- verify_artifacts() ;
+- report_capabilities().
+
+Ordre recommandé :
+
+1. primesieve ;
+2. FLINT ;
+3. PARI/GP ;
+4. OpenPFGW ;
+5. Genefer22 ;
+6. moteur GIMPS/PRPLL disponible et autorisé ;
+7. Mlucas sous WSL pour vérification ;
+8. GMP-ECM si le modèle coût/bénéfice le justifie.
+
+Règles de sécurité :
+
+- exécution dans un répertoire de travail isolé ;
+- timeout ;
+- limite de mémoire si possible ;
+- conservation des sorties brutes ;
+- parseur versionné ;
+- statut UNKNOWN si le format n'est pas reconnu ;
+- aucun mot « prime » dans un log ne suffit à classer PROVEN_PRIME ;
+- hash de chaque binaire externe.
+
+Critères de passage :
+
+- chaque adaptateur traite des vecteurs connus ;
+- un changement de format provoque une erreur claire ;
+- les résultats sont identiques à une exécution manuelle documentée.
+
+
+ÉTAPE 13 — Construire l'autotuner CPU
+-------------------------------------
+
+But : adapter PrimeForge au 9950X3D sans inscrire ses réglages en dur.
+
+Informations à détecter :
+
+- nombre de groupes processeur Windows ;
+- cœurs physiques et threads logiques ;
+- topologie des caches ;
+- capacité AVX2 et AVX-512 ;
+- tailles de lignes de cache ;
+- répartition des cœurs et éventuelle hétérogénéité de cache ;
+- bande passante mémoire mesurée ;
+- coût du SMT ;
+- fréquence soutenue sous charge.
+
+Paramètres à calibrer :
+
+- nombre de threads ;
+- affinité ;
+- taille de segment ;
+- taille de lot ;
+- roue ;
+- seuil entre scalaire et SIMD ;
+- seuil entre arithmetic 64 bits et multiprécision ;
+- priorité de processus ;
+- nombre de threads réservés au GPU et à la vérification.
+
+Expériences de compilation :
+
+- MSVC /O2 avec optimisation globale ;
+- link-time optimization ;
+- clang-cl comme comparaison ;
+- profile-guided optimization seulement après stabilisation ;
+- dispatch runtime plutôt qu'un exécutable incompatible avec d'autres CPU.
+
+Sortie : tuning_profile.json signé par le hash du matériel, du compilateur et du
+commit.
+
+Critère : sur les cas de validation, la configuration automatique doit rester à
+moins de 3 % du meilleur réglage découvert par balayage, ou expliquer l'écart.
+
+
+ÉTAPE 14 — Exploiter d'abord les moteurs GPU spécialisés
+-------------------------------------------------------
+
+But : obtenir rapidement une valeur réelle de la RTX 5080 sans commencer par une
+arithmétique CUDA générale très risquée.
+
+Campagnes de validation :
+
+- Genefer22 sur des cas de Fermat généralisé connus ;
+- backend GPU GIMPS/PRPLL sur des Mersenne de test ;
+- vérification CPU indépendante ;
+- mesure du temps de préparation et de transfert ;
+- validation des checkpoints après interruption.
+
+Pipeline asynchrone cible :
+
+CPU : compile et crible le lot N+2
+GPU : traite le lot N+1
+CPU : vérifie ou prépare la preuve du lot N
+Disque : écrit les artefacts du lot N-1
+
+Expériences :
+
+- un, deux et trois buffers ;
+- différentes tailles de lot ;
+- un ou plusieurs flux CUDA/OpenCL lorsque le moteur le permet ;
+- priorité CPU réservée au pilote GPU ;
+- traitement simultané contre séquentiel ;
+- mesure de l'occupation utile et de l'énergie.
+
+Critère de passage : pipeline stable, reprise après panne et vérification
+indépendante. Un fort taux d'occupation GPU ne suffit pas s'il augmente le temps
+total ou les erreurs.
+
+
+ÉTAPE 15 — Prototyper une arithmétique GPU générique
+----------------------------------------------------
+
+Cette étape est conditionnelle. Elle ne commence que si les étapes précédentes sont
+stables et si un cas d'usage clair existe.
+
+Phase 15A — Entiers de taille fixe
+
+- tailles : 256, 512, 1024, 2048, 4096 et éventuellement 8192 bits ;
+- représentation par limbs 32 ou 64 bits ;
+- addition, soustraction, comparaison ;
+- multiplication basse et complète ;
+- réduction de Montgomery pour moduli impairs ;
+- réduction de Barrett comme comparaison ;
+- exponentiation modulaire par fenêtres ;
+- un groupe de 4, 8, 16 ou 32 threads par entier ;
+- regroupement des candidats par taille pour réduire la divergence.
+
+Phase 15B — Référence CGBN
+
+- compiler les exemples ;
+- reproduire les tests ;
+- mesurer les tailles et lots où CGBN gagne ;
+- comparer une implantation propre et CGBN ;
+- vérifier compatibilité et licence avant toute distribution.
+
+Phase 15C — Pipeline
+
+- mémoire hôte épinglée ;
+- double buffering ;
+- calcul des paramètres de Montgomery sur CPU ou GPU comparé ;
+- conservation des moduli sur GPU ;
+- réduction des transferts ;
+- sortie compacte des seuls survivants.
+
+Phase 15D — Correction
+
+- millions de tests différentiels contre GMP/FLINT ;
+- valeurs limites avec carries en cascade ;
+- moduli proches des puissances de deux ;
+- facteurs volontairement injectés ;
+- contrôle après erreurs simulées ;
+- répétition sur CPU d'un échantillon aléatoire.
+
+Porte de décision :
+
+Le backend n'entre dans PrimeForge que s'il obtient au moins 20 % de gain de bout
+en bout sur un régime utile, avec zéro désaccord. Sinon il reste un résultat de
+recherche négatif documenté.
+
+Phase 15E — NTT/FFT géante éventuelle
+
+Ne commencer cette phase qu'après un succès clair de la phase fixe. Construire une
+NTT exacte pour des nombres de millions de chiffres est un projet distinct, très
+complexe. Il exige :
+
+- choix de moduli et racines ;
+- CRT exact ;
+- gestion des carries ;
+- contrôle d'erreurs ;
+- tests croisés ;
+- autotuning des longueurs ;
+- étude approfondie de gwnum, Genefer et PRPLL sans copier de code incompatible.
+
+La phase peut légitimement être abandonnée si les moteurs spécialisés restent
+nettement supérieurs.
+
+
+ÉTAPE 16 — Intégrer les preuves de primalité
+--------------------------------------------
+
+But : transformer un survivant en résultat mathématique.
+
+Politique par famille :
+
+A. Entiers 64 bits
+
+- test déterministe validé ;
+- résultat croisé avec FLINT ;
+- preuve simple possible par factorisation de N-1 pour les petits cas, mais pas
+  obligatoire si la décision 64 bits utilisée est rigoureusement établie et auditée.
+
+B. Nombres de Proth
+
+Pour N = k*2^n+1, k impair et k < 2^n, rechercher un témoin a satisfaisant le
+critère du théorème de Proth. Enregistrer a et toutes les données nécessaires à un
+vérificateur indépendant.
+
+C. Nombres de Riesel
+
+Utiliser un moteur et une preuve adaptés ; ne pas recycler abusivement le schéma de
+Proth. Pocklington ou une preuve fournie par un outil spécialisé peut être utilisée
+si ses conditions sont satisfaites.
+
+D. Mersenne
+
+Utiliser les tests et preuves du moteur GIMPS choisi, puis vérifier avec un moteur
+indépendant lorsque le protocole l'exige.
+
+E. Fermat généralisés
+
+Utiliser les mécanismes de Genefer et un second vérificateur compatible.
+
+F. Entiers généraux
+
+- BPSW ou tests PRP comme filtre ;
+- Pocklington si une partie suffisante de N-1 est factorisée ;
+- APRCL pour les tailles appropriées ;
+- ECPP via PARI/GP comme solution générale de dernier recours.
+
+Gestion des certificats :
+
+- format natif conservé ;
+- hash SHA-256 ;
+- export humain si disponible ;
+- vérificateur séparé ;
+- test de corruption ;
+- statut PROVEN_PRIME seulement après validation du certificat.
+
+Critère de passage : une modification d'un bit dans un certificat doit être
+détectée, et un PRP sans certificat doit rester PRP.
+
+
+ÉTAPE 17 — Fiabilité matérielle et tolérance aux pannes
+------------------------------------------------------
+
+But : éviter qu'une erreur de calcul ou un crash détruise des semaines de travail.
+
+Actions :
+
+1. stress test initial CPU, RAM et GPU ;
+2. surveillance des températures et fréquences ;
+3. arrêt contrôlé à seuils configurés ;
+4. checkpoints fréquents mais mesurés ;
+5. écritures atomiques ;
+6. checksum des blocs ;
+7. contrôle Gerbicz ou équivalent lorsque le moteur le supporte ;
+8. relecture et validation des checkpoints ;
+9. répétition indépendante des résultats rares ;
+10. injection de fautes dans les fichiers et messages ;
+11. test de coupure brutale ;
+12. journal append-only ;
+13. sauvegarde séparée des preuves.
+
+Aucune longue campagne ne doit utiliser un overclock instable. Les réglages de
+performance ne seront acceptés qu'après stress test et absence d'erreurs.
+
+Critères de passage :
+
+- reprise après arrêt forcé avec perte bornée et documentée ;
+- détection de checkpoint corrompu ;
+- aucun résultat final sans hash et seconde validation.
+
+
+ÉTAPE 18 — Construire le routeur et le planificateur de portefeuille
+-------------------------------------------------------------------
+
+Version 18A — Règles explicites
+
+Commencer par des règles simples et auditées :
+
+- intervalle 64 bits -> primesieve ou moteur interne ;
+- b^(2^n)+1 -> Genefer ;
+- 2^p-1 -> moteur GIMPS GPU/CPU ;
+- k*b^n+c -> OpenPFGW ou moteur interne selon benchmark ;
+- candidat général -> GMP/FLINT, puis PARI pour preuve.
+
+Version 18B — Modèle de coût
+
+Construire :
+
+T_estime = f(moteur, famille, bits, taille_lot, threads, GPU, preuve).
+
+Le modèle doit être entraîné sur des benchmarks et évalué sur des cas non vus.
+
+Version 18C — Objectifs
+
+Objectifs possibles :
+
+- minimum_time_to_cover_range ;
+- candidates_per_kwh ;
+- verified_primes_per_kwh ;
+- minimum_time_to_first_verified_candidate ;
+- maximum_probability_weighted_mathematical_value.
+
+Version 18D — Bandit contextuel éventuel
+
+Seulement après la version règle/modèle. Utiliser un replay hors ligne et des
+contraintes de sécurité. Le système ne doit pas gaspiller une campagne réelle pour
+« explorer » des configurations manifestement mauvaises.
+
+Critères de passage :
+
+- décision explicable ;
+- possibilité de forcer un moteur ;
+- journal du score de chaque option ;
+- performance proche du meilleur choix a posteriori ;
+- pas de dépendance obligatoire à une IA distante.
+
+
+ÉTAPE 19 — Choisir et exécuter la première vraie campagne
+---------------------------------------------------------
+
+19.1. Campagne de répétition
+
+Avant toute zone nouvelle :
+
+- reprendre une petite zone dont les résultats sont connus ;
+- vérifier que tous les composites attendus sont éliminés ;
+- retrouver les premiers connus ;
+- produire les preuves ;
+- comparer la couverture à la référence.
+
+19.2. Sélection de la famille
+
+Deux voies recommandées :
+
+Voie A — Validation opérationnelle collective
+
+Utiliser une zone attribuée par GIMPS ou PrimeGrid. Avantages : couverture gérée,
+risque de duplication réduit, procédure de confirmation existante.
+
+Voie B — Recherche originale PrimeForge
+
+Choisir une sous-famille Proth/Riesel parce qu'elle exerce directement le langage,
+le compilateur de résidus et le moteur adaptatif. Avant calcul :
+
+- rechercher l'historique ;
+- contacter si possible les mainteneurs de la base ou du projet pertinent ;
+- définir précisément la plage ;
+- publier ou horodater le manifeste ;
+- vérifier qu'aucun autre calcul identique n'est annoncé.
+
+19.3. Progression
+
+- pilote de 1 heure ;
+- pilote de 24 heures ;
+- campagne de 7 jours ;
+- audit des logs ;
+- campagne de 30 jours seulement si stabilité et valeur attendue sont confirmées.
+
+19.4. En cas de candidat premier
+
+1. arrêter toute déclaration publique immédiate ;
+2. copier les logs, checkpoints et fichiers de preuve ;
+3. calculer tous les hashes ;
+4. refaire le test avec un second moteur ;
+5. vérifier le certificat ;
+6. confirmer l'expression et les paramètres ;
+7. vérifier les bases de données pertinentes ;
+8. contacter le projet ou un vérificateur compétent ;
+9. publier seulement après confirmation.
+
+
+ÉTAPE 20 — Évaluation comparative, publication et diffusion
+-----------------------------------------------------------
+
+20.1. Comparaison honnête
+
+Comparer PrimeForge au meilleur outil disponible pour exactement la même tâche :
+
+- mêmes nombres ;
+- même statut recherché, PRP ou preuve ;
+- même matériel ;
+- même limite énergétique ;
+- même temps de warm-up ;
+- mêmes conditions thermiques ;
+- même inclusion ou exclusion des I/O ;
+- mêmes règles de checkpoint.
+
+Présenter :
+
+- performance de chaque étape ;
+- performance de bout en bout ;
+- énergie ;
+- variance ;
+- cas où PrimeForge perd ;
+- cas où il gagne ;
+- limites de généralisation.
+
+20.2. Seuils de revendication
+
+- moins de 5 % : ne pas revendiquer un gain sans preuve statistique exceptionnelle ;
+- 5 à 10 % : amélioration modeste, limitée au cas mesuré ;
+- 10 à 20 % : gain pratique significatif si reproductible ;
+- plus de 20 % : résultat fort, à reproduire sur une autre machine ;
+- toute affirmation « meilleur » doit préciser famille, plage, matériel, version et
+  métrique.
+
+20.3. Paquet reproductible
+
+Le paquet final doit contenir :
+
+- code source ;
+- commits exacts ;
+- fichiers de licence ;
+- CMakePresets.json ;
+- vcpkg.json et baseline éventuelle ;
+- dependencies.lock ;
+- source hashes ;
+- corpus de tests ;
+- raw_benchmarks/ ;
+- scripts d'analyse ;
+- run_all.ps1 ;
+- run_all.sh si Linux est supporté ;
+- certificats ;
+- vérificateur ;
+- coverage_report.json ;
+- SHA256SUMS.txt ;
+- CLAIMS.tsv ;
+- VERDICT.md ;
+- instructions pour reproduire depuis zéro.
+
+20.4. Forme de publication
+
+Selon le résultat obtenu :
+
+- article logiciel si la principale contribution est l'architecture ;
+- article de calcul expérimental si une nouvelle campagne produit des données
+  mathématiques significatives ;
+- article algorithmique si le compilateur de résidus ou le modèle adaptatif est
+  réellement nouveau ;
+- rapport de résultat négatif si une approche GPU supposée prometteuse est réfutée
+  de manière solide.
+
+Le lieu de publication ne doit être choisi qu'après stabilisation du résultat et
+comparaison avec le périmètre des revues.
+
+
+8. PROTOCOLES MATHÉMATIQUES DE CORRECTION
+=========================================
+
+8.1. Invariant du crible
+------------------------
+
+Pour chaque candidat éliminé, PrimeForge doit pouvoir produire soit :
+
+- un petit premier q tel que N mod q = 0 et N != q ;
+- soit un témoin de composité reconnu par le test utilisé.
+
+Le simple fait qu'une table indique « composite » ne suffit pas.
+
+8.2. Invariant de couverture
+----------------------------
+
+Pour un domaine D et des unités W_i :
+
+- union(W_i) = D ;
+- pour i != j, intersection(W_i, W_j) est vide, sauf duplication explicitement
+  autorisée pour vérification ;
+- chaque point de D possède un identifiant de propriétaire déterministe.
+
+La preuve formelle peut commencer comme une preuve papier et des tests exhaustifs.
+Une formalisation dans un assistant de preuve est une piste future pour le cœur du
+planificateur et du compilateur de résidus.
+
+8.3. Invariant de statut
+------------------------
+
+Le statut ne peut que progresser selon :
+
+UNTESTED
+ -> COMPOSITE_WITH_FACTOR / COMPOSITE_WITH_WITNESS
+ -> PRP
+ -> PROVEN_PRIME
+ -> INDEPENDENTLY_VERIFIED
+ -> NOVELTY_DUE_DILIGENCE_COMPLETE.
+
+Une étape supérieure ne doit jamais être inférée seulement à partir du nom d'un
+fichier ou d'un message libre.
+
+8.4. Vérification indépendante
+------------------------------
+
+L'indépendance idéale combine :
+
+- autre logiciel ;
+- autre algorithme lorsque possible ;
+- autre CPU/GPU ;
+- autre compilation ;
+- autre machine pour les résultats importants.
+
+Lorsque deux moteurs partagent la même bibliothèque arithmétique, cette dépendance
+doit être déclarée : la vérification n'est alors pas totalement indépendante.
+
+8.5. Tests différentiels
+------------------------
+
+Pour chaque primitive :
+
+- calcul maison ;
+- calcul GMP/FLINT ;
+- éventuellement PARI ;
+- comparaison bit à bit ;
+- millions de cas aléatoires avec graines sauvegardées ;
+- réduction automatique du cas en cas de divergence.
+
+8.6. Fuzzing et mutations
+-------------------------
+
+Cibles :
+
+- parser du DSL ;
+- sérialisation canonique ;
+- tables de résidus ;
+- parseurs de logs externes ;
+- fichiers de checkpoint ;
+- certificats ;
+- manifestes de couverture.
+
+Le fuzzing doit inclure fichiers tronqués, nombres négatifs, dépassements, Unicode,
+valeurs extrêmes et champs inconnus.
+
+
+9. PROTOCOLE DE BENCHMARK ET D'ÉVALUATION ÉNERGÉTIQUE
+=====================================================
+
+9.1. Deux niveaux de benchmark
+------------------------------
+
+Microbenchmark :
+
+- multiplication modulaire ;
+- réduction ;
+- marquage de bitset ;
+- transfert PCIe ;
+- lancement de noyau ;
+- génération de table de résidus.
+
+Macrobenchmark :
+
+- couverture complète d'une unité de travail ;
+- crible + PRP ;
+- crible + PRP + preuve ;
+- reprise après interruption ;
+- pipeline CPU/GPU complet.
+
+Un microbenchmark ne peut pas justifier seul une revendication de gain global.
+
+9.2. Répétitions
+----------------
+
+- warm-up séparé ;
+- au moins sept répétitions pour les tests courts ;
+- au moins trois pour les tests longs lorsque le coût est élevé ;
+- ordre randomisé des variantes ;
+- médiane comme statistique principale ;
+- intervalle bootstrap ou méthode équivalente ;
+- données brutes conservées.
+
+9.3. Énergie
+------------
+
+Ordre de préférence :
+
+1. mesure murale par compteur calibré ;
+2. mesure GPU via outil/driver ;
+3. mesure CPU via compteur matériel accessible ;
+4. estimation logicielle clairement étiquetée comme estimation.
+
+La consommation au repos doit être mesurée. On rapportera énergie totale et énergie
+incrémentale au-dessus du repos, en expliquant la méthode.
+
+9.4. Stabilité thermique
+------------------------
+
+Annuler ou répéter une mesure si :
+
+- la fréquence chute par throttling ;
+- la température change fortement entre variantes ;
+- un processus tiers consomme des ressources ;
+- une mise à jour ou un pilote change ;
+- le système produit une erreur matérielle.
+
+9.5. Profils de charge
+----------------------
+
+Créer au minimum :
+
+- S64_SMALL : petits intervalles ;
+- S64_HIGH : intervalles élevés sous 2^64 ;
+- PROTH_SMALL_K_LARGE_N ;
+- PROTH_LARGE_K_MEDIUM_N ;
+- RIESEL_MATCHED ;
+- MERSENNE_TEST_VECTOR ;
+- GFN_TEST_VECTOR ;
+- GENERAL_512, GENERAL_1024, GENERAL_2048, GENERAL_4096 ;
+- MIXED_PORTFOLIO ;
+- CRASH_RECOVERY.
+
+Chaque profil doit être un fichier versionné avec hash.
+
+
+10. FORMATS DE DONNÉES ET TRAÇABILITÉ
+=====================================
+
+10.1. Exemple d'unité de travail
+--------------------------------
+
+{
+  "schema": "primeforge.workunit.v1",
+  "family_id": "sha256:...",
+  "expression": "k*2^n+1",
+  "domain": {
+    "k": {"start": "1", "stop": "1000001", "step": "2"},
+    "n": {"start": "100000", "stop": "100100", "step": "1"}
+  },
+  "constraints": ["k<2^n", "gcd(k,2)=1"],
+  "sieve": {
+    "compiler_commit": "...",
+    "prime_limit": "...",
+    "profile": "..."
+  },
+  "proof_policy": "proth_then_ecpp",
+  "work_unit_id": "sha256:..."
+}
+
+10.2. Exemple de résultat
+-------------------------
+
+{
+  "schema": "primeforge.result.v1",
+  "work_unit_id": "sha256:...",
+  "candidate": {
+    "family_id": "sha256:...",
+    "parameters": {"k": "...", "n": "..."}
+  },
+  "status": "PROVEN_PRIME",
+  "finder": {
+    "engine": "...",
+    "version": "...",
+    "binary_sha256": "...",
+    "command_sha256": "..."
+  },
+  "proof": {
+    "type": "PROTH",
+    "artifact": "proofs/...",
+    "sha256": "..."
+  },
+  "verification": {
+    "engine": "...",
+    "status": "VALID",
+    "log_sha256": "..."
+  },
+  "timestamp_utc": "..."
+}
+
+10.3. Journal append-only
+-------------------------
+
+Utiliser JSON Lines afin que chaque événement soit une ligne indépendante :
+
+- WORKUNIT_CREATED ;
+- WORKUNIT_STARTED ;
+- CHECKPOINT_WRITTEN ;
+- CANDIDATE_ELIMINATED ;
+- PRP_FOUND ;
+- PROOF_GENERATED ;
+- PROOF_VERIFIED ;
+- WORKUNIT_COMPLETED ;
+- ERROR ;
+- RECOVERY.
+
+Pour les milliards d'éliminations ordinaires, ne pas écrire une ligne par candidat.
+Conserver des agrégats et un échantillonnage, tout en gardant la capacité de
+reproduire le crible depuis la définition et la version.
+
+10.4. Dépendances verrouillées
+------------------------------
+
+Pour chaque dépendance :
+
+- nom ;
+- URL officielle ;
+- tag/commit ;
+- hash de l'archive ou du commit ;
+- hash du fichier de licence ;
+- options de build ;
+- patches locaux ;
+- hash du binaire produit ;
+- date d'audit.
+
+
+11. STRUCTURE RECOMMANDÉE DU DÉPÔT
+==================================
+
+PrimeForge/
+|-- CMakeLists.txt
+|-- CMakePresets.json
+|-- vcpkg.json
+|-- README.md
+|-- CHARTER.md
+|-- CLAIMS.tsv
+|-- DECISIONS.md
+|-- NEGATIVE_RESULTS.md
+|-- THIRD_PARTY_NOTICES.txt
+|-- SOURCES.lock
+|
+|-- cmake/
+|-- include/primeforge/
+|   |-- core/
+|   |-- family/
+|   |-- sieve/
+|   |-- arithmetic/
+|   |-- engine/
+|   |-- proof/
+|   |-- storage/
+|   `-- benchmark/
+|
+|-- src/
+|   |-- core/
+|   |-- family_dsl/
+|   |-- canonicalizer/
+|   |-- coverage/
+|   |-- residue_compiler/
+|   |-- sieve/
+|   |   |-- reference/
+|   |   |-- segmented/
+|   |   |-- bucket/
+|   |   `-- simd/
+|   |-- arithmetic/
+|   |   |-- uint64/
+|   |   |-- mul128/
+|   |   |-- montgomery/
+|   |   |-- gmp_adapter/
+|   |   `-- flint_adapter/
+|   |-- scheduler/
+|   |-- proofs/
+|   |-- storage/
+|   `-- cli/
+|
+|-- cuda/
+|   |-- fixed_bigint/
+|   |-- montgomery/
+|   |-- batch_prp/
+|   `-- tests/
+|
+|-- adapters/
+|   |-- primesieve/
+|   |-- pari/
+|   |-- openpfgw/
+|   |-- genefer/
+|   |-- gimps_gpu/
+|   |-- mlucas/
+|   `-- gmp_ecm/
+|
+|-- schemas/
+|-- families/
+|-- tests/
+|   |-- unit/
+|   |-- property/
+|   |-- differential/
+|   |-- fuzz/
+|   |-- known_vectors/
+|   `-- recovery/
+|
+|-- benchmarks/
+|   |-- profiles/
+|   |-- raw/
+|   |-- summaries/
+|   `-- scripts/
+|
+|-- proofs/
+|-- coverage/
+|-- checkpoints/
+|-- audits/
+|-- docs/
+|-- scripts/
+|   |-- run_all.ps1
+|   |-- verify_all.ps1
+|   `-- make_release.ps1
+`-- releases/
+
+
+12. CALENDRIER INDICATIF ET PORTES DE DÉCISION
+==============================================
+
+Le calendrier dépendra fortement de la disponibilité et des difficultés de build.
+Les portes de décision sont plus importantes que les dates.
+
+Mois 1 : fondations
+
+- étapes 0 à 5 ;
+- environnement ;
+- audit initial ;
+- corpus ;
+- benchmark.
+
+PORTE A : ne pas optimiser tant que le corpus et le harness ne sont pas fiables.
+
+Mois 2 : référence et couverture
+
+- étapes 6 et 7 ;
+- moteur 64 bits ;
+- unités de travail ;
+- reprise après panne.
+
+PORTE B : zéro erreur de correction et rapport de couverture exact.
+
+Mois 3 : langage et compilateur
+
+- étapes 8 et 9 ;
+- DSL ;
+- congruences ;
+- preuve locale ;
+- fuzzing.
+
+PORTE C : aucune fausse élimination sur les tests exhaustifs et différentiels.
+
+Mois 4 : optimisation CPU et seuil adaptatif
+
+- étapes 10 et 11 ;
+- profilage ;
+- SIMD ;
+- étude coût/bénéfice.
+
+PORTE D : conserver seulement les gains reproductibles.
+
+Mois 5 : adaptateurs et autotuning
+
+- étapes 12 et 13 ;
+- outils externes ;
+- choix automatique ;
+- profils matériel.
+
+PORTE E : chaque résultat externe est interprété sans ambiguïté.
+
+Mois 6 : GPU spécialisé et preuves
+
+- étapes 14, 16 et 17 ;
+- Genefer/GIMPS ;
+- preuve ;
+- reprise ;
+- fiabilité.
+
+PORTE F : aucune campagne réelle avant preuve et vérification fonctionnelles.
+
+Mois 7 : première campagne pilote
+
+- étape 19 ;
+- zone connue ;
+- zone attribuée ou préenregistrée ;
+- 24 h puis 7 jours.
+
+PORTE G : campagne longue seulement si stabilité, couverture et coût sont validés.
+
+Mois 8 à 10 : GPU générique conditionnel
+
+- étape 15 ;
+- uniquement si un cas d'usage prometteur a été identifié.
+
+PORTE H : intégration uniquement avec gain supérieur ou égal à 20 % sur un régime
+utile et zéro divergence.
+
+Mois 11 à 12 : évaluation et publication
+
+- étape 20 ;
+- benchmarks finaux ;
+- reproductibilité ;
+- article ou rapport.
+
+
+13. PLAN CONCRET DES QUATORZE PREMIERS JOURS
+============================================
+
+Jour 1
+
+- terminer l'installation Visual Studio C++ ;
+- vérifier qu'un Hello World Release x64 compile ;
+- installer Git si absent ;
+- créer le dossier PrimeForge.
+
+Jour 2
+
+- initialiser Git ;
+- créer CMakeLists.txt et CMakePresets.json ;
+- créer primeforge-selftest ;
+- enregistrer compilateur, OS et CPU.
+
+Jour 3
+
+- créer CHARTER.md, CLAIMS.tsv et DECISIONS.md ;
+- définir les statuts de résultats ;
+- créer la structure de dossiers minimale.
+
+Jour 4
+
+- installer primesieve par une méthode documentée ;
+- exécuter ses tests ;
+- mesurer trois intervalles ;
+- conserver toutes les commandes et sorties.
+
+Jour 5
+
+- installer FLINT ou, si sa construction Windows bloque, commencer par PARI/GP
+  comme oracle externe ;
+- créer dix premiers vecteurs de test.
+
+Jour 6
+
+- écrire le crible impair scalaire ;
+- comparer jusqu'à une petite borne ;
+- ajouter tests pour 0, 1, 2 et limites.
+
+Jour 7
+
+- transformer en crible segmenté simple ;
+- mesurer plusieurs tailles de segments ;
+- ne faire aucune optimisation SIMD.
+
+Jour 8
+
+- définir le schéma JSON d'une unité de travail ;
+- écrire le hash canonique ;
+- créer deux unités disjointes et vérifier leur union.
+
+Jour 9
+
+- écrire le parser minimal d'une famille k*2^n+1 ;
+- évaluer exactement les petits cas ;
+- évaluer modulo q.
+
+Jour 10
+
+- compiler les classes interdites pour q = 3, 5, 7, 11, 13 ;
+- vérifier exhaustivement contre l'évaluation directe ;
+- enregistrer le facteur témoin.
+
+Jour 11
+
+- généraliser à une liste de petits premiers ;
+- créer un test qui injecte une table fausse ;
+- vérifier que l'erreur est détectée.
+
+Jour 12
+
+- créer le premier benchmark crible fixe contre crible de résidus ;
+- mesurer le taux de survie ;
+- stocker les données brutes.
+
+Jour 13
+
+- écrire le squelette EngineAdapter ;
+- faire un adaptateur PARI ou primesieve simple ;
+- conserver stdout, stderr et hash du binaire.
+
+Jour 14
+
+- exécuter run_all.ps1 sur un dossier propre ;
+- écrire un rapport : ce qui marche, ce qui échoue, temps mesurés, prochaines
+  hypothèses ;
+- créer le tag v0.0.1-baseline.
+
+À la fin des quatorze jours, le projet ne doit pas encore prétendre découvrir un
+record. Il doit déjà posséder une base scientifique propre.
+
+
+14. RISQUES PRINCIPAUX ET MESURES DE RÉDUCTION
+==============================================
+
+R1 — Aucun gain face aux logiciels spécialisés
+
+Réduction : cibler une famille mal couverte, optimiser la chaîne complète et
+publier les résultats négatifs si nécessaire.
+
+R2 — Erreur de crible éliminant un vrai premier
+
+Réduction : facteur témoin, implantation de référence, énumération exhaustive,
+tests différentiels et version optimisée désactivable.
+
+R3 — Duplication d'une zone déjà cherchée
+
+Réduction : projet d'attribution, registre de couverture, préenregistrement et
+contact avec les mainteneurs.
+
+R4 — PRP présenté comme preuve
+
+Réduction : machine à états stricte, certificat obligatoire, vérificateur séparé.
+
+R5 — Erreur matérielle CPU/GPU
+
+Réduction : stress tests, checkpoints, contrôles d'erreurs, seconde implantation et
+vérification sur autre matériel pour les résultats importants.
+
+R6 — Benchmark biaisé
+
+Réduction : mêmes charges, ordre randomisé, données brutes, thermiques contrôlées,
+répétitions et revue externe.
+
+R7 — Complexité logicielle excessive
+
+Réduction : CLI d'abord, architecture par modules, portes de décision et refus de
+commencer la NTT géante trop tôt.
+
+R8 — Licence incompatible
+
+Réduction : processus externes, dépendances verrouillées, avis de licence et audit
+avant distribution.
+
+R9 — GPU générique inutile
+
+Réduction : prototype limité, seuil d'intégration de 20 %, abandon accepté et
+rapport négatif.
+
+R10 — Modèle adaptatif surajusté
+
+Réduction : plages de calibration séparées des plages de validation, stratégie fixe
+de repli et publication des deux.
+
+R11 — IA générant du code incorrect
+
+Réduction : aucune modification générée par IA n'est acceptée sans revue, tests,
+benchmark et provenance. L'IA aide à écrire, mais ne certifie ni preuve ni vitesse.
+
+R12 — Fichier ou dépendance disparaissant en ligne
+
+Réduction : archives locales autorisées, hashes, commits, miroirs légitimes et
+manifestes de provenance.
+
+
+15. CRITÈRES PERMETTANT DE DÉCLARER LE PROJET RÉUSSI
+====================================================
+
+Niveau 1 — Prototype fiable
+
+- build Windows reproductible ;
+- corpus versionné ;
+- moteur 64 bits correct ;
+- unités de travail et reprise ;
+- zéro erreur non expliquée.
+
+Niveau 2 — Orchestrateur utile
+
+- plusieurs moteurs intégrés ;
+- routage automatique ;
+- preuves et vérification ;
+- campagne connue reproduite.
+
+Niveau 3 — Contribution technique
+
+Au moins un des points suivants :
+
+- compilateur de résidus réutilisable ;
+- gain de 10 % ou plus sur une charge précise ;
+- meilleure efficacité énergétique ;
+- autotuner proche de l'optimum ;
+- nouvelle méthode de couverture ou de certification.
+
+Niveau 4 — Contribution scientifique
+
+- algorithme ou analyse nouvelle validée ;
+- publication reproductible ;
+- ou découverte d'un premier prouvé et vérifié dans une zone correctement attribuée
+  ou documentée.
+
+Niveau 5 — « Logiciel ultra-optimisé » défendable
+
+Cette expression ne sera utilisée publiquement que si :
+
+- la famille et la plage sont précisées ;
+- le meilleur baseline public a été comparé ;
+- le gain est statistiquement robuste ;
+- les données brutes sont disponibles ;
+- une autre machine reproduit le résultat ;
+- la correction et la preuve sont indépendamment validées.
+
+
+16. SOURCES PRIMAIRES INITIALES
+===============================
+
+Les URLs ci-dessous constituent le point de départ de l'audit. Elles doivent être
+épinglées à des commits, tags ou archives exacts avant usage reproductible.
+Consultation initiale : 2 août 2026.
+
+Environnement :
+
+- Visual Studio Community :
+  https://visualstudio.microsoft.com/vs/community/
+- Documentation vcpkg :
+  https://learn.microsoft.com/vcpkg/
+- CMake :
+  https://cmake.org/
+- CUDA Toolkit :
+  https://developer.nvidia.com/cuda-toolkit
+
+Moteurs et bibliothèques :
+
+- primesieve :
+  https://github.com/kimwalisch/primesieve
+- GMP :
+  https://gmplib.org/
+- FLINT :
+  https://flintlib.org/
+- GIMPS / Prime95 :
+  https://www.mersenne.org/
+- Mlucas :
+  https://github.com/primesearch/Mlucas
+- OpenPFGW :
+  https://sourceforge.net/projects/openpfgw/
+- Genefer22 :
+  https://github.com/galloty/genefer22
+- PARI/GP :
+  https://pari.math.u-bordeaux.fr/
+- Documentation PARI des fonctions arithmétiques :
+  https://pari.math.u-bordeaux.fr/dochtml/html-stable/Arithmetic_functions.html
+- GMP-ECM :
+  https://gitlab.inria.fr/zimmerma/ecm
+- CGBN :
+  https://github.com/NVlabs/CGBN
+- Fork CUDA PRPLL à étudier comme référence expérimentale, sans le confondre avec
+  une distribution officielle GIMPS :
+  https://github.com/shitcoinsherpa/Frey-PRPLL
+
+Sources à ajouter lors de l'étape 2 :
+
+- articles originaux sur Proth, Pocklington, Lucas-Lehmer, Pépin, APRCL et ECPP ;
+- littérature sur Gerbicz et les preuves PRP ;
+- publications des algorithmes utilisés par Genefer et PRPLL ;
+- documentation des cribles Proth/Riesel actuels ;
+- bases de couverture officielles des projets choisis ;
+- travaux antérieurs sur les compilateurs de cribles et la sélection adaptative.
+
+Règle bibliographique : une page secondaire ou un article de blog peut aider à
+trouver une source, mais une affirmation scientifique doit finalement pointer vers
+le papier, le code ou la documentation primaire.
+
+
+17. LISTE DE CONTRÔLE FINALE AVANT UNE VRAIE CAMPAGNE DE RECHERCHE
+=================================================================
+
+[ ] Le domaine de recherche est borné et canonique.
+[ ] La zone est attribuée, préenregistrée ou vérifiée comme non couverte selon un
+    protocole documenté.
+[ ] Les unités de travail couvrent le domaine sans trou.
+[ ] Le compilateur de résidus a passé les tests exhaustifs et différentiels.
+[ ] Chaque élimination peut fournir un facteur témoin ou être reproduite.
+[ ] Les moteurs sont épinglés par version et hash.
+[ ] Les licences sont documentées.
+[ ] Le système a passé les stress tests.
+[ ] Les checkpoints survivent à une coupure forcée.
+[ ] Le statut PRP est distinct de PROVEN_PRIME.
+[ ] Une méthode de preuve est disponible pour les survivants.
+[ ] Un vérificateur indépendant est prêt.
+[ ] Les températures et la consommation sont surveillées.
+[ ] Les limites de puissance sont sûres et documentées.
+[ ] Le benchmark de référence a été exécuté avant la campagne.
+[ ] Le budget de temps et d'énergie est fixé.
+[ ] Les résultats et logs sont sauvegardés sur un second support.
+[ ] Une procédure de réaction à une découverte est écrite.
+[ ] Aucun résultat ne sera publié avant confirmation.
+
+
+CONCLUSION OPÉRATIONNELLE
+========================
+
+La stratégie la plus solide est de construire PrimeForge en trois couches :
+
+1. une couche d'orchestration qui utilise immédiatement les meilleurs moteurs
+   existants ;
+2. une couche originale de compilation de familles, de résidus et de couverture ;
+3. une couche d'optimisation CPU/GPU qui ne remplace un moteur existant que lorsqu'un
+   benchmark de bout en bout prouve un gain.
+
+Le premier objectif de recherche original doit être le compilateur de résidus pour
+les familles k*2^n+/-1, parce qu'il est à la fois mathématique, testable, utile et
+compatible avec une pipeline adaptative. La RTX 5080 doit d'abord être exploitée
+par les moteurs GPU spécialisés déjà validés. L'arithmétique CUDA générique vient
+ensuite, comme hypothèse conditionnelle, et non comme point de départ.
+
+Le résultat final recherché n'est donc pas un simple programme qui « essaie des
+nombres ». C'est une chaîne complète qui sait pourquoi elle teste une zone, comment
+elle élimine chaque candidat, quel moteur est le meilleur localement, comment elle
+prouve un résultat et comment un tiers peut tout reproduire depuis zéro.

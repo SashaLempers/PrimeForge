@@ -1,0 +1,50 @@
+# Visual Studio and editor state
+.vs/
+.vscode/
+*.user
+*.suo
+
+# CMake and build outputs
+out/
+build/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+compile_commands.json
+
+# Compiled artifacts
+*.exe
+*.dll
+*.lib
+*.exp
+*.obj
+*.pdb
+*.ilk
+*.idb
+*.iobj
+*.ipdb
+
+# Runtime data not intended for source control
+checkpoints/*
+coverage/*.db
+coverage/*.sqlite*
+benchmarks/raw/*
+proofs/private/*
+releases/*
+
+# Keep directory documentation/placeholders
+!checkpoints/.gitkeep
+!coverage/.gitkeep
+!benchmarks/raw/.gitkeep
+!proofs/private/.gitkeep
+!releases/.gitkeep
+
+# Temporary files
+*.tmp
+*.bak
+*.log
+Thumbs.db
+.DS_Store

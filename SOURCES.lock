@@ -1,0 +1,4 @@
+id	kind	name	primary_url	revision	sha256	license	license_sha256	provenance	redistribution	integration	audit_date	status
+SPEC-0001	specification	Programme de recherche PrimeForge pas a pas 2026-08-02	local:docs/specifications/Programme_de_recherche_PrimeForge_pas_a_pas_2026-08-02.txt	1.0	A87A3DDDF710E3080C9A3F1247644FF9505ECBCF470358015E9EDF19214A01C1	UNSPECIFIED	UNKNOWN	User-provided original file	NOT_AUTHORIZED_BY_APACHE_SCOPE	REFERENCE_ONLY	2026-08-02	REPRODUCED
+TOOL-0001	tool	Git	UNKNOWN	2.53.0.windows.3	UNKNOWN	UNKNOWN	UNKNOWN	Local installed executable	NOT_REDISTRIBUTED	DEVELOPMENT_TOOL	2026-08-02	REPRODUCED
+TOOL-0002	tool	GitHub CLI	https://github.com/cli/cli	2.97.0	UNKNOWN	MIT	UNKNOWN	Official installation requested for private repository creation	NOT_REDISTRIBUTED	DEVELOPMENT_TOOL	2026-08-02	REPRODUCED

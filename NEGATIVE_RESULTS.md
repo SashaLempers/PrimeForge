@@ -327,3 +327,12 @@ Each future entry must include:
 - **Failure criterion:** optimized traversal order must not change canonical factor evidence.
 - **Conclusion:** when witnesses are requested, a CRT-premarked candidate now evaluates only matching rules with primes below its already valid factor. All variants return the exact smallest reference factors without replaying the complete table. No assertion was removed.
 - **Retry condition:** every new premark or wheel path must pass bitset and canonical-factor differential gates.
+
+## NR-0035 - Direct bitset writes were initially enabled for transposed traversal
+
+- **Date:** 2026-08-02
+- **Change tested:** watchdog-supervised 420-row family-sieve differential diagnostic after replacing worker-local bitsets with direct segmented writes.
+- **Evidence:** all warmups passed, then one randomized timed row disagreed with the scalar reference. The `by_n` traversal partitions transposed traversal indices, so two otherwise aligned segments can update different bits of the same canonical k-major word.
+- **Failure criterion:** every timed result must equal the scalar reference byte for byte; a fast path may never rely on overlapping non-atomic writes.
+- **Conclusion:** direct writes now require dense storage, canonical `by_k` traversal and a segment size divisible by 64. Transposed or unaligned configurations automatically retain worker-local bitsets and their merge. A dedicated transposed fallback assertion and 20 repeated 16-worker dynamic direct-write runs pass.
+- **Retry condition:** any future traversal layout must prove exclusive ownership at the canonical 64-bit-word boundary before enabling direct writes.

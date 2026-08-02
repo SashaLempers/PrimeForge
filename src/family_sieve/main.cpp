@@ -59,6 +59,7 @@ struct Sample {
     std::uint64_t factor_witnesses{};
     std::string result_sha256;
     bool legacy_factor_second_pass{};
+    bool direct_bitset_writes_applied{};
     bool vector_applied{};
     bool crt_applied{};
     bool huge_pages_applied{};
@@ -259,6 +260,7 @@ int main(const int argc, char** argv) {
                     count_factor_witnesses(factor_witnesses),
                     hash,
                     variant.legacy_factor_second_pass,
+                    result.direct_bitset_writes_applied,
                     result.vector_mode_applied,
                     result.crt_applied,
                     result.huge_pages_applied,
@@ -269,7 +271,7 @@ int main(const int argc, char** argv) {
             }
         }
 
-        std::string raw = "schema_version\tregime\tvariant\trepetition\torder\telapsed_nanoseconds\tcandidates\teliminated\trule_checks\tmodular_checks\texact_checks\tbounded_magnitude_checks\tbig_integer_checks\tfactor_witnesses\tlegacy_factor_second_pass\tresult_sha256\tvector_applied\tcrt_applied\thuge_pages_applied\tpinning_applied\taffinity_workers_requested\taffinity_workers_applied\ttelemetry_status\tperformance_valid\tperformance_claim\n";
+        std::string raw = "schema_version\tregime\tvariant\trepetition\torder\telapsed_nanoseconds\tcandidates\teliminated\trule_checks\tmodular_checks\texact_checks\tbounded_magnitude_checks\tbig_integer_checks\tfactor_witnesses\tlegacy_factor_second_pass\tresult_sha256\tdirect_bitset_writes_applied\tvector_applied\tcrt_applied\thuge_pages_applied\tpinning_applied\taffinity_workers_requested\taffinity_workers_applied\ttelemetry_status\tperformance_valid\tperformance_claim\n";
         for (const auto& sample : samples) {
             raw += "1\t" + sample.regime + '\t' + sample.variant + '\t' +
                    std::to_string(sample.repetition) + '\t' + std::to_string(sample.order) + '\t' +
@@ -282,6 +284,7 @@ int main(const int argc, char** argv) {
                    std::to_string(sample.factor_witnesses) + '\t' +
                    yes_no(sample.legacy_factor_second_pass) + '\t' +
                    sample.result_sha256 + '\t' +
+                   yes_no(sample.direct_bitset_writes_applied) + '\t' +
                    yes_no(sample.vector_applied) + '\t' + yes_no(sample.crt_applied) + '\t' +
                    yes_no(sample.huge_pages_applied) + '\t' + yes_no(sample.pinning_applied) +
                    '\t' + std::to_string(sample.affinity_workers_requested) +

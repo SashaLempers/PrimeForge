@@ -19,6 +19,12 @@ ZIP SHA-256 is
 The asset was downloaded again and passed the closed package verifier. The
 repository and release remain private.
 
+Post-release PIVOT-03 work now keeps proper-factor evidence in the original
+sieve traversal and lets aligned k-major segments write disjoint canonical
+bitset words directly. The released archive is unchanged; the optimized source
+path remains under Debug/Release, differential and private-CI validation before
+a later release. No timing is promoted to a performance claim.
+
 Windows/MSVC is the product path. Linux/GCC remains mandatory portable-correctness
 CI. CUDA stays available for the post-MVP performance path but is not allowed to
 delay the first complete CPU campaign.
@@ -171,8 +177,9 @@ The guarded long-run component contract and exact commands are in
 Milestone evidence is kept in `docs/reports/`. Stage 11 remains a scoped negative
 result: offline adaptation reproduced fixed-low and online exploration added cost
 on its retained regimes. Old telemetry-incomplete timings keep
-`performance_claim=NONE`. No search campaign has started. primesieve, FLINT,
-PARI/GP and proth20 remain isolated local oracles only.
+`performance_claim=NONE`. Only small known correctness campaigns have run; no
+novel or prolonged search campaign has started. primesieve, FLINT, PARI/GP and
+proth20 remain isolated local oracles only.
 
 ## Governance and licensing
 

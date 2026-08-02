@@ -10,8 +10,10 @@ added in MVP-03.
 The fixed correctness-first path is:
 
 1. generate primes through the configured inclusive bound;
-2. compile congruence rules and run the scalar one-thread family sieve;
-3. reconstruct and revalidate a proper factor for every sieve elimination;
+2. compile congruence rules and run the correctness-fixed one-thread family
+   sieve with aligned direct canonical-bitset writes;
+3. retain the smallest proper factor during that same sieve traversal and
+   revalidate it at the result boundary;
 4. run the internal base-2 strong probable-prime filter on survivors;
 5. for every positive PRP, invoke the hash-pinned PARI/GP wrapper;
 6. accept `PROVEN_PRIME` only after `primecert` is written and
@@ -56,4 +58,3 @@ its SHA-256 is
 The retained pipeline test executes the whole domain twice with controlled
 engine fixtures, requires byte-identical ledgers and rejects an injected
 independent-engine disagreement.
-

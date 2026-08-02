@@ -41,6 +41,8 @@ struct Counters {
 
 struct WorkerOutput {
     std::vector<std::uint64_t> words;
+    std::vector<std::uint64_t>* direct_words{};
+    std::vector<std::uint64_t>* direct_factor_witnesses{};
     std::vector<std::uint64_t> list;
     std::vector<std::pair<std::uint64_t, std::uint64_t>> factor_witnesses;
     Counters counters;
@@ -240,12 +242,19 @@ void record_elimination(
     if (storage == CandidateStorage::list) {
         output.list.push_back(index);
     } else {
-        auto& word = output.words[static_cast<std::size_t>(index / 64U)];
+        auto& words = output.direct_words == nullptr
+            ? output.words
+            : *output.direct_words;
+        auto& word = words[static_cast<std::size_t>(index / 64U)];
         const auto bit = std::uint64_t{1} << (index % 64U);
         first_worker_elimination = (word & bit) == 0U;
         word |= bit;
     }
-    if (retain_factor_witnesses && first_worker_elimination) {
+    if (retain_factor_witnesses && output.direct_factor_witnesses != nullptr) {
+        auto& retained =
+            (*output.direct_factor_witnesses)[static_cast<std::size_t>(index)];
+        if (retained == 0U || prime < retained) retained = prime;
+    } else if (retain_factor_witnesses && first_worker_elimination) {
         output.factor_witnesses.emplace_back(index, prime);
     }
 }
@@ -570,6 +579,15 @@ Result run(
     const auto thread_count = std::max(1U, std::min<unsigned int>(
         options.threads, static_cast<unsigned int>(std::min<std::uint64_t>(
                              segment_count, std::numeric_limits<unsigned int>::max()))));
+    // A canonical k-major segment aligned to complete 64-bit words is
+    // exclusively owned by one worker. Dense workers can therefore update the
+    // result directly without atomics, per-worker copies, or an
+    // O(threads*candidates) merge. Transposed traversal does not have this
+    // ownership property in the canonical output layout.
+    const bool direct_bitset_writes =
+        options.storage == CandidateStorage::dense_bitset &&
+        options.orientation == BitsetOrientation::by_k &&
+        options.segment_candidates % 64U == 0U;
     std::vector<cpu::CpuSet> affinity_plan;
     if (options.thread_placement != ThreadPlacement::scheduler_managed) {
         const auto topology = cpu::collect_topology();
@@ -580,7 +598,12 @@ Result run(
     }
     std::vector<WorkerOutput> outputs(thread_count);
     for (auto& output : outputs) {
-        if (options.storage == CandidateStorage::dense_bitset) {
+        if (direct_bitset_writes) {
+            output.direct_words = &premarked;
+            if (options.retain_factor_witnesses) {
+                output.direct_factor_witnesses = &premarked_factor_witnesses;
+            }
+        } else if (options.storage == CandidateStorage::dense_bitset) {
             output.words.assign(word_count, 0U);
         }
     }
@@ -630,6 +653,7 @@ Result run(
     result.candidate_count = candidate_count;
     result.eliminated_words = std::move(premarked);
     result.factor_witnesses = std::move(premarked_factor_witnesses);
+    result.direct_bitset_writes_applied = direct_bitset_writes;
     result.crt_applied = crt_applied;
     result.affinity_workers_requested =
         options.thread_placement == ThreadPlacement::scheduler_managed ? 0U : thread_count;
@@ -649,6 +673,9 @@ Result run(
                 result.eliminated_words[static_cast<std::size_t>(index / 64U)] |=
                     std::uint64_t{1} << (index % 64U);
             }
+        } else if (direct_bitset_writes) {
+            // The worker already wrote its disjoint word range into the
+            // canonical result; there is no worker-local bitset to merge.
         } else if (options.vector_mode == VectorMode::avx512 && capabilities.avx512f) {
             detail::merge_words_avx512(
                 result.eliminated_words.data(), output.words.data(), word_count);
@@ -664,9 +691,11 @@ Result run(
         result.exact_checks += output.counters.exact_checks;
         result.bounded_magnitude_checks += output.counters.bounded_magnitude_checks;
         result.big_integer_checks += output.counters.big_integer_checks;
-        for (const auto& [index, prime] : output.factor_witnesses) {
-            auto& witness = result.factor_witnesses[static_cast<std::size_t>(index)];
-            if (witness == 0U || prime < witness) witness = prime;
+        if (!direct_bitset_writes) {
+            for (const auto& [index, prime] : output.factor_witnesses) {
+                auto& witness = result.factor_witnesses[static_cast<std::size_t>(index)];
+                if (witness == 0U || prime < witness) witness = prime;
+            }
         }
         result.thread_pinning_applied =
             result.thread_pinning_applied || output.pinning_applied;
@@ -675,7 +704,8 @@ Result run(
         }
     }
     result.vector_mode_applied =
-        options.storage == CandidateStorage::dense_bitset && vector_supported;
+        options.storage == CandidateStorage::dense_bitset &&
+        !direct_bitset_writes && vector_supported;
     for (const auto word : result.eliminated_words) {
         result.eliminated_count += static_cast<std::uint64_t>(std::popcount(word));
     }

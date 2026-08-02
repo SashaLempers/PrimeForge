@@ -35,6 +35,15 @@ MVP search enables this mode and no longer invokes `apply_compiled_table` a
 second time solely to reconstruct factors. Callers that need only the bitset keep
 the option disabled and pay no factor-vector allocation.
 
+Dense k-major segments whose size is divisible by 64 own complete canonical
+bitset words. Workers write those words and their optional factor witnesses
+directly into the result. This removes one full bitset per worker and the final
+per-worker merge. The optimization is deliberately disabled for `by_n`
+traversal and non-word-aligned segments, because those partitions can share a
+canonical word; these cases keep the worker-local merge path. Consequently AVX2
+and AVX-512 merge modes are relevant only to the fallback path, not to the
+aligned production path where no merge remains.
+
 ## Measurement boundary
 
 `primeforge-family-sieve-benchmark` performs warmup, uses a fixed-seed randomized schedule, runs at least seven repetitions, and times congruence compilation, the complete sieve, and result hashing. It compares every timed result to the scalar output before accepting a row. The retained matrix changes one variable from the baseline at a time over small, medium, and large finite regimes.
@@ -52,6 +61,8 @@ The harness includes `mvp-factor-witnesses` and
 recreates the removed second traversal. Their timing rows remain
 `performance_valid=NO` and `performance_claim=NONE`; structural removal of a
 complete redundant pass does not turn those rows into a benchmark claim.
+Raw rows also state whether `direct_bitset_writes_applied`; this is an execution
+fact, not a performance assertion.
 
 Run a clean retained diagnostic collection with:
 

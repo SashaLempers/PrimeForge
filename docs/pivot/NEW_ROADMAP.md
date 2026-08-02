@@ -11,7 +11,8 @@ CUDA Toolkit 13.3 detection, is accepted at commit `9379303`. PIVOT-02 is accept
 at commit `10699d3`; private Windows/Linux CI run `30767609057` is green. The
 private end-to-end MVP is released at `v0.1.0-mvp`. PIVOT-03 has validated
 topology-aware Ryzen placement, bounded nonnegative proper-factor checks and
-single-pass factor evidence; no fastest configuration is claimed yet. Its next
+single-pass factor evidence. Aligned canonical segments now also eliminate
+per-worker full bitsets and their merge; no fastest configuration is claimed. Its next
 work is monitored, disjoint selection of thread, placement, segment and SIMD
 parameters on the complete sieve path.
 

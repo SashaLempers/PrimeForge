@@ -55,6 +55,7 @@ struct Result {
     std::uint64_t bounded_magnitude_checks{};
     std::uint64_t big_integer_checks{};
     bool vector_mode_applied{};
+    bool direct_bitset_writes_applied{};
     bool crt_applied{};
     bool huge_pages_applied{};
     bool thread_pinning_applied{};

@@ -99,10 +99,26 @@ int main() {
         baseline.retain_factor_witnesses = true;
         const auto expected = fsieve::run(table, sha256, baseline);
         check(expected.eliminated_words == reference, "baseline equals direct scalar reference");
+        check(expected.direct_bitset_writes_applied,
+              "word-aligned dense baseline writes disjoint result words directly");
         check(expected.eliminated_count != 0U, "test family has eliminations");
         check_factor_witnesses(expected, family, "baseline");
         check(expected.factor_witnesses == reference_factors,
               "baseline retains the canonical smallest reference factor");
+
+        auto concurrent_direct = baseline;
+        concurrent_direct.threads = 16U;
+        concurrent_direct.segment_candidates = 64U;
+        concurrent_direct.scheduling = fsieve::Scheduling::dynamic_segments;
+        for (std::size_t repetition = 0U; repetition < 20U; ++repetition) {
+            const auto concurrent_result =
+                fsieve::run(table, sha256, concurrent_direct);
+            check(concurrent_result.direct_bitset_writes_applied,
+                  "dynamic aligned segments keep direct writes enabled");
+            check(concurrent_result.eliminated_words == reference &&
+                      concurrent_result.factor_witnesses == reference_factors,
+                  "concurrent direct writes remain deterministic and canonical");
+        }
 
         std::vector<fsieve::Options> variants;
         auto add = [&](const auto change) {
@@ -133,6 +149,7 @@ int main() {
         });
         add([](auto& value) { value.threads = 1U; });
         add([](auto& value) { value.threads = 4U; });
+        add([](auto& value) { value.segment_candidates = 127U; });
 
         std::uint64_t variant_index = 0U;
         for (const auto& options : variants) {
@@ -190,10 +207,23 @@ int main() {
         const auto capabilities = primeforge::collect_system_info().cpu;
         const auto avx2_result = fsieve::run(table, sha256, variants[11]);
         const auto avx512_result = fsieve::run(table, sha256, variants[12]);
-        check(avx2_result.vector_mode_applied == capabilities.avx2,
-              "AVX2 dispatch follows runtime capability");
-        check(avx512_result.vector_mode_applied == capabilities.avx512f,
-              "AVX-512 dispatch follows runtime capability");
+        check(!avx2_result.vector_mode_applied && !avx512_result.vector_mode_applied,
+              "direct bitset writes remove the SIMD merge entirely");
+        const auto unaligned_result = fsieve::run(table, sha256, variants.back());
+        check(!unaligned_result.direct_bitset_writes_applied,
+              "non-word-aligned segments retain the safe worker-local fallback");
+        check(!fsieve::run(table, sha256, variants[1]).direct_bitset_writes_applied,
+              "transposed traversal retains the safe worker-local fallback");
+        auto unaligned_avx2 = variants.back();
+        unaligned_avx2.vector_mode = fsieve::VectorMode::avx2;
+        auto unaligned_avx512 = variants.back();
+        unaligned_avx512.vector_mode = fsieve::VectorMode::avx512;
+        check(fsieve::run(table, sha256, unaligned_avx2).vector_mode_applied ==
+                  capabilities.avx2,
+              "fallback AVX2 merge follows runtime capability");
+        check(fsieve::run(table, sha256, unaligned_avx512).vector_mode_applied ==
+                  capabilities.avx512f,
+              "fallback AVX-512 merge follows runtime capability");
         const auto physical_affinity = fsieve::run(table, sha256, variants[15]);
         const auto logical_affinity = fsieve::run(table, sha256, variants[16]);
         check(physical_affinity.affinity_workers_requested == baseline.threads,

@@ -139,3 +139,57 @@ The duplicate pass is permanently removed for the MVP path. Factor retention may
 later need a more compact representation for billion-candidate batches, but it is
 optional and does not affect bitset-only sieving. PIVOT-03 remains open for the
 measured thread, segment, placement and SIMD selection required by the target.
+
+## Fourth engine tranche: disjoint direct result words
+
+The dense k-major sieve previously allocated a complete candidate bitset for
+every active worker and OR-merged all of them after joining. A word-aligned
+segment is owned by one worker, so PrimeForge now writes that segment's canonical
+64-bit words and optional factor entries directly. The production path removes
+both the `threads * candidate_count` scratch-bitset growth and the complete
+per-worker merge. Non-word-aligned, list and transposed configurations retain the
+old path automatically.
+
+The first watchdog-supervised diagnostic caught a real boundary error: `by_n`
+segments are disjoint in traversal order but can share a k-major output word.
+That attempt was rejected and recorded as NR-0035. Direct writes are now gated on
+canonical `by_k` orientation. Twenty repeated 16-worker dynamic runs, every
+option variant and the 420-row randomized diagnostic agree with the scalar
+bitset and canonical smallest factors. The diagnostic raw and summary SHA-256
+values are `FD25120BD643C984EFE39C94E2A4CD3CC1DA8F5B59114D966B715033FE874EE1`
+and `CD172B7BECA75F2892E1253830D4888EA8F000DD546E7DCF31FA58FB82BECA02`.
+
+The watchdog sampled eight times: GPU temperature remained 52 C, power ranged
+from 43.74 W to 55.65 W, no throttling occurred, and available RAM stayed above
+43.9 GB. CPU frequency was detected at 4300 MHz; CPU temperature and package
+power remain `UNKNOWN`. Every timing row therefore remains
+`performance_valid=NO` and `performance_claim=NONE`.
+
+## Contribution directe au logiciel final
+
+This tranche directly reduces the memory and finalization work of the actual
+multi-thread candidate sieve. It also lets already eliminated candidates skip
+later rules inside their owning segment while preserving the smallest factor.
+The disjoint-word primitive is complete for the canonical aligned layout; its
+fallback boundary is now a tested contract. PIVOT-03 still needs disjoint
+calibration/validation for thread count, segment size, scheduling and placement.
+SIMD merge tuning is no longer relevant to the aligned production path because
+that merge has been removed.
+
+The final clean gate compiled 93/93 targets with no PrimeForge warning in both
+Debug and Release. Debug passed 31/31 tests in 44.44 s and Release passed 31/31
+in 14.48 s; both explicit self-tests reported C++23 and PASS. A fresh real
+160-candidate campaign then completed under the independent watchdog: 117 sieve
+composites, 9 base-2 negative witnesses, 34 proven primes and 126 composites in
+total. Independent verification accepted all 160 records and 208 manifest files.
+Comparison with the previously retained campaign found zero semantic record
+differences across coordinates, values, classifications, factors and all three
+status axes.
+
+The campaign watchdog recorded 24 samples, maximum GPU temperature 52 C,
+maximum GPU power 50.32 W, minimum available RAM 43,824,496,640 bytes, minimum
+free VRAM 13,637 MiB and zero throttle samples. The System WHEA query found no
+matching event in the gate interval. CUDA was not invoked by this CPU campaign.
+Worker, watchdog, search and verification all exited zero. CPU temperature and
+package power remain `UNKNOWN`, so this was a short correctness campaign rather
+than a prolonged load or performance validation.

@@ -495,3 +495,15 @@ checked against the bitset. MVP search enables it and rechecks divisibility at
 the boundary. Bitset-only callers leave it disabled, avoiding the additional
 vector. The structural duplicate is removed independently of diagnostic timing;
 no performance claim is made until monitored validation is eligible.
+
+## D-0067 - Canonical aligned segments own result words directly
+
+**Status:** Accepted - 2026-08-02
+
+For dense k-major traversal with a segment size divisible by 64, every canonical
+bitset word belongs to exactly one segment and therefore exactly one worker.
+Those workers update the final bitset and factor-witness vector directly. This
+removes the worker-local full-bitset allocation and the subsequent per-worker
+merge without atomics. Transposed traversal, list storage and non-word-aligned
+segments keep the previous safe fallback. SIMD merge selection applies only to
+that fallback because the aligned production path has no merge to vectorize.

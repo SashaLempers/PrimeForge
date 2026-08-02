@@ -27,6 +27,8 @@ add_library(primeforge_core STATIC
     src/core/sha256.cpp
     src/core/status.cpp
     src/core/system_info.cpp
+    src/family/family.cpp
+    src/math/big_integer.cpp
     src/math/mul128.cpp
     src/sieve/sieve.cpp
     src/work/work_unit.cpp
@@ -100,6 +102,16 @@ target_link_libraries(primeforge-work-units PRIVATE PrimeForge::core)
 target_compile_features(primeforge-work-units PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge-work-units)
 
+add_executable(primeforge-family-tests tests/family_test.cpp)
+target_link_libraries(primeforge-family-tests PRIVATE PrimeForge::core)
+target_compile_features(primeforge-family-tests PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-family-tests)
+
+add_executable(primeforge-family src/family/main.cpp)
+target_link_libraries(primeforge-family PRIVATE PrimeForge::core)
+target_compile_features(primeforge-family PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-family)
+
 if(BUILD_TESTING)
     add_test(NAME primeforge.unit COMMAND primeforge-tests)
     add_test(NAME primeforge.selftest COMMAND primeforge-selftest)
@@ -117,6 +129,15 @@ if(BUILD_TESTING)
         COMMAND primeforge-sieve-tests ${CMAKE_CURRENT_SOURCE_DIR}/corpus/v1/cases.tsv
     )
     add_test(NAME primeforge.work_units COMMAND primeforge-work-unit-tests)
+    add_test(NAME primeforge.family_language COMMAND primeforge-family-tests)
+    add_test(
+        NAME primeforge.family_cli
+        COMMAND primeforge-family
+            --definition ${CMAKE_CURRENT_SOURCE_DIR}/examples/families/proth_like.pf
+            --set k=3
+            --set n=5
+            --modulus 11
+    )
     add_test(
         NAME primeforge.work_units_cli
         COMMAND primeforge-work-units

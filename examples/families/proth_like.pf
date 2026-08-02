@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+# Demonstration only; this definition does not claim novelty or primality.
+family proth.v1;
+param k in [1,1023];
+param n in [1,31];
+allow_product k;
+value k*2^n+1;
+constraint odd(k);
+constraint gcd(k,2)==1;
+constraint compare(k,<,2^n);
+constraint congruent(k,2,1);
+objective primality;
+proof prove_if_survives;

@@ -181,3 +181,21 @@ Stage 7 technically requires real SHA-256 for identifiers, so PrimeForge supplie
 **Status:** Accepted — 2026-08-02
 
 Checkpoint updates use a same-directory `.new` file, native durable flush, close, and atomic replace. Injected failures before flush and before replace must leave the previous target unchanged. The guarantee applies to tested local filesystems; remote/network filesystem semantics are not assumed.
+
+## D-0031 — Family language v1 is closed and finite
+
+**Status:** Accepted — 2026-08-02
+
+Family definitions contain only bounded signed-64-bit parameters, integer expressions, controlled constant-base powers, named constraints, a primality objective, and an explicit proof policy. There are no loops, arbitrary calls, floats, unbounded domains, I/O, or nondeterministic operations. Multiplication by a nonconstant expression requires a direct parameter factor named by `allow_product`.
+
+## D-0032 — Canonical equivalence is explicit rather than symbolic
+
+**Status:** Accepted — 2026-08-02
+
+Stage-8 canonical identity covers statement/parameter/constraint ordering, duplicate constraints, commutation of a single addition or multiplication node, commutation of gcd operands, and subtraction-as-negation. It intentionally does not claim general algebraic equivalence, reassociation, or distributivity. The exact supported set is documented and golden-vector gated on Windows and Linux.
+
+## D-0033 — Definition arithmetic remains dependency-free and size-gated
+
+**Status:** Accepted — 2026-08-02
+
+PrimeForge uses a small original signed base-10^9 integer for exact family-definition evaluation and its existing 128-bit modular primitive for modular evaluation. This code is a correctness baseline, not a performance engine. Exact values and exact constraint operands are rejected before construction when the conservative domain-derived estimate exceeds 10,000,000 bits. GMP and FLINT remain external until a later stage technically justifies an individually licensed integration.

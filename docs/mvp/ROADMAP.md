@@ -51,12 +51,16 @@ text parsing. `PROVEN_PRIME` requires the configured proof step, and
 
 ## Milestones
 
-### MVP-01 — Unified CLI and campaign plan
+### MVP-01 — Unified CLI and campaign plan (PASS)
 
 Implement the strict YAML subset, canonical campaign representation, flattened
 two-parameter plan, work-unit identities, `selftest` and `inspect`. Add the known
 small campaign definition. Gate: invalid/ambiguous configurations fail closed;
 the inspected plan has exact cardinality, no gap and no duplicate.
+
+Completed at the MVP-01 milestone. The retained domain is 160 valid candidates
+with `k=1..31 step 2` and `n=5..14`. See `docs/mvp/SEARCH_CONFIG.md` and
+`docs/reports/MVP_01.md`.
 
 ### MVP-02 — Complete search pipeline
 

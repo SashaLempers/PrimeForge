@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: Apache-2.0
+# primeforge.exe exists in the CTest working directory but cannot match zero.
+schema: primeforge.search.v1
+campaign_name: hash-mismatch-negative
+family: proth
+expression: k*2^n+1
+parameters:
+  k:
+    start: 1
+    stop: 1
+    step: 2
+  n:
+    start: 2
+    stop: 2
+    step: 1
+constraints:
+  odd_k: true
+  k_less_than_2_pow_n: true
+work_units:
+  candidates_per_unit: 1
+sieve:
+  maximum_prime: 43
+checkpoint:
+  every_candidates: 1
+output:
+  directory: out/campaigns/hash-mismatch-negative
+engines:
+  pari_gp:
+    path: primeforge.exe
+    sha256: 0000000000000000000000000000000000000000000000000000000000000000
+  flint:
+    path: absent-flint.exe
+    sha256: 0000000000000000000000000000000000000000000000000000000000000000
+

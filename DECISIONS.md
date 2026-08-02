@@ -429,3 +429,15 @@ correct optimizations remain; new optimization work is frozen until the known
 campaign, interruption/resume, coverage, manifest, verification and private
 release gates pass. External proof engines remain hash-pinned local processes and
 are not redistributed.
+
+## D-0062 - The first search schema is a closed YAML subset
+
+**Status:** Accepted - 2026-08-02
+
+The MVP accepts only the explicit `primeforge.search.v1` mapping schema. It
+rejects duplicate, unknown, missing or ambiguous YAML constructs and
+canonicalizes parsed values to deterministic restricted JSON before hashing.
+Candidate ownership is k-major and n-minor, so the retained one-dimensional
+work-unit verifier proves exact ownership of the Cartesian family without a
+database. This is deliberately narrow: broader YAML and arbitrary-size domains
+must not delay the first complete engine.

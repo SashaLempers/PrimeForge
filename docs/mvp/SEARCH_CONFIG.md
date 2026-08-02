@@ -1,0 +1,59 @@
+# PrimeForge MVP search configuration
+
+`primeforge inspect --config <file>` accepts the closed
+`primeforge.search.v1` schema illustrated by `examples/mvp/search.yaml`. It is a
+strict YAML mapping subset implemented without a third-party parser.
+
+## Accepted syntax
+
+- spaces only, with exactly two spaces per mapping level;
+- printable ASCII keys and scalar values; comments occupy a complete line;
+- unique known keys and sections only;
+- unquoted scalars, or double-quoted scalars with only `\\` and `\"` escapes;
+- canonical unsigned decimals without a sign or leading zero;
+- `true` for the two mandatory mathematical constraints;
+- portable relative paths using `/`, with no root or `..` component;
+- lowercase 64-character SHA-256 engine hashes;
+- UTF-8 input without a BOM. Meaningful scalar content is restricted to
+  printable ASCII, which is a valid UTF-8 subset.
+
+Aliases, sequences, tags, implicit booleans, inline comments and duplicate keys
+are rejected. Unknown or missing fields are errors; they are never silently
+defaulted.
+
+## Mathematical domain
+
+The MVP supports only `N = k*2^n+1`. Both `k` and `n` are inclusive arithmetic
+progressions. Every generated `k` must be positive and odd, every `n` must be
+positive, `k < 2^n` must hold for the whole Cartesian domain, and every `N` must
+fit exactly in `uint64_t`.
+
+Flat candidate indices use k-major, n-minor order. The known configuration has
+16 k values and 10 n values, hence 160 candidates. It is partitioned into five
+half-open work units of 32 candidates. Its canonical configuration SHA-256 is:
+
+```text
+32964b70c8c51c230b5fdfe776edf5c0531a8963d002ca63b209c86b1b015c41
+```
+
+Line endings and comments do not enter the canonical representation. Parsed
+values are serialized as the restricted canonical JSON documented in
+`docs/CANONICAL_JSON.md`; integer-valued configuration fields are decimal
+strings. The campaign id is `sha256:<configuration hash>`.
+
+## Commands available at MVP-01
+
+From the repository root after a Release build:
+
+```powershell
+& .\out\build\msvc-release\primeforge.exe selftest
+& .\out\build\msvc-release\primeforge.exe inspect `
+  --config examples\mvp\search.yaml
+```
+
+`inspect` validates configuration, cardinality, work-unit coverage and local
+engine hashes. A missing engine is reported `UNAVAILABLE`; a present engine with
+the wrong hash fails closed. It does not execute either engine. `search`,
+`resume` and `verify` are intentionally unavailable until their correctness
+gates are implemented in MVP-02 and MVP-03.
+

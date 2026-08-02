@@ -9,9 +9,9 @@ MVP must add it.
 
 | MVP need | State | Reusable evidence | Minimum missing work |
 |---|---|---|---|
-| Load `search.yaml` | MISSING | Closed `.pf` family parser exists | Strict dependency-free YAML subset; duplicate/unknown key rejection |
-| Validate and canonicalize | PARTIAL | `family::parse_family`, canonical bytes and SHA-256 | Canonical campaign configuration and `uint64_t`/Proth preflight |
-| Work units without gaps/duplicates | PARTIAL | `work::partition_work_units`, identities and coverage verifier | Deterministic flattening of the `(k,n)` domain and campaign mapping |
+| Load `search.yaml` | READY | Strict `primeforge.search.v1` parser; duplicate/unknown/ambiguous input tests | No MVP work remaining |
+| Validate and canonicalize | READY | Canonical campaign SHA-256 and exact `uint64_t`/Proth preflight | No MVP work remaining |
+| Work units without gaps/duplicates | READY | Deterministic `(k,n)` flattening, five hashed units and exact coverage gate | No MVP work remaining |
 | Compile congruences | READY | `compile_congruences`, mutation and exhaustive differential tests | Call it from the campaign plan with a fixed prime list |
 | Sieve candidates | READY | `family_sieve::run`, scalar-reference equality | Enumerate survivors and reconstruct retained factor witnesses |
 | Adapted PRP | PARTIAL | Base-2 strong PRP routine with PRP/proof separation test | Campaign result record and composite witness/diagnostic handling |
@@ -23,8 +23,8 @@ MVP must add it.
 | `results.jsonl` | MISSING | Canonical JSON rules and append-only logger | Stable result schema, factor/proof/log references and status axes |
 | `coverage_report.json` | PARTIAL | Work-unit coverage verifier | Campaign completion, candidate counts and duplicate/hole checks |
 | `MANIFEST.sha256` | MISSING | Portable SHA-256 provider | Deterministic inventory of all final user-facing artifacts |
-| `primeforge.exe` commands | MISSING | Separate diagnostic CLIs and libraries | One dispatcher implementing `selftest/inspect/search/resume/verify` |
-| Known small campaign | MISSING | Proth/Riesel corpus and independent oracle evidence | Versioned YAML plus exact expected `(k,n,N,status)` set |
+| `primeforge.exe` commands | PARTIAL | Unified dispatcher; operational `selftest` and `inspect` | Implement `search/resume/verify` |
+| Known small campaign | PARTIAL | Versioned 160-candidate YAML and canonical campaign identity | Version exact expected `(k,n,N,status)` set |
 | One-command Windows use | MISSING | Reproducible CMake presets and `run_all.ps1` | Document release command and stable output directory behavior |
 | Private release | MISSING | Distribution-license gate | Package original binary/docs/config only; publish private asset and hash |
 

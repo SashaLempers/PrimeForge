@@ -16,6 +16,19 @@ Windows/MSVC is the product path. Linux/GCC remains mandatory portable-correctne
 CI. CUDA stays available for the post-MVP performance path but is not allowed to
 delay the first complete CPU campaign.
 
+MVP-01 now provides the unified executable front door and exact campaign
+inspection:
+
+```powershell
+& .\out\build\msvc-release\primeforge.exe selftest
+& .\out\build\msvc-release\primeforge.exe inspect `
+  --config examples\mvp\search.yaml
+```
+
+The strict schema and current command boundary are documented in
+`docs/mvp/SEARCH_CONFIG.md`. `search`, `resume` and `verify` remain fail-closed
+until the following MVP milestones validate their end-to-end semantics.
+
 PIVOT-00 changes priorities and documentation, not mathematical results. The
 pre-pivot baseline is secured at commit `35dde4a`. PIVOT-01 provides the fresh,
 source-labelled `profiles/hardware_profile.json`, documented in

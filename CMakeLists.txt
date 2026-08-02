@@ -80,6 +80,7 @@ add_library(primeforge_core STATIC
     src/family/family.cpp
     src/math/big_integer.cpp
     src/math/mul128.cpp
+    src/mvp/search_config.cpp
     src/sieve/sieve.cpp
     src/work/work_unit.cpp
     ${primeforge_family_sieve_sources}
@@ -142,6 +143,16 @@ add_executable(primeforge-selftest src/selftest/main.cpp)
 target_link_libraries(primeforge-selftest PRIVATE PrimeForge::core)
 target_compile_features(primeforge-selftest PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge-selftest)
+
+add_executable(primeforge src/cli/main.cpp)
+target_link_libraries(primeforge PRIVATE PrimeForge::core)
+target_compile_features(primeforge PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge)
+
+add_executable(primeforge-mvp-tests tests/mvp_test.cpp)
+target_link_libraries(primeforge-mvp-tests PRIVATE PrimeForge::core)
+target_compile_features(primeforge-mvp-tests PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-mvp-tests)
 
 add_executable(primeforge-tests tests/test_main.cpp)
 target_link_libraries(primeforge-tests PRIVATE PrimeForge::core)
@@ -284,6 +295,18 @@ primeforge_enable_strict_warnings(primeforge-cpu-topology-tests)
 if(BUILD_TESTING)
     add_test(NAME primeforge.unit COMMAND primeforge-tests)
     add_test(NAME primeforge.selftest COMMAND primeforge-selftest)
+    add_test(NAME primeforge.mvp_planning COMMAND primeforge-mvp-tests)
+    add_test(NAME primeforge.mvp_cli_selftest COMMAND primeforge selftest)
+    add_test(
+        NAME primeforge.mvp_cli_inspect
+        COMMAND primeforge inspect --config ${CMAKE_CURRENT_SOURCE_DIR}/examples/mvp/search.yaml
+    )
+    add_test(
+        NAME primeforge.mvp_cli_hash_mismatch
+        COMMAND primeforge inspect
+            --config ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/search_hash_mismatch.yaml
+    )
+    set_tests_properties(primeforge.mvp_cli_hash_mismatch PROPERTIES WILL_FAIL TRUE)
     add_test(
         NAME primeforge.corpus
         COMMAND primeforge-corpus-tests

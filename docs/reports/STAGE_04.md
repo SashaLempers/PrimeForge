@@ -46,7 +46,7 @@ Final clean Release, MSVC 19.51.36252.0:
 - both license tests PASS, 0.02 s each;
 - 5/5 tests PASS, total 1.47 s; explicit self-test PASS.
 
-`powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/run_all.ps1 -Clean` ended with `PrimeForge complete local verification: PASS`. An earlier non-clean Release attempt reproduced NR-0009 and passed 4/5 because Application Control blocked the self-test before start; the final clean retry passed without changing or weakening host policy. Initial hosted run `30761294078` passed Linux/GCC but failed Windows/MSVC because Git converted certificate fixtures to CRLF; NR-0014 records the failure and the explicit `.gitattributes` LF fix. The milestone is closed only after the corrected private hosted Windows/MSVC and Linux/GCC jobs both pass.
+`powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/run_all.ps1 -Clean` ended with `PrimeForge complete local verification: PASS`. An earlier non-clean Release attempt reproduced NR-0009 and passed 4/5 because Application Control blocked the self-test before start; the final clean retry passed without changing or weakening host policy. Initial hosted run `30761294078` passed Linux/GCC but failed Windows/MSVC because Git converted certificate fixtures to CRLF; NR-0014 records the failure and the explicit `.gitattributes` LF fix. Corrected private workflow run `30761364430` passed both `linux-gcc` (10 s) and `windows-msvc` (53 s) at commit `5b3d5648ed8719cf63bc4d8e3cbf2015f5bbd748`. Stage 4 is closed.
 
 ## Commands executed
 

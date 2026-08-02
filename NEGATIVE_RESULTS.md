@@ -156,3 +156,30 @@ Each future entry must include:
 - **Failure criterion:** the gate stopped before creating any final evidence file.
 - **Conclusion:** the Git output is now wrapped in `@(...)`, so zero, one, and many status lines have stable array-count semantics.
 - **Retry condition:** the benchmark gate is executed on a clean tree in every milestone reproduction.
+
+## NR-0016 — Initial stage-6 timing table parsed single-line counts as characters
+
+- **Date:** 2026-08-02
+- **Change tested:** preliminary process-level comparison of PrimeForge option variants and primesieve.
+- **Evidence:** the first 189 timing rows contained count `7` while the independent interval validator reported the correct counts; after fixing that conversion, raw counts were correct but the first summary read the 63-row array's own `Count` property instead of each row's `count` field.
+- **Failure criterion:** benchmark variants did not retain the exact oracle count in raw evidence.
+- **Conclusion:** conversions now parenthesize the complete string expression and aggregation explicitly enumerates each row field. The script rejects any per-range count disagreement and generates recalculable summary TSV. Invalid preliminary files remain ignored under `benchmarks/raw` and support no claim.
+- **Retry condition:** a clean-tree run must contain one identical, nontrivial count for all variants of each range.
+
+## NR-0017 — Stage-6 Release corpus executable blocked before start
+
+- **Date:** 2026-08-02
+- **Change tested:** first non-clean stage-6 Debug/Release gate.
+- **Evidence:** Release compiled with zero PrimeForge warnings and 7/8 CTest tests passed; Windows Application Control returned `BAD_COMMAND` for `primeforge-corpus-tests.exe` before process start. The new Release sieve test passed, including corpus classification and differential arithmetic.
+- **Failure criterion:** the first full local Release CTest did not reach 8/8.
+- **Conclusion:** this is the same enforced unsigned-binary policy as NR-0009. PrimeForge did not weaken it. A clean retry and private hosted Windows/Linux CI are required to close the milestone.
+- **Retry condition:** successful full local execution or the already documented trusted-signing/authorized-development path, plus hosted CI.
+
+## NR-0018 — No stage-6 evidence for wheel 210 or SIMD retention
+
+- **Date:** 2026-08-02
+- **Change tested:** whether to retain wheel 210, AVX2, or AVX-512 dispatch in the first sieve.
+- **Evidence:** the host advertises AVX2 and AVX-512F, but stage-6 timing lacks temperature, frequency, power, energy, and throttle telemetry and includes child-process startup. No multi-range claim-eligible gain exists.
+- **Failure criterion:** capability detection or a noisy timing difference cannot justify additional optimized code.
+- **Conclusion:** these paths are not implemented or retained. Wheel 30, bit packing, buckets, prefetch, and both bucket layouts remain independently testable; conservative defaults select the simple byte path.
+- **Retry condition:** a preregistered, telemetry-complete multi-range benchmark demonstrates a repeatable end-to-end gain without correctness divergence.

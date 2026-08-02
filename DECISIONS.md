@@ -145,3 +145,21 @@ Raw phase durations are integer nanoseconds. Stage-5 summaries use lower median,
 **Status:** Accepted — 2026-08-02
 
 Temperature, frequency, power, wall energy, and throttling data are never inferred. Missing values are `UNKNOWN` or `UNAVAILABLE`, and the affected samples remain useful only for validating the harness. Hardware errors, reported throttling, unacceptable temperature, or frequency collapse invalidate samples automatically under an injected policy.
+
+## D-0025 — Sieve intervals and concurrency are deterministic
+
+**Status:** Accepted — 2026-08-02
+
+Prime generation uses half-open intervals `[begin,end)`. Each segment has exclusive storage and a stable numeric index; workers may finish in any order, but results are concatenated by index. Segment size, thread count, wheel 30, bit packing, buckets, prefetch, and bucket layout are independently selectable and must produce identical ordered output.
+
+## D-0026 — Stage-6 optimizations require multi-range evidence
+
+**Status:** Accepted — 2026-08-02
+
+The simplest byte-storage segmented path is the default. Wheel 30, bit packing, bucket layout, and prefetch remain implemented as experimental toggles. Wheel 210 and AVX2/AVX-512 dispatch are not retained because no claim-eligible, telemetry-complete benchmark demonstrated a gain on multiple ranges. Hardware capability alone is not evidence of an end-to-end improvement.
+
+## D-0027 — Compiler-specific 128-bit arithmetic stays internal
+
+**Status:** Accepted — 2026-08-02
+
+The public API uses pairs of 64-bit words. MSVC x64 uses `_umul128`/`_udiv128`; GCC and Clang may use their native unsigned 128-bit extension internally; every build retains a portable 32-bit-limb and add/double reference. Boundary and fixed-seed differential tests are mandatory before later modular algorithms may use the fast path.

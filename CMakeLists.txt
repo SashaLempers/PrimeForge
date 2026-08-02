@@ -27,6 +27,8 @@ add_library(primeforge_core STATIC
     src/core/sha256.cpp
     src/core/status.cpp
     src/core/system_info.cpp
+    src/math/mul128.cpp
+    src/sieve/sieve.cpp
 )
 add_library(PrimeForge::core ALIAS primeforge_core)
 
@@ -77,6 +79,16 @@ target_link_libraries(primeforge-benchmark-tests PRIVATE PrimeForge::benchmark)
 target_compile_features(primeforge-benchmark-tests PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge-benchmark-tests)
 
+add_executable(primeforge-sieve src/sieve/main.cpp)
+target_link_libraries(primeforge-sieve PRIVATE PrimeForge::core)
+target_compile_features(primeforge-sieve PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-sieve)
+
+add_executable(primeforge-sieve-tests tests/sieve_test.cpp)
+target_link_libraries(primeforge-sieve-tests PRIVATE PrimeForge::core)
+target_compile_features(primeforge-sieve-tests PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-sieve-tests)
+
 if(BUILD_TESTING)
     add_test(NAME primeforge.unit COMMAND primeforge-tests)
     add_test(NAME primeforge.selftest COMMAND primeforge-selftest)
@@ -89,6 +101,10 @@ if(BUILD_TESTING)
             ${CMAKE_CURRENT_SOURCE_DIR}/corpus/v1/certificates/pari-primecert-corrupt.txt
     )
     add_test(NAME primeforge.benchmark_protocol COMMAND primeforge-benchmark-tests)
+    add_test(
+        NAME primeforge.sieve
+        COMMAND primeforge-sieve-tests ${CMAKE_CURRENT_SOURCE_DIR}/corpus/v1/cases.tsv
+    )
     add_test(
         NAME primeforge.benchmark_smoke
         COMMAND primeforge-benchmark

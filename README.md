@@ -4,7 +4,7 @@ PrimeForge is a C++23 research platform for auditable prime search, proof, verif
 
 The project currently makes no claim of superior performance, mathematical novelty, or discovery of a new prime. A probable prime is never reported as a proven prime.
 
-## Current milestone: stage 5
+## Current milestone: stage 6
 
 - `primeforge_core`: portable core interfaces and foundational types;
 - `primeforge-selftest`: compiler, OS, architecture, CPU, GPU-presence, and policy checks;
@@ -12,10 +12,12 @@ The project currently makes no claim of superior performance, mathematical novel
 - `primeforge-corpus-tests`: versioned correctness corpus, oracle-evidence, and exhaustive-reference regression.
 - `primeforge-benchmark`: pre-engine measurement harness with raw CSV/JSON and conservative statistics;
 - `primeforge-benchmark-tests`: protocol, scheduling, compatibility, and throttling-invalidation tests.
+- `primeforge-sieve`: deterministic half-open interval prime generation/count CLI;
+- `primeforge-sieve-tests`: exhaustive option-matrix, corpus, and 128-bit differential tests.
 
 No external numerical, JSON, cryptographic, or GPU library is linked at this stage. The source audit selects only future integration modes; it does not add runtime dependencies.
 
-The state-of-the-art inventory is in `docs/STATE_OF_THE_ART.md`. The 68-case correctness corpus and its independent evidence are documented in `docs/CORPUS.md`. The claim-safe measurement rules are in `docs/BENCHMARK_PROTOCOL.md`. Pinned component evidence and unresolved gaps are indexed by `audits/INDEX.md`.
+The stage-6 algorithm and toggle boundary are in `docs/SIEVE.md`. The state-of-the-art inventory is in `docs/STATE_OF_THE_ART.md`. The 68-case correctness corpus and its independent evidence are documented in `docs/CORPUS.md`. The claim-safe measurement rules are in `docs/BENCHMARK_PROTOCOL.md`. Pinned component evidence and unresolved gaps are indexed by `audits/INDEX.md`.
 
 The licensing/provenance boundary is documented in `LICENSING.md`, `docs/PROVENANCE_POLICY.md`, and `licenses/DISTRIBUTION_MANIFEST.tsv`. Verify a distribution with:
 
@@ -47,7 +49,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/run_all.ps1 -Cle
 
 See `docs/BUILD_WINDOWS.md` and `docs/CANONICAL_JSON.md`.
 
-Milestone evidence is kept in `docs/reports/`. Stage 5 adds the benchmark laboratory before any numerical-engine optimization. Its retained runs are explicitly harness validation only and make no performance claim. FLINT, PARI/GP, and proth20 remain isolated local oracles only.
+Milestone evidence is kept in `docs/reports/`. Stage 6 adds the first numerical engine, but retains no SIMD, wheel-210, or comparative-performance claim. Its process-level timing rows are validation evidence only. primesieve, FLINT, PARI/GP, and proth20 remain isolated local oracles only.
 
 ## Governance and licensing
 

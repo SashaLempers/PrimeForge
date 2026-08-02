@@ -53,9 +53,21 @@ target_link_libraries(primeforge-tests PRIVATE PrimeForge::core)
 target_compile_features(primeforge-tests PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge-tests)
 
+add_executable(primeforge-corpus-tests tests/corpus_test.cpp)
+target_compile_features(primeforge-corpus-tests PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-corpus-tests)
+
 if(BUILD_TESTING)
     add_test(NAME primeforge.unit COMMAND primeforge-tests)
     add_test(NAME primeforge.selftest COMMAND primeforge-selftest)
+    add_test(
+        NAME primeforge.corpus
+        COMMAND primeforge-corpus-tests
+            ${CMAKE_CURRENT_SOURCE_DIR}/corpus/v1/cases.tsv
+            ${CMAKE_CURRENT_SOURCE_DIR}/corpus/v1/oracles/oracle_results.tsv
+            ${CMAKE_CURRENT_SOURCE_DIR}/corpus/v1/certificates/pari-primecert-valid.txt
+            ${CMAKE_CURRENT_SOURCE_DIR}/corpus/v1/certificates/pari-primecert-corrupt.txt
+    )
 
     add_test(
         NAME primeforge.license_distribution

@@ -17,11 +17,11 @@
 - Checkpoints and error controls: project-specific results; no PrimeForge adapter yet
 - Proofs/certificates: Proth theorem result when all preconditions and witness checks hold
 - Input/output formats: project command line/files
-- Platform status: source inspected; not selected for build in stage 2
-- Supplied test status: NOT_RUN
-- Simple reproduced case: NOT_RUN
+- Platform status: source built locally with MSVC and system OpenCL without source modification
+- Supplied test status: no upstream suite; local executable starts and enumerates both OpenCL devices
+- Simple reproduced case: proved `43*2^32+1` prime and classified `3*2^32+1` composite on NVIDIA OpenCL
 - Raw performance: NOT_MEASURED
 - Author-declared limits/TODO: experimental/narrow project scope
 - Integration risks: small maintenance surface, independent verification required
-- Redistribution decision: permitted with MIT notice
-- PrimeForge decision: REFERENCE_ONLY, possible future ADAPTER after corpus comparison
+- Redistribution decision: NOT_REDISTRIBUTED in stage 4 despite permissive source license
+- PrimeForge decision: local independent Proth oracle; not linked or redistributed

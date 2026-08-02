@@ -18,10 +18,10 @@
 - Proofs/certificates: rigorous primality routines, but no PrimeForge certificate interchange selected yet
 - Input/output formats: C API and textual debug/serialization helpers
 - Platform status: source supports major systems; Windows dependency chain not installed in stage 2
-- Supplied test status: NOT_RUN because GMP/MPFR integration is deferred until needed
-- Simple reproduced case: NOT_RUN
+- Supplied test status: library test suite not run; pinned vcpkg package built successfully for the stage-4 oracle
+- Simple reproduced case: `fmpz_is_prime` agreed with PARI/GP on all 68 corpus values
 - Raw performance: NOT_MEASURED
 - Author-declared limits/TODO: build and optional dependencies vary by platform
 - Integration risks: LGPL compliance, ABI chain, GMP provenance, and independent-oracle separation
-- Redistribution decision: possible only after stage 3 license and dynamic/static-link decision
-- PrimeForge decision: LINK candidate for corpus/oracle work
+- Redistribution decision: NOT_REDISTRIBUTED; the upstream LGPL/vcpkg GPL metadata discrepancy is quarantined
+- PrimeForge decision: dynamically loaded local oracle only; not linked into PrimeForge

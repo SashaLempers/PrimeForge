@@ -1,0 +1,3 @@
+schema_version	case_id	tool	tool_version	verdict	device
+1	proth-gpu-prime	PROTH20	0.9.1	PROVEN_PRIME	NVIDIA_GEFORCE_RTX_5080
+1	proth-gpu-composite	PROTH20	0.9.1	COMPOSITE	NVIDIA_GEFORCE_RTX_5080

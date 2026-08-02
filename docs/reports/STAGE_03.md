@@ -94,7 +94,7 @@ Compiler mode remained MSVC 19.51.36252.0, _MSC_VER 1951, _MSC_FULL_VER 19513625
 
 The preceding stage 2 hosted CI run 30759463561 also completed successfully on Windows MSVC and Linux GCC.
 
-A later clean relink reproduced a host-policy limitation: Debug again passed 4/4, while Windows Application Control blocked the newly generated unsigned Release primeforge-selftest before main. Release compilation was 8/8; the unit test and both licensing tests passed. CodeIntegrity events 3033/3077 identify policy 0283ac0f-fff1-49ae-ada1-8a933130cad6 and an unmet Enterprise signing level. NR-0009 records this separately from test correctness. The already-recorded complete local gate remains valid for the same source state; the milestone commit must additionally pass private hosted Windows CI before the stage is considered closed.
+A later clean relink reproduced a host-policy limitation: Debug again passed 4/4, while Windows Application Control blocked the newly generated unsigned Release primeforge-selftest before main. Release compilation was 8/8; the unit test and both licensing tests passed. CodeIntegrity events 3033/3077 identify policy 0283ac0f-fff1-49ae-ada1-8a933130cad6 and an unmet Enterprise signing level. NR-0009 records this separately from test correctness. Private hosted workflow run `30759766252` subsequently passed both `windows-msvc` and `linux-gcc`, so stage 3 is closed.
 
 ## Commands executed
 
@@ -117,5 +117,5 @@ A later clean relink reproduced a host-policy limitation: Debug again passed 4/4
 - GMP/FLINT linking remains deferred and needs an exact binary/source distribution plan.
 - Strong-copyleft and custom-EULA programs remain external or reference-only as recorded individually.
 - Electrical consumption remains UNKNOWN.
-- Stage 4 has not yet selected or installed its independent oracles.
+- Stage 4 selects its independent oracles separately; none changes the stage-3 distribution scope.
 - Fresh unsigned Release executables can be blocked by the host's Application Control policy; PrimeForge does not weaken that security control.

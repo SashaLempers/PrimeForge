@@ -1,0 +1,3 @@
+schema_version	id	format	path	expected_validation	producer	producer_version	notes
+1	pari-valid-001	PARI_PRIMECERT	pari-primecert-valid.txt	VALID	PARI_GP	2.17.4	primecertisvalid returns 1
+1	pari-corrupt-001	PARI_PRIMECERT	pari-primecert-corrupt.txt	INVALID	PARI_GP	2.17.4	Single-decimal mutation; primecertisvalid returns 0

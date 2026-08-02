@@ -4,15 +4,16 @@ PrimeForge is a C++23 research platform for auditable prime search, proof, verif
 
 The project currently makes no claim of superior performance, mathematical novelty, or discovery of a new prime. A probable prime is never reported as a proven prime.
 
-## Current milestone: stage 3
+## Current milestone: stage 4
 
 - `primeforge_core`: portable core interfaces and foundational types;
 - `primeforge-selftest`: compiler, OS, architecture, CPU, GPU-presence, and policy checks;
 - `primeforge-tests`: dependency-free unit and contract tests.
+- `primeforge-corpus-tests`: versioned correctness corpus, oracle-evidence, and exhaustive-reference regression.
 
 No external numerical, JSON, cryptographic, or GPU library is linked at this stage. The source audit selects only future integration modes; it does not add runtime dependencies.
 
-The state-of-the-art inventory is in `docs/STATE_OF_THE_ART.md`. Pinned component evidence and unresolved gaps are indexed by `audits/INDEX.md`.
+The state-of-the-art inventory is in `docs/STATE_OF_THE_ART.md`. The 68-case correctness corpus and its independent evidence are documented in `docs/CORPUS.md`. Pinned component evidence and unresolved gaps are indexed by `audits/INDEX.md`.
 
 The licensing/provenance boundary is documented in `LICENSING.md`, `docs/PROVENANCE_POLICY.md`, and `licenses/DISTRIBUTION_MANIFEST.tsv`. Verify a distribution with:
 
@@ -44,7 +45,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/run_all.ps1 -Cle
 
 See `docs/BUILD_WINDOWS.md` and `docs/CANONICAL_JSON.md`.
 
-Milestone evidence is kept in `docs/reports/`. Stage 3 adds a tested missing-license failure gate; it still links no external numerical dependency.
+Milestone evidence is kept in `docs/reports/`. Stage 4 adds a dependency-free automatic corpus regression. FLINT, PARI/GP, and proth20 are isolated local oracles only; no external numerical dependency is linked into or distributed with PrimeForge.
 
 ## Governance and licensing
 

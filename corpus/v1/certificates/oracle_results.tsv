@@ -1,0 +1,3 @@
+schema_version	certificate_id	tool	tool_version	verdict
+1	pari-valid-001	PARI_GP_PRIMECERTISVALID	2.17.4	VALID
+1	pari-corrupt-001	PARI_GP_PRIMECERTISVALID	2.17.4	INVALID

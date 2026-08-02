@@ -34,6 +34,7 @@ coverage/*.sqlite*
 benchmarks/raw/*
 proofs/private/*
 releases/*
+presults.txt
 
 # Keep directory documentation/placeholders
 !checkpoints/.gitkeep

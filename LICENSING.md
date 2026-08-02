@@ -43,3 +43,9 @@ The CMake distribution check and its negative CTest fixture make the build gate 
 Copyright notices from third-party material must be retained verbatim when its license requires them. PrimeForge contributors may learn from documented algorithms, mathematical papers, public interfaces, and black-box behavior, but must not copy third-party function bodies, comments, tables, constants, tests, or distinctive structure without an explicit compatible grant and attribution.
 
 Any clean-room reimplementation follows docs/PROVENANCE_POLICY.md and is entered in docs/CLEAN_ROOM_LOG.md before merge.
+
+## Stage 4 oracle quarantine
+
+FLINT 3.6.0, GMP 6.3.0, MPFR 4.2.2, pthreads4w 3.0.0, PARI/GP 2.17.4, and proth20 0.9.1 are used only as local correctness oracles. Their binaries and DLLs live under ignored `out/oracles`, are not linked into PrimeForge targets, and are not redistributed.
+
+The pinned FLINT upstream source identifies the library as LGPL-3.0-or-later, while the generated vcpkg package SPDX record declares GPL-3.0-only. This discrepancy is unresolved for binary distribution. PrimeForge therefore applies the conservative common result: the local FLINT oracle and every transitive DLL are prohibited from release packaging. An external or development-only process boundary is not treated as a license exemption.

@@ -115,3 +115,21 @@ The machine-readable distribution manifest separates relationship (ORIGINAL, LIN
 **Status:** Accepted — 2026-08-02
 
 primeforge-distribution-check validates the real manifest. CTest also runs a deliberately invalid fixture under WILL_FAIL, proving that a missing required license returns failure. Future distribution automation must invoke this target before packaging.
+
+## D-0020 — Corpus outcomes are separate from engine status
+
+**Status:** Accepted — 2026-08-02
+
+The correctness corpus uses `REJECTED_NON_CANDIDATE`, `COMPOSITE`, and `PROVEN_PRIME` outcomes. This prevents 0 and 1 from being called composite. Corpus validation rejects such values before an engine status is assigned; it does not modify or conflate the three independent runtime status axes.
+
+## D-0021 — Oracles remain outside the product dependency graph
+
+**Status:** Accepted — 2026-08-02
+
+PARI/GP, FLINT, and proth20 are independent local validation tools. Their binaries and DLLs stay under ignored `out/oracles`, are never linked into `primeforge_core`, and are not redistributed. Tracked oracle adapters contain only original PrimeForge glue code. Every verdict is stored with exact versions and hashes.
+
+## D-0022 — Conflicting license metadata is quarantined
+
+**Status:** Accepted — 2026-08-02
+
+Pinned FLINT 3.6.0 upstream source states LGPL-3.0-or-later, while the vcpkg package SPDX record declares GPL-3.0-only. PrimeForge does not choose the more permissive interpretation. The local dynamic oracle is treated conservatively as non-redistributable and cannot enter a release until a later distribution review resolves the exact binary obligations.

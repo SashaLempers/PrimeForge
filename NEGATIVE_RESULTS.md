@@ -102,3 +102,39 @@ Each future entry must include:
 - **Failure criterion:** the newly generated local Release executable could not be launched even though compilation completed.
 - **Conclusion:** this is an enforced host security decision, not a test assertion failure. PrimeForge does not disable or weaken Application Control automatically. The identical source had already passed a complete local Debug/Release gate before a later clean relink changed the unsigned binary, and private hosted Windows CI remains the independent Release execution gate.
 - **Retry condition:** use a CA-trusted code-signing path, an authorized development machine/VM policy, or hosted CI. Do not repeatedly relink to seek a favorable reputation decision.
+
+## NR-0010 — PARI/GP full installer was not suitable for unattended oracle setup
+
+- **Date:** 2026-08-02
+- **Change tested:** silent installation of the official `Pari64-2-17-4.exe` package.
+- **Evidence:** the installer SHA-256 matched the official download listing, but the attempted silent invocation ended with a Windows user-cancellation result and created no installation.
+- **Failure criterion:** an unattended, reproducible local oracle was not produced.
+- **Conclusion:** the installer was not retried. The official standalone `gp64-2-17-4.exe` from the same primary distribution was hash-pinned and executed directly.
+- **Retry condition:** only if a later feature needs files absent from the official standalone binary.
+
+## NR-0011 — First vcpkg build window expired before FLINT completed
+
+- **Date:** 2026-08-02
+- **Change tested:** pinned FLINT 3.6.0 installation with a 15-minute orchestration window.
+- **Evidence:** vcpkg was actively compiling GMP with 33 jobs when the wrapper timed out. GMP and MPFR completed, but FLINT was not yet present.
+- **Failure criterion:** the requested FLINT package was absent from the install root.
+- **Conclusion:** no duplicate build was launched while the original process remained active. A cache-preserving retry installed FLINT 3.6.0 successfully in 122.1 seconds; a subsequent manifest check completed in 197 microseconds.
+- **Retry condition:** first-time oracle provisioning must allow at least 30 minutes and confirm package presence rather than relying only on wrapper lifetime.
+
+## NR-0012 — Initial FLINT oracle build used the wrong direct MSVC flags and missed a runtime DLL
+
+- **Date:** 2026-08-02
+- **Change tested:** first direct compilation and launch of `flint_primality_oracle.cpp`.
+- **Evidence:** MSVC rejected `/std:c++23`, FLINT headers emitted third-party warnings under `/WX`, and the corrected binary initially exited `0xC0000135` because `pthreadVC3.dll` was absent.
+- **Failure criterion:** the oracle did not compile or start.
+- **Conclusion:** the script now uses `/std:c++latest`, marks the vcpkg include tree external with `/external:W0`, retains `/W4 /WX` for PrimeForge glue code, and copies the four required runtime DLLs. The oracle reports FLINT 3.6.0 and passes known prime/composite cases.
+- **Retry condition:** `build_flint_oracle.ps1` is the only supported direct build path; dependency changes require a fresh `dumpbin /dependents` audit.
+
+## NR-0013 — Stage 4 local Release self-test blocked by host policy
+
+- **Date:** 2026-08-02
+- **Change tested:** stage-4 Release CTest after adding the corpus regression.
+- **Evidence:** compilation succeeded; unit, corpus, and both license tests passed. Windows Application Control blocked the unsigned `primeforge-selftest` before process start, producing 4/5 local tests.
+- **Failure criterion:** complete local Release execution was impossible under the enforced policy.
+- **Conclusion:** this is a recurrence of NR-0009, not a corpus disagreement. The security policy remained enabled. A later single clean `run_all.ps1 -Clean` execution passed Release 5/5 and both explicit self-tests; private hosted Windows CI remains the independent Release gate.
+- **Retry condition:** a CA-trusted signing path, an authorized development policy, or hosted CI.

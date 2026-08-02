@@ -17,11 +17,11 @@
 - Checkpoints and error controls: errors reported by GP; no PrimeForge checkpoint adapter yet
 - Proofs/certificates: primecert, primecertisvalid, primecertexport; source route verified in src/basemath/prime.c
 - Input/output formats: GP text; certificate vectors and export formats
-- Platform status: official source inspected; official Windows 64-bit installer is available but not installed because stage 4 is the first required use
-- Supplied test status: NOT_RUN
-- Simple reproduced case: NOT_RUN
+- Platform status: official source inspected; official standalone Windows 64-bit binary executed locally
+- Supplied test status: full upstream suite not run; official standalone binary executed successfully
+- Simple reproduced case: `isprime` agreed with FLINT on all 68 corpus values; valid/corrupt `primecertisvalid` fixtures returned 1/0
 - Raw performance: NOT_MEASURED
 - Author-declared limits/TODO: general proof can be expensive; certificate export does not cover every internal certificate form identically
 - Integration risks: GPL process distribution, parser hardening, resource limits, and exact version discovery
 - Redistribution decision: do not redistribute; invoke a separately installed official executable
-- PrimeForge decision: ADAPTER
+- PrimeForge decision: local independent oracle; do not link or redistribute

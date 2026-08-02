@@ -404,3 +404,15 @@ processor per core and interleaves last-level-cache domains; logical placement
 fills all physical cores before adding SMT siblings. Parked processors and CPU
 sets allocated to another process are excluded. Scheduler-managed placement
 remains the unclaimed default until a valid benchmark selects otherwise.
+
+## D-0060 — Proper-factor magnitude uses a bounded exact fast path
+
+**Status:** Accepted — 2026-08-02
+
+After modular evaluation proves that `q` divides a nonnegative candidate
+`k*b^n+c`, the sieve only needs to decide whether the candidate is greater than
+`q`. Exponentiation, multiplication and addition therefore saturate at this exact
+comparison boundary instead of constructing the full arbitrary-precision value.
+Negative `k`, `b` or `c` use the unchanged `BigInteger` path. Separate counters
+make both paths auditable. This is a semantic-preserving engine optimization;
+throughput remains unclaimed until a controlled benchmark measures it.

@@ -35,9 +35,11 @@ PrimeForge warning and passed 25/26 tests, but its hosted job exposed CPU-set
 topology while refusing thread CPU-set selection. Linux passed 26/26. The test
 had incorrectly equated Windows API presence with runtime permission.
 
-The corrected gate probes selection permission and remains strict whenever it is
-available, including on the target machine. On restricted hosts it verifies that
-the exact applied count is reported and that no pinning success is fabricated.
+The corrected portable gate verifies exact plan capacity and applied counts
+without assuming that a hosted Windows job represents the target. A separate
+target-specific gate recognizes the Ryzen 9 9950X3D, runs 16 physical workers and
+requires 16/16 selections. No restricted host can fabricate pinning success, and
+no hosted-runner limitation weakens the target requirement.
 This is a portability correction only; it does not change placement or sieve
 semantics.
 
@@ -46,3 +48,38 @@ zero PrimeForge warnings and passed 26/26 tests in Debug (46.31 s) and Release
 (13.38 s). Both C++23 self-tests passed. The target topology diagnostic still
 reports 16 physical cores across two L3 domains and the same 16-worker
 interleaved physical plan.
+
+## Second engine tranche: bounded proper-factor checks
+
+The family sieve no longer constructs a complete arbitrary-precision candidate
+merely to decide whether a known divisor is proper when `k`, `b` and `c` are
+nonnegative. After the modular divisibility check, saturating exponentiation,
+multiplication and addition compare `k*b^n+c` exactly with `q`. A value equal to
+`q` is retained; only a value strictly greater than `q` is eliminated. Signed
+families conservatively use the unchanged `BigInteger` implementation.
+
+The retained differential corpus exercised 3,108 bounded checks with zero
+`BigInteger` construction. Its canonical elimination bitset equals the
+arbitrary-precision scalar reference. A signed corpus exercised 3,131
+`BigInteger` fallbacks and also matched exactly. The benchmark TSV now records
+`bounded_magnitude_checks` and `big_integer_checks`, so future timing evidence can
+attribute the path used. No performance result or fastest claim is made here.
+
+The final clean save gate built 83/83 steps in Debug and Release with zero
+PrimeForge warnings, passed 26/26 Debug tests in 46.27 s and 26/26 Release tests
+in 13.62 s, and passed both explicit C++23 self-tests. The target-specific test
+reported `target_16_core_affinity_checked=YES` and
+`target_16_core_affinity_applied=16`.
+
+## Contribution directe au logiciel final
+
+This tranche removes arbitrary-precision allocation and multiplication from a
+repeated sieve decision for the ordinary nonnegative prime families while
+preserving the exact proper-factor obligation. It directly reduces work in the
+candidate-elimination engine and leaves the general signed language correct.
+
+The bounded proof primitive is complete and should not grow into separate
+infrastructure. PIVOT-03 remains open only for monitored, disjoint calibration
+and validation of thread count, placement, segmentation, scheduling and SIMD.
+Those remaining optimization experiments are explicitly paused until the
+end-to-end PrimeForge MVP and its small known campaign have been delivered.

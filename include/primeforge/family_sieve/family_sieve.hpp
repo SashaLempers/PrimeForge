@@ -49,6 +49,8 @@ struct Result {
     std::uint64_t rule_checks{};
     std::uint64_t modular_checks{};
     std::uint64_t exact_checks{};
+    std::uint64_t bounded_magnitude_checks{};
+    std::uint64_t big_integer_checks{};
     bool vector_mode_applied{};
     bool crt_applied{};
     bool huge_pages_applied{};

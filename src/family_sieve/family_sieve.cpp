@@ -35,6 +35,8 @@ struct Counters {
     std::uint64_t rule_checks{};
     std::uint64_t modular_checks{};
     std::uint64_t exact_checks{};
+    std::uint64_t bounded_magnitude_checks{};
+    std::uint64_t big_integer_checks{};
 };
 
 struct WorkerOutput {
@@ -124,6 +126,87 @@ struct RuleColumns {
            parity_matches(family.n.value_at(n_index), family.n_parity);
 }
 
+struct BoundedUnsigned {
+    std::uint64_t value{};
+    bool exceeds_limit{};
+};
+
+struct BoundedMagnitudeResult {
+    bool supported{};
+    bool exceeds_prime{};
+};
+
+[[nodiscard]] BoundedUnsigned bounded_value(
+    const std::uint64_t value, const std::uint64_t limit) noexcept {
+    return {std::min(value, limit), value > limit};
+}
+
+[[nodiscard]] BoundedUnsigned bounded_multiply(
+    const BoundedUnsigned left,
+    const BoundedUnsigned right,
+    const std::uint64_t limit) noexcept {
+    if ((!left.exceeds_limit && left.value == 0U) ||
+        (!right.exceeds_limit && right.value == 0U)) {
+        return {};
+    }
+    if (left.exceeds_limit || right.exceeds_limit ||
+        left.value > limit / right.value) {
+        return {limit, true};
+    }
+    return {left.value * right.value, false};
+}
+
+[[nodiscard]] BoundedUnsigned bounded_add(
+    const BoundedUnsigned left,
+    const BoundedUnsigned right,
+    const std::uint64_t limit) noexcept {
+    if (left.exceeds_limit || right.exceeds_limit ||
+        left.value > limit - right.value) {
+        return {limit, true};
+    }
+    return {left.value + right.value, false};
+}
+
+[[nodiscard]] BoundedUnsigned bounded_power(
+    const std::uint64_t base_value,
+    std::uint64_t exponent,
+    const std::uint64_t limit) noexcept {
+    auto result = bounded_value(1U, limit);
+    auto base = bounded_value(base_value, limit);
+    while (exponent != 0U) {
+        if ((exponent & 1U) != 0U) {
+            result = bounded_multiply(result, base, limit);
+        }
+        exponent >>= 1U;
+        if (exponent != 0U) {
+            base = bounded_multiply(base, base, limit);
+        }
+    }
+    return result;
+}
+
+// Once divisibility by prime is established, a nonnegative candidate is a
+// proper multiple exactly when it exceeds prime. Saturating at that comparison
+// boundary avoids constructing the full integer without weakening the proof.
+[[nodiscard]] BoundedMagnitudeResult bounded_proper_factor_magnitude(
+    const congruence::AffineExponentialFamily& family,
+    const std::uint64_t k_index,
+    const std::uint64_t n_index,
+    const std::uint64_t prime) {
+    const auto k = family.k.value_at(k_index);
+    if (k < 0 || family.base < 0 || family.constant < 0) return {};
+    const auto exponent = static_cast<std::uint64_t>(family.n.value_at(n_index));
+    const auto power = bounded_power(
+        static_cast<std::uint64_t>(family.base), exponent, prime);
+    const auto scaled = bounded_multiply(
+        bounded_value(static_cast<std::uint64_t>(k), prime), power, prime);
+    const auto candidate = bounded_add(
+        scaled,
+        bounded_value(static_cast<std::uint64_t>(family.constant), prime),
+        prime);
+    return {true, candidate.exceeds_limit};
+}
+
 [[nodiscard]] bool proper_factor(
     const congruence::AffineExponentialFamily& family,
     const std::uint64_t k_index,
@@ -133,6 +216,13 @@ struct RuleColumns {
     ++counters.modular_checks;
     if (congruence::evaluate_modulo(family, k_index, n_index, prime) != 0U) return false;
     ++counters.exact_checks;
+    const auto bounded = bounded_proper_factor_magnitude(
+        family, k_index, n_index, prime);
+    if (bounded.supported) {
+        ++counters.bounded_magnitude_checks;
+        return bounded.exceeds_prime;
+    }
+    ++counters.big_integer_checks;
     const auto value = congruence::evaluate_exact(family, k_index, n_index);
     if (value <= math::BigInteger{1} || value.modulo(prime) != 0U) return false;
     const auto absolute = value.is_negative() ? -value : value;
@@ -504,6 +594,8 @@ Result run(
     result.rule_checks = premark_counters.rule_checks;
     result.modular_checks = premark_counters.modular_checks;
     result.exact_checks = premark_counters.exact_checks;
+    result.bounded_magnitude_checks = premark_counters.bounded_magnitude_checks;
+    result.big_integer_checks = premark_counters.big_integer_checks;
     const auto capabilities = collect_system_info().cpu;
     const bool vector_supported =
         (options.vector_mode == VectorMode::avx2 && capabilities.avx2) ||
@@ -527,6 +619,8 @@ Result run(
         result.rule_checks += output.counters.rule_checks;
         result.modular_checks += output.counters.modular_checks;
         result.exact_checks += output.counters.exact_checks;
+        result.bounded_magnitude_checks += output.counters.bounded_magnitude_checks;
+        result.big_integer_checks += output.counters.big_integer_checks;
         result.thread_pinning_applied =
             result.thread_pinning_applied || output.pinning_applied;
         if (output.pinning_applied) {

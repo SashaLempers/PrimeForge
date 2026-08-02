@@ -13,6 +13,7 @@
 
 namespace {
 
+namespace congruence = primeforge::congruence;
 namespace fsieve = primeforge::family_sieve;
 
 void check(const bool condition, const std::string& message) {
@@ -100,6 +101,38 @@ int main() {
         const auto crt_result = fsieve::run(table, sha256, variants[10]);
         check(crt_result.crt_applied, "bounded CRT residue template was applied");
 
+        congruence::AffineExponentialFamily positive_family;
+        positive_family.k = {1, 127, 1U};
+        positive_family.n = {0, 20, 1U};
+        positive_family.base = 2;
+        positive_family.constant = 1;
+        const auto positive_table = congruence::compile_congruences(
+            positive_family, primes, {}, sha256);
+        const auto positive_result = fsieve::run(positive_table, sha256, baseline);
+        check(positive_result.eliminated_words ==
+                  fsieve::reference_eliminated_words(positive_family, primes),
+              "bounded magnitude path equals the arbitrary-precision reference");
+        check(positive_result.exact_checks != 0U &&
+                  positive_result.bounded_magnitude_checks == positive_result.exact_checks &&
+                  positive_result.big_integer_checks == 0U,
+              "nonnegative family avoids every BigInteger magnitude check");
+
+        auto signed_family = positive_family;
+        signed_family.constant = -1;
+        const auto signed_table = congruence::compile_congruences(
+            signed_family, primes, {}, sha256);
+        const auto signed_result = fsieve::run(signed_table, sha256, baseline);
+        check(signed_result.eliminated_words ==
+                  fsieve::reference_eliminated_words(signed_family, primes),
+              "signed fallback equals the arbitrary-precision reference");
+        check(signed_result.exact_checks != 0U &&
+                  signed_result.big_integer_checks == signed_result.exact_checks &&
+                  signed_result.bounded_magnitude_checks == 0U,
+              "signed family conservatively retains every BigInteger check");
+        check(expected.exact_checks == expected.bounded_magnitude_checks +
+                  expected.big_integer_checks,
+              "mixed family accounts for every exact magnitude check");
+
         const auto capabilities = primeforge::collect_system_info().cpu;
         const auto avx2_result = fsieve::run(table, sha256, variants[11]);
         const auto avx512_result = fsieve::run(table, sha256, variants[12]);
@@ -115,24 +148,21 @@ int main() {
               "logical placement records every requested worker");
 #ifdef _WIN32
         const auto topology = primeforge::cpu::collect_topology();
-        const auto affinity_probe = primeforge::cpu::build_affinity_plan(
+        const auto physical_plan = primeforge::cpu::build_affinity_plan(
             topology.cpu_sets,
             primeforge::cpu::AffinityStrategy::physical_core_spread,
-            1U);
-        const bool cpu_set_selection_available = !affinity_probe.empty() &&
-            primeforge::cpu::apply_current_thread_cpu_set(affinity_probe.front());
-        if (cpu_set_selection_available) {
-            primeforge::cpu::clear_current_thread_cpu_set();
-            check(physical_affinity.affinity_workers_applied == baseline.threads,
-                  "physical-core CPU sets apply when the host permits selection");
-            check(logical_affinity.affinity_workers_applied == baseline.threads,
-                  "logical CPU sets apply when the host permits selection");
-        }
+            baseline.threads);
+        const auto logical_plan = primeforge::cpu::build_affinity_plan(
+            topology.cpu_sets,
+            primeforge::cpu::AffinityStrategy::logical_processor_spread,
+            baseline.threads);
         check(physical_affinity.affinity_workers_applied <=
-                  physical_affinity.affinity_workers_requested,
+                  std::min<std::size_t>(
+                      physical_affinity.affinity_workers_requested, physical_plan.size()),
               "physical placement never fabricates an applied CPU set");
         check(logical_affinity.affinity_workers_applied <=
-                  logical_affinity.affinity_workers_requested,
+                  std::min<std::size_t>(
+                      logical_affinity.affinity_workers_requested, logical_plan.size()),
               "logical placement never fabricates an applied CPU set");
         check(physical_affinity.thread_pinning_applied ==
                   (physical_affinity.affinity_workers_applied != 0U),
@@ -140,6 +170,24 @@ int main() {
         check(logical_affinity.thread_pinning_applied ==
                   (logical_affinity.affinity_workers_applied != 0U),
               "logical placement summary matches the exact applied count");
+
+        fsieve::Result target_affinity_result;
+        const bool target_affinity_checked =
+            capabilities.brand.find("AMD Ryzen 9 9950X3D") != std::string::npos &&
+            capabilities.physical_cores == 16U;
+        if (target_affinity_checked) {
+            auto target_options = baseline;
+            target_options.threads = 16U;
+            target_options.segment_candidates = 64U;
+            target_options.thread_placement =
+                fsieve::ThreadPlacement::physical_core_spread;
+            target_affinity_result = fsieve::run(table, sha256, target_options);
+            check(target_affinity_result.eliminated_words == reference,
+                  "target 16-core placement equals the scalar reference");
+            check(target_affinity_result.affinity_workers_requested == 16U &&
+                      target_affinity_result.affinity_workers_applied == 16U,
+                  "Ryzen 9 9950X3D applies the complete 16-core plan");
+        }
 #else
         check(physical_affinity.affinity_workers_applied == 0U &&
                   logical_affinity.affinity_workers_applied == 0U,
@@ -166,6 +214,21 @@ int main() {
         std::cout << "family_sieve_variants_checked=" << variant_index << '\n'
                   << "candidate_count=" << expected.candidate_count << '\n'
                   << "eliminated_count=" << expected.eliminated_count << '\n'
+                  << "bounded_magnitude_checks=" << positive_result.bounded_magnitude_checks << '\n'
+                  << "big_integer_checks_nonnegative=" << positive_result.big_integer_checks << '\n'
+                  << "big_integer_checks_signed=" << signed_result.big_integer_checks << '\n'
+#ifdef _WIN32
+                  << "physical_plan_workers=" << physical_plan.size() << '\n'
+                  << "physical_affinity_workers_applied="
+                  << physical_affinity.affinity_workers_applied << '\n'
+                  << "logical_plan_workers=" << logical_plan.size() << '\n'
+                  << "logical_affinity_workers_applied="
+                  << logical_affinity.affinity_workers_applied << '\n'
+                  << "target_16_core_affinity_checked="
+                  << (target_affinity_checked ? "YES" : "NO") << '\n'
+                  << "target_16_core_affinity_applied="
+                  << target_affinity_result.affinity_workers_applied << '\n'
+#endif
                   << "result_sha256=" << first_hash << '\n'
                   << "PrimeForge family sieve tests: PASS\n";
         return 0;

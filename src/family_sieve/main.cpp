@@ -54,6 +54,8 @@ struct Sample {
     std::uint64_t rule_checks{};
     std::uint64_t modular_checks{};
     std::uint64_t exact_checks{};
+    std::uint64_t bounded_magnitude_checks{};
+    std::uint64_t big_integer_checks{};
     std::string result_sha256;
     bool vector_applied{};
     bool crt_applied{};
@@ -200,6 +202,8 @@ int main(const int argc, char** argv) {
                     result.rule_checks,
                     result.modular_checks,
                     result.exact_checks,
+                    result.bounded_magnitude_checks,
+                    result.big_integer_checks,
                     hash,
                     result.vector_mode_applied,
                     result.crt_applied,
@@ -211,14 +215,16 @@ int main(const int argc, char** argv) {
             }
         }
 
-        std::string raw = "schema_version\tregime\tvariant\trepetition\torder\telapsed_nanoseconds\tcandidates\teliminated\trule_checks\tmodular_checks\texact_checks\tresult_sha256\tvector_applied\tcrt_applied\thuge_pages_applied\tpinning_applied\taffinity_workers_requested\taffinity_workers_applied\ttelemetry_status\tperformance_valid\tperformance_claim\n";
+        std::string raw = "schema_version\tregime\tvariant\trepetition\torder\telapsed_nanoseconds\tcandidates\teliminated\trule_checks\tmodular_checks\texact_checks\tbounded_magnitude_checks\tbig_integer_checks\tresult_sha256\tvector_applied\tcrt_applied\thuge_pages_applied\tpinning_applied\taffinity_workers_requested\taffinity_workers_applied\ttelemetry_status\tperformance_valid\tperformance_claim\n";
         for (const auto& sample : samples) {
             raw += "1\t" + sample.regime + '\t' + sample.variant + '\t' +
                    std::to_string(sample.repetition) + '\t' + std::to_string(sample.order) + '\t' +
                    std::to_string(sample.elapsed_nanoseconds) + '\t' +
                    std::to_string(sample.candidates) + '\t' + std::to_string(sample.eliminated) + '\t' +
                    std::to_string(sample.rule_checks) + '\t' + std::to_string(sample.modular_checks) + '\t' +
-                   std::to_string(sample.exact_checks) + '\t' + sample.result_sha256 + '\t' +
+                   std::to_string(sample.exact_checks) + '\t' +
+                   std::to_string(sample.bounded_magnitude_checks) + '\t' +
+                   std::to_string(sample.big_integer_checks) + '\t' + sample.result_sha256 + '\t' +
                    yes_no(sample.vector_applied) + '\t' + yes_no(sample.crt_applied) + '\t' +
                    yes_no(sample.huge_pages_applied) + '\t' + yes_no(sample.pinning_applied) +
                    '\t' + std::to_string(sample.affinity_workers_requested) +

@@ -282,3 +282,12 @@ Each future entry must include:
 - **Failure criterion:** the test incorrectly required full affinity on every Windows environment, even when the operating environment withheld CPU-set selection permission.
 - **Conclusion:** the test now probes effective runtime selection. It requires every worker to apply affinity when the probe succeeds; otherwise it verifies exact counts and forbids fabricated pinning success. Engine behavior and the strict target-machine requirement are unchanged.
 - **Retry condition:** clean local Debug/Release gates and a new private Windows/Linux workflow must pass; the target diagnostic must continue to exercise all 16 physical cores across both L3 domains.
+
+## NR-0030 — A one-target CPU-set probe did not establish complete plan capacity
+
+- **Date:** 2026-08-02
+- **Change tested:** PIVOT-03 private workflow run `30768352677`, first capability-gated Windows/MSVC retry.
+- **Evidence:** Linux compiled and passed 26/26 tests. Windows compiled all 83 steps without PrimeForge warnings and passed 25/26 tests. One CPU-set selection succeeded on the calling thread, but the two-worker physical-core request did not apply to every worker.
+- **Failure criterion:** a successful one-target probe was incorrectly treated as proof that the hosted job supplied and permitted a complete multi-worker physical-core plan.
+- **Conclusion:** physical and logical plans are now assessed independently and print exact plan/applied counts. Generic Windows hosts do not stand in for the target. A target-specific test recognizes the Ryzen 9 9950X3D, runs 16 physical workers and strictly requires the complete 16/16 path.
+- **Retry condition:** a new hosted Windows/Linux run must pass while the local target continues to report and apply the full interleaved plan.

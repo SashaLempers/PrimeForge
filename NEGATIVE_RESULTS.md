@@ -300,3 +300,21 @@ Each future entry must include:
 - **Failure criterion:** the same provenance-negative test must exercise a present file on Windows and Linux.
 - **Conclusion:** the fixture now points to tracked `CMakeLists.txt`, and its CTest working directory is the source root. The file exists on both platforms and cannot match the all-zero expected hash. The production hash rule is unchanged.
 - **Retry condition:** the next private Windows/Linux workflow must pass the mismatch-negative test on both jobs.
+
+## NR-0032 - A targeted rebuild lacked the Visual Studio developer environment
+
+- **Date:** 2026-08-02
+- **Change tested:** targeted Debug/Release rebuild after adding FLINT runtime-file provenance.
+- **Evidence:** the ordinary PowerShell process had neither `cmake` nor `ctest` on `PATH`; invoking the bundled CMake directly then found neither Ninja nor the developer `cl.exe` environment and stopped before compilation.
+- **Failure criterion:** the targeted gate did not reach configure/build.
+- **Conclusion:** no fallback compiler or generator was selected. The official `scripts/run_all.ps1` path loaded Visual Studio 2026 Developer PowerShell and then completed both builds and all 31 tests.
+- **Retry condition:** use Developer PowerShell or the repository script for every MSVC gate.
+
+## NR-0033 - The first package verifier expected the library self-test marker
+
+- **Date:** 2026-08-02
+- **Change tested:** first closed-directory package verification.
+- **Evidence:** packaged `primeforge.exe selftest` exited zero and printed `mvp.status=PASS`, but the script expected the separate `primeforge-selftest.exe` marker `selftest.status=PASS` and rejected the package.
+- **Failure criterion:** the package gate reported failure despite a successful product self-test.
+- **Conclusion:** the verifier now requires the product CLI's exact `mvp.status=PASS` marker. Both unpacked and re-extracted ZIP gates pass; no binary behavior or test criterion was weakened.
+- **Retry condition:** retain the packaged CLI marker contract in the package gate.

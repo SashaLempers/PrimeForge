@@ -333,6 +333,12 @@ ExternalEngineAdapter::ExternalEngineAdapter(
         !sha256_from_hex(config_.expected_executable_sha256).has_value()) {
         throw std::invalid_argument("incomplete external adapter configuration");
     }
+    for (const auto& runtime_file : config_.required_runtime_files) {
+        if (runtime_file.path.empty() ||
+            !sha256_from_hex(runtime_file.expected_sha256).has_value()) {
+            throw std::invalid_argument("invalid external runtime file requirement");
+        }
+    }
 }
 
 std::string_view ExternalEngineAdapter::id() const noexcept { return config_.stable_id; }
@@ -398,6 +404,14 @@ ArtifactVerification ExternalEngineAdapter::verify_artifacts(
         if (result.executable_sha256 != config_.expected_executable_sha256) {
             result.errors.push_back("EXECUTABLE_HASH_MISMATCH");
         }
+        for (const auto& runtime_file : config_.required_runtime_files) {
+            if (!std::filesystem::is_regular_file(runtime_file.path)) {
+                result.errors.push_back("RUNTIME_FILE_MISSING:" + runtime_file.path.string());
+            } else if (hash_file(runtime_file.path, *sha256_) != runtime_file.expected_sha256) {
+                result.errors.push_back(
+                    "RUNTIME_FILE_HASH_MISMATCH:" + runtime_file.path.string());
+            }
+        }
         if (!std::filesystem::is_regular_file(process.raw_stdout_path)) result.errors.push_back("STDOUT_MISSING");
         if (!std::filesystem::is_regular_file(process.raw_stderr_path)) result.errors.push_back("STDERR_MISSING");
     } catch (const std::exception& error) {
@@ -416,6 +430,12 @@ EngineResult ExternalEngineAdapter::run(const EngineRequest& request) {
         observed_executable_sha256 = hash_file(config_.executable, *sha256_);
         if (observed_executable_sha256 != config_.expected_executable_sha256) {
             return parsed(PrimalityStatus::untested, "EXECUTABLE_PREFLIGHT_FAILED");
+        }
+        for (const auto& runtime_file : config_.required_runtime_files) {
+            if (!std::filesystem::is_regular_file(runtime_file.path) ||
+                hash_file(runtime_file.path, *sha256_) != runtime_file.expected_sha256) {
+                return parsed(PrimalityStatus::untested, "RUNTIME_FILE_PREFLIGHT_FAILED");
+            }
         }
     } catch (const std::exception&) {
         return parsed(PrimalityStatus::untested, "EXECUTABLE_PREFLIGHT_FAILED");

@@ -152,6 +152,17 @@ void run_inspect(const std::filesystem::path& config_path) {
     flint.parser_version = "primeforge-external-parser-v1";
     flint.executable = config.flint.path;
     flint.expected_executable_sha256 = config.flint.expected_sha256;
+    const auto runtime_directory = config.flint.path.parent_path();
+    flint.required_runtime_files = {
+        {runtime_directory / "flint-24.dll",
+         "00d4d34b091b145885368cb2737871ca98d84aadb52e7ac386fb56ac0016d08b"},
+        {runtime_directory / "gmp-10.dll",
+         "9909aefb265224648bc7055b305c47a7f19319410775a05a91e88081799c0677"},
+        {runtime_directory / "mpfr-6.dll",
+         "e1852ef40d93f08eb341aa6ba726d529879ccc067867194df1166c2026f35eb2"},
+        {runtime_directory / "pthreadVC3.dll",
+         "d5348d53b70d994265f776a7b6be73fd86c40ed06442f954aa6624df963cbb02"},
+    };
     flint.supported_families = {"primeforge.proth.uint64.v1"};
     flint.timeout = std::chrono::milliseconds{30'000};
     flint.memory_limit_bytes = 512U * 1024U * 1024U;

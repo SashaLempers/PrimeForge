@@ -74,7 +74,7 @@ Implemented and validated on the full 160-candidate known campaign. The private
 Windows/MSVC and Linux/GCC workflow `30769963195` passed. See
 `docs/mvp/RESULTS.md` and `docs/reports/MVP_02.md`.
 
-### MVP-03 — Recovery, finalization and verification (PASS locally)
+### MVP-03 — Recovery, finalization and verification (PASS)
 
 Checkpoint after bounded batches, stop cleanly on request, resume without replay
 or omission, create the coverage report and SHA-256 manifest, and implement
@@ -82,20 +82,27 @@ or omission, create the coverage report and SHA-256 manifest, and implement
 logical results to an uninterrupted run; deletion, duplication or mutation is
 detected.
 
-Implemented locally. The retained gate stops after candidate 37, resumes from an
+Implemented and validated. The retained gate stops after candidate 37, resumes from an
 authenticated ledger prefix and produces a byte-identical result ledger to an
 uninterrupted run. The final verifier checks the complete manifest inventory,
 coverage, coordinates, factors, PRP witnesses, stored engine evidence, PARI
 certificates and a fresh FLINT verdict. See
-`docs/mvp/RECOVERY_AND_VERIFICATION.md` and `docs/reports/MVP_03.md`. Final
-milestone status requires the private Windows/Linux workflow to pass.
+`docs/mvp/RECOVERY_AND_VERIFICATION.md` and `docs/reports/MVP_03.md`. Private
+workflow `30770731160` passed Linux/GCC in 1 min 21 s and Windows/MSVC in
+7 min 43 s.
 
-### MVP-04 — Known campaign and private release
+### MVP-04 — Known campaign and private release (PASS locally)
 
 Run the versioned small campaign end to end, verify all artifacts, document one
 Windows command, build the private release package and attach it to a private
 repository release. Gate: clean Debug/Release, all tests, green Windows CI, known
 answers recovered, release hash verified and no external executable redistributed.
+
+The closed 15-file archive builder and verifier pass locally. A copy augmented
+with the separately installed local oracles completed the documented one-command
+campaign and a second idempotent invocation: 160 records, 34 proven primes, 126
+composites and 208 campaign-manifest files. Final status requires the MVP-04
+private CI and private release asset/hash gate.
 
 Every milestone receives updated documentation, a milestone commit and push, and
 a report section named `Contribution directe au logiciel final`.

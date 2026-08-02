@@ -28,12 +28,18 @@ enum class ExternalEngineKind {
     fixture
 };
 
+struct RuntimeFileRequirement {
+    std::filesystem::path path;
+    std::string expected_sha256;
+};
+
 struct ExternalAdapterConfig {
     ExternalEngineKind kind{ExternalEngineKind::fixture};
     std::string stable_id;
     std::string parser_version;
     std::filesystem::path executable;
     std::string expected_executable_sha256;
+    std::vector<RuntimeFileRequirement> required_runtime_files;
     std::vector<std::string> supported_families;
     std::chrono::milliseconds timeout{30'000};
     std::uint64_t memory_limit_bytes{512U * 1024U * 1024U};

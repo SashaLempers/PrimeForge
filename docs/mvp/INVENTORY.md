@@ -1,7 +1,7 @@
 # PrimeForge MVP component inventory
 
-Date: 2026-08-02. Basis: source tree at commit `5a14eaf`, the complete PrimeForge
-specification, and the immediate MVP directive.
+Date: 2026-08-02. Basis: the complete PrimeForge specification, the immediate MVP
+directive and the implementation through MVP-04.
 
 `READY` means the primitive has a retained automated correctness gate. `PARTIAL`
 means useful code exists but is not connected to a campaign. `MISSING` means the
@@ -25,8 +25,8 @@ MVP must add it.
 | `MANIFEST.sha256` | READY | Sorted SHA-256 inventory with missing/extra/mutation rejection | No MVP work remaining |
 | `primeforge.exe` commands | READY | Operational `selftest`, `inspect`, `search`, `resume` and `verify` | No MVP work remaining |
 | Known small campaign | READY | Versioned 160-candidate YAML and 34-prime corpus; 126 composites reproduced | Final private release reproduction only |
-| One-command Windows use | PARTIAL | Reproducible build plus documented CLI sequence | Add packaged release wrapper/instructions in MVP-04 |
-| Private release | MISSING | Distribution-license gate | Package original binary/docs/config only; publish private asset and hash |
+| One-command Windows use | READY | Packaged wrapper starts, resumes or verifies the known campaign; two complete local invocations | No MVP work remaining |
+| Private release | PARTIAL | Closed 15-file allowlist, package manifest, ZIP re-extraction, self-test/inspect and zero-external-binary gate | Attach CI-validated ZIP/hash to the private release |
 
 ## Local proof engines already available
 

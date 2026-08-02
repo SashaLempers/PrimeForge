@@ -469,3 +469,16 @@ engine job directories before replaying it. Finalization writes exact coverage
 and a sorted manifest of every regular campaign file except the manifest itself.
 This narrow transaction model avoids a database while making omission,
 duplication, mutation and unexpected files fail closed.
+
+## D-0065 - The FLINT process identity includes its dynamic runtime closure
+
+**Status:** Accepted - 2026-08-02
+
+Hashing only `flint-primality-oracle.exe` is insufficient because Windows loads
+FLINT, GMP, MPFR and pthreads4w DLLs into that process. The version-specific MVP
+adapter therefore checks the four exact adjacent runtime files before process
+creation and checks them again after execution. A missing or changed file returns
+`UNTESTED` and cannot classify a candidate. The private PrimeForge archive
+contains none of these files; their hashes and local-only provisioning boundary
+are documented separately. This is a proof-integrity correction, not a claim
+that an external process resolves licensing.

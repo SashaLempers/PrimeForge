@@ -17,6 +17,12 @@ strict YAML mapping subset implemented without a third-party parser.
 - UTF-8 input without a BOM. Meaningful scalar content is restricted to
   printable ASCII, which is a valid UTF-8 subset.
 
+All relative paths are interpreted from the run root, which is the process
+working directory. Launch PrimeForge from the directory containing the packaged
+`search.yaml`, or use the packaged wrapper that sets this directory explicitly.
+The run-root rule is retained in the recovery copy so the package can be moved as
+a whole without embedding machine-specific absolute paths.
+
 Aliases, sequences, tags, implicit booleans, inline comments and duplicate keys
 are rejected. Unknown or missing fields are errors; they are never silently
 defaulted.

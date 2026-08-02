@@ -4,13 +4,14 @@ PrimeForge is a C++23 prime-search engine being specialized for one performance 
 
 The project currently makes no claim of superior performance, mathematical novelty, or discovery of a new prime. A probable prime is never reported as a proven prime.
 
-## Current milestone: end-to-end MVP
+## Current milestone: private Windows MVP release
 
 The immediate priority is a usable `primeforge.exe` that completes a small known
 `k*2^n+1` campaign from configuration through proof, independent verification,
-checkpoint/resume and final manifest. The governing plan and exact gap inventory
-are `docs/mvp/ROADMAP.md` and `docs/mvp/INVENTORY.md`. Advanced autotuning and
-additional CPU/GPU optimization are paused until the private MVP release passes.
+checkpoint/resume and final manifest. The complete engine path and recovery gate
+now pass locally and in private Windows/Linux CI. MVP-04 packages that executable
+without redistributing either external proof engine. The governing plan and exact
+inventory are `docs/mvp/ROADMAP.md` and `docs/mvp/INVENTORY.md`.
 
 Windows/MSVC is the product path. Linux/GCC remains mandatory portable-correctness
 CI. CUDA stays available for the post-MVP performance path but is not allowed to
@@ -49,6 +50,23 @@ the checkpoint and the exact committed result prefix before continuing. A
 completed campaign contains `coverage_report.json` and `MANIFEST.sha256`; verify
 fails closed on a missing, extra or modified file. The complete recovery and
 verification contract is in `docs/mvp/RECOVERY_AND_VERIFICATION.md`.
+
+Build and verify the closed Windows package after a Release build:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File scripts\package_mvp.ps1 -Version 0.1.0-mvp
+```
+
+The package contains `primeforge.exe`, configuration, documentation and original
+PrimeForge license material only. PARI/GP, FLINT and FLINT's runtime DLLs are
+listed with exact hashes in `packaging/ORACLES.md` and remain separately supplied
+local tools. After placing them at those paths, the packaged known campaign is a
+single command:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run_known_campaign.ps1
+```
 
 PIVOT-00 changes priorities and documentation, not mathematical results. The
 pre-pivot baseline is secured at commit `35dde4a`. PIVOT-01 provides the fresh,

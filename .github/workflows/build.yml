@@ -18,6 +18,9 @@ jobs:
       - name: Configure, build, and test
         shell: pwsh
         run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/run_all.ps1 -Clean
+      - name: Build and verify MVP package
+        shell: pwsh
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/package_mvp.ps1 -Version ci-${{ github.sha }}
 
   linux-gcc:
     runs-on: ubuntu-latest

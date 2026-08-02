@@ -107,6 +107,7 @@ int main(const int argc, char** argv) {
         config.parser_version = "primeforge-external-parser-v1";
         config.executable = fixture;
         config.expected_executable_sha256 = hash_file(fixture, sha256);
+        config.required_runtime_files = {{fixture, hash_file(fixture, sha256)}};
         config.supported_families = {"fixture"};
         config.timeout = std::chrono::milliseconds{2'000};
         config.memory_limit_bytes = 128U * 1024U * 1024U;
@@ -141,6 +142,21 @@ int main(const int argc, char** argv) {
                   mismatch_result.diagnostics == "EXECUTABLE_PREFLIGHT_FAILED" &&
                   !std::filesystem::exists(work_root / "known-hash-mismatch"),
               "binary hash mismatch blocks process execution and classification");
+
+        auto runtime_mismatch_config = config;
+        runtime_mismatch_config.stable_id = "primeforge.fixture.runtime-hash-mismatch.v1";
+        runtime_mismatch_config.required_runtime_files.front().expected_sha256 =
+            std::string(64U, '0');
+        engine::ExternalEngineAdapter runtime_mismatch_adapter{
+            runtime_mismatch_config, sha256};
+        const auto runtime_mismatch_result = runtime_mismatch_adapter.run(
+            {"known-runtime-hash-mismatch", "fixture", "FIXTURE:COMPOSITE", work_root});
+        check(runtime_mismatch_result.status.primality ==
+                  primeforge::PrimalityStatus::untested &&
+                  runtime_mismatch_result.diagnostics ==
+                      "RUNTIME_FILE_PREFLIGHT_FAILED" &&
+                  !std::filesystem::exists(work_root / "known-runtime-hash-mismatch"),
+              "runtime dependency hash mismatch blocks process execution");
 
         expect_failure(
             [&] { static_cast<void>(adapter.prepare({"../escape", "fixture", "x", work_root})); },

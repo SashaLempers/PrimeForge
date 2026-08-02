@@ -485,3 +485,19 @@ add_custom_target(
     COMMENT "Verifying distribution license manifest"
     VERBATIM
 )
+
+if(WIN32)
+    add_custom_target(
+        primeforge-mvp-package
+        COMMAND powershell.exe
+            -NoProfile
+            -ExecutionPolicy Bypass
+            -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/package_mvp.ps1
+            -Version 0.1.0-mvp
+            -Executable $<TARGET_FILE:primeforge>
+        DEPENDS primeforge primeforge-distribution-check
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Building and verifying the closed PrimeForge MVP package"
+        VERBATIM
+    )
+endif()

@@ -336,3 +336,12 @@ Each future entry must include:
 - **Failure criterion:** every timed result must equal the scalar reference byte for byte; a fast path may never rely on overlapping non-atomic writes.
 - **Conclusion:** direct writes now require dense storage, canonical `by_k` traversal and a segment size divisible by 64. Transposed or unaligned configurations automatically retain worker-local bitsets and their merge. A dedicated transposed fallback assertion and 20 repeated 16-worker dynamic direct-write runs pass.
 - **Retry condition:** any future traversal layout must prove exclusive ownership at the canonical 64-bit-word boundary before enabling direct writes.
+
+## NR-0036 - Target CPU profile selection is inconclusive
+
+- **Date:** 2026-08-02
+- **Change tested:** 315 calibration and 315 disjoint validation executions across 15 thread, segment, placement and scheduling profiles on the optimized complete sieve path.
+- **Evidence:** every execution matched the scalar bitset and canonical smallest-factor vector, but all rows state `performance_valid=NO` because validated CPU temperature and package-power providers remain unavailable. The lowest observed profile also varied by regime: calibration small/medium/large selected 2-thread scheduler, 16-thread physical with 4096-candidate segments, and 32-thread logical; validation selected 4-thread scheduler, 16-thread scheduler, and 32-thread logical.
+- **Failure criterion:** PIVOT-03 may retain a target profile only after disjoint validation, complete stability telemetry and a stable selection; timing rank alone is insufficient.
+- **Conclusion:** PIVOT-03 closes `INCONCLUSIVE`. The one-thread, 8192-candidate, scheduler-managed static profile remains the conservative product default. No timing or fastest claim is made.
+- **Retry condition:** a validated CPU temperature provider, complete stability interval and a preregistered larger representative workload may reopen profile selection without reopening the completed engine primitives.

@@ -27,6 +27,12 @@ archive is unchanged; the optimized source
 path remains under Debug/Release, differential and private-CI validation before
 a later release. No timing is promoted to a performance claim.
 
+PIVOT-03 CPU selection is complete but `INCONCLUSIVE`: 630 disjoint
+calibration/validation executions were exact, while validated CPU temperature
+and package power remained unavailable and profile ranks varied by regime. The
+safe one-thread product profile is unchanged. Work therefore advances to the
+bounded CUDA validation milestone rather than inventing a CPU optimum.
+
 Windows/MSVC is the product path. Linux/GCC remains mandatory portable-correctness
 CI. CUDA stays available for the post-MVP performance path but is not allowed to
 delay the first complete CPU campaign.

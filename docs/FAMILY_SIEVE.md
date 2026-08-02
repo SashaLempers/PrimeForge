@@ -57,13 +57,29 @@ independent differential fallback.
 
 `primeforge-family-sieve-benchmark` performs warmup, uses a fixed-seed randomized schedule, runs at least seven repetitions, and times congruence compilation, the complete sieve, and result hashing. It compares every timed result to the scalar output before accepting a row. The retained matrix changes one variable from the baseline at a time over small, medium, and large finite regimes.
 
+The `pivot03-calibration` and `pivot03-validation` suites use the same 15 CPU
+profiles but nonoverlapping k/n domains. Every profile retains factor witnesses;
+the study therefore measures the complete optimized sieve result rather than a
+bitset-only microkernel. Run either suite with:
+
+```powershell
+& .\out\build\msvc-release\primeforge-family-sieve-benchmark.exe `
+  --output-dir out\benchmarks\pivot03-cpu-calibration `
+  --suite pivot03-calibration --repetitions 7
+```
+
+Replace both `calibration` occurrences with `validation` for the held-out suite.
+The executable never upgrades telemetry eligibility by itself; watchdog logs are
+separate evidence and missing CPU stability sensors keep every row invalid.
+
 The historical stage-10 evidence had no integrated reliable provider for
 temperature, effective frequency, throttling, hardware errors or wall energy.
 Those retained rows remain `performance_valid=NO` and `performance_claim=NONE`.
 PIVOT-02 now supplies CPU frequency plus NVIDIA telemetry/throttling, but CPU
 temperature and package power remain `UNKNOWN`; old timings are never promoted.
 PIVOT-03 must collect new disjoint calibration/validation data before selecting a
-production configuration.
+production configuration. That collection is now complete and `INCONCLUSIVE`:
+the conservative product profile is unchanged.
 
 The harness includes `mvp-factor-witnesses` and
 `mvp-legacy-factor-second-pass` diagnostic variants. The latter deliberately

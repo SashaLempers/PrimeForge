@@ -1,6 +1,6 @@
 # PIVOT-03 — Ryzen CPU autotuning
 
-Date: 2026-08-02. Status: IN PROGRESS.
+Date: 2026-08-02. Status: COMPLETE - INCONCLUSIVE PROFILE SELECTION.
 
 ## First engine tranche
 
@@ -248,3 +248,43 @@ load or performance-valid benchmark was run.
 The preceding direct-word commit `d35425e` is independently green in private
 workflow `30772608766`: Linux/GCC completed in 1 min 6 s and Windows/MSVC,
 including the closed MVP package gate, in 7 min 15 s.
+
+## Final CPU calibration and validation gate
+
+Two explicit suites use the same 15 thread, segment, placement and scheduling
+profiles on disjoint domains. Calibration covers k indices beginning at 1 and n
+18 through 33; validation begins at k 100,001 and uses n 34 through 49. Each has
+small, medium and large regimes, seven fixed-seed randomized repetitions and a
+scalar bitset plus canonical-factor oracle. All 315 calibration and 315
+validation executions passed.
+
+The lowest observed elapsed-time profile was not stable across regimes.
+Calibration produced 2-thread scheduler, 16-thread physical/4096-segment and
+32-thread logical minima; validation produced 4-thread scheduler, 16-thread
+scheduler and 32-thread logical minima. More importantly, every row remains
+`performance_valid=NO`: CPU temperature and package power are unavailable, so
+the stability gate is incomplete. PIVOT-03 therefore closes `INCONCLUSIVE` and
+retains the one-thread, 8192-segment, scheduler-managed static product profile.
+
+Calibration raw/summary SHA-256 values are
+`4E9022812784DD5CE7286D5CBC63E1AA8A4C4D133353C11E185B41D83120438E`
+and `290739A85F178492D105F3752ACD61435BEF5B18790DD0FC584E301BB8622AC1`.
+Validation raw/summary SHA-256 values are
+`A65E692B7C37FFA0B79A536311179C3B525DD63C7679867576B259FC66B6132D`
+and `A61B2D12A46365857463D52F431F31324D844FFA2C759A951535B3FE74CAAEDB`.
+Across both short studies, maximum GPU temperature was 52 C, maximum power
+49.24 W, minimum available RAM 43,695,570,944 bytes, minimum free VRAM 13,649
+MiB and no throttling was detected. Both workers and watchdogs exited zero.
+
+The closing clean gate compiled 93/93 targets without a PrimeForge warning in
+both configurations, passed 31/31 Debug tests in 45.38 s and 31/31 Release tests
+in 15.45 s, and passed both explicit C++23 self-tests.
+
+## Contribution directe au logiciel final
+
+This final tranche prevents an unvalidated CPU timing choice from entering the
+product while proving that all candidate thread/placement configurations preserve
+the complete sieve evidence. PIVOT-03's topology, bounded-factor, single-pass
+witness, disjoint-word and compiled-residue engine changes are finished and stay
+enabled. CPU profile selection may be revisited only when complete stability
+telemetry exists; it no longer blocks the CUDA engine path. PIVOT-04 can begin.

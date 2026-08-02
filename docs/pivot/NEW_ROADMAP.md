@@ -13,9 +13,9 @@ private end-to-end MVP is released at `v0.1.0-mvp`. PIVOT-03 has validated
 topology-aware Ryzen placement, bounded nonnegative proper-factor checks and
 single-pass factor evidence. Aligned canonical segments eliminate per-worker
 full bitsets and their merge, while compiled residue classes eliminate the full
-rule-by-candidate scan; no fastest configuration is claimed. Its next
-work is monitored, disjoint selection of thread, placement, segment and SIMD
-parameters on the complete sieve path.
+rule-by-candidate scan. Its disjoint 630-execution CPU study closed
+`INCONCLUSIVE`, so the safe product profile remains selected and no fastest
+configuration is claimed. PIVOT-04 is next.
 
 ## PIVOT-00 — Audit and reorientation
 
@@ -44,9 +44,9 @@ generic machine-management subsystem.
 ## PIVOT-03 — Ryzen CPU autotuning
 
 Measure threads, SMT, processor placement, segment sizes, cache regimes, SIMD,
-allocation and scheduling on disjoint calibration/validation loads. Gate: exact
-reference agreement and a stable profile; an inconclusive result keeps the safe
-reference configuration.
+allocation and scheduling on disjoint calibration/validation loads. Gate:
+`COMPLETE - INCONCLUSIVE`; all exactness gates passed, but unavailable CPU
+stability sensors and unstable regime rankings keep the safe reference profile.
 
 ## PIVOT-04 — Official CUDA installation and validation
 

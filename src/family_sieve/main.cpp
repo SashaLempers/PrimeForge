@@ -29,11 +29,14 @@ namespace fsieve = primeforge::family_sieve;
 struct Arguments {
     std::filesystem::path output_directory;
     std::size_t repetitions{7U};
+    std::string suite{"diagnostic"};
 };
 
 struct Regime {
     std::string name;
+    std::int64_t k_minimum{1};
     std::uint64_t k_count{};
+    std::int64_t n_minimum{};
     std::uint64_t n_count{};
 };
 
@@ -44,6 +47,7 @@ struct Variant {
 };
 
 struct Sample {
+    std::string suite;
     std::string regime;
     std::string variant;
     std::size_t repetition{};
@@ -83,6 +87,7 @@ struct Sample {
         if (index + 1 >= argc) throw std::invalid_argument("option requires a value");
         const std::string_view value{argv[++index]};
         if (argument == "--output-dir") result.output_directory = value;
+        else if (argument == "--suite") result.suite = value;
         else if (argument == "--repetitions") {
             result.repetitions = static_cast<std::size_t>(parse_u64(value));
         } else {
@@ -91,20 +96,117 @@ struct Sample {
     }
     if (result.output_directory.empty()) throw std::invalid_argument("--output-dir is required");
     if (result.repetitions < 7U) throw std::invalid_argument("at least seven repetitions required");
+    if (result.suite != "diagnostic" &&
+        result.suite != "pivot03-calibration" &&
+        result.suite != "pivot03-validation") {
+        throw std::invalid_argument(
+            "--suite must be diagnostic, pivot03-calibration, or pivot03-validation");
+    }
     return result;
 }
 
 [[nodiscard]] congruence::AffineExponentialFamily make_family(const Regime& regime) {
     congruence::AffineExponentialFamily family;
-    family.k = {1, static_cast<std::int64_t>(regime.k_count), 1U};
-    family.n = {0, static_cast<std::int64_t>(regime.n_count - 1U), 1U};
+    family.k = {
+        regime.k_minimum,
+        regime.k_minimum + static_cast<std::int64_t>(regime.k_count - 1U),
+        1U};
+    family.n = {
+        regime.n_minimum,
+        regime.n_minimum + static_cast<std::int64_t>(regime.n_count - 1U),
+        1U};
     family.base = 2;
     family.constant = 1;
     family.k_parity = congruence::ParityConstraint::odd;
     return family;
 }
 
-[[nodiscard]] std::vector<Variant> make_variants(const primeforge::SystemInfo& system) {
+[[nodiscard]] std::vector<Regime> make_regimes(const std::string_view suite) {
+    if (suite == "pivot03-calibration") {
+        return {
+            {"cal-small", 1, 1'024U, 18, 16U},
+            {"cal-medium", 1, 4'096U, 18, 16U},
+            {"cal-large", 1, 16'384U, 18, 16U},
+        };
+    }
+    if (suite == "pivot03-validation") {
+        return {
+            {"val-small", 100'001, 1'024U, 34, 16U},
+            {"val-medium", 100'001, 4'096U, 34, 16U},
+            {"val-large", 100'001, 16'384U, 34, 16U},
+        };
+    }
+    return {
+        {"small", 1, 64U, 0, 16U},
+        {"medium", 1, 256U, 0, 16U},
+        {"large", 1, 1'024U, 0, 16U},
+    };
+}
+
+[[nodiscard]] std::vector<Variant> make_cpu_variants() {
+    fsieve::Options baseline;
+    baseline.retain_factor_witnesses = true;
+    baseline.segment_candidates = 8'192U;
+    baseline.threads = 1U;
+    std::vector<Variant> result{{"t01-s8192-scheduler-static", baseline}};
+    const auto add = [&](std::string name, const auto change) {
+        auto options = baseline;
+        change(options);
+        result.push_back({std::move(name), options});
+    };
+    add("t02-s8192-scheduler-static", [](auto& value) { value.threads = 2U; });
+    add("t04-s8192-scheduler-static", [](auto& value) { value.threads = 4U; });
+    add("t08-s8192-scheduler-static", [](auto& value) { value.threads = 8U; });
+    add("t12-s8192-scheduler-static", [](auto& value) { value.threads = 12U; });
+    add("t16-s8192-scheduler-static", [](auto& value) { value.threads = 16U; });
+    add("t16-s8192-physical-static", [](auto& value) {
+        value.threads = 16U;
+        value.thread_placement = fsieve::ThreadPlacement::physical_core_spread;
+    });
+    add("t16-s8192-logical-static", [](auto& value) {
+        value.threads = 16U;
+        value.thread_placement = fsieve::ThreadPlacement::logical_processor_spread;
+    });
+    add("t24-s8192-logical-static", [](auto& value) {
+        value.threads = 24U;
+        value.thread_placement = fsieve::ThreadPlacement::logical_processor_spread;
+    });
+    add("t32-s8192-logical-static", [](auto& value) {
+        value.threads = 32U;
+        value.thread_placement = fsieve::ThreadPlacement::logical_processor_spread;
+    });
+    add("t16-s1024-physical-static", [](auto& value) {
+        value.threads = 16U;
+        value.segment_candidates = 1'024U;
+        value.thread_placement = fsieve::ThreadPlacement::physical_core_spread;
+    });
+    add("t16-s4096-physical-static", [](auto& value) {
+        value.threads = 16U;
+        value.segment_candidates = 4'096U;
+        value.thread_placement = fsieve::ThreadPlacement::physical_core_spread;
+    });
+    add("t16-s32768-physical-static", [](auto& value) {
+        value.threads = 16U;
+        value.segment_candidates = 32'768U;
+        value.thread_placement = fsieve::ThreadPlacement::physical_core_spread;
+    });
+    add("t16-s65536-physical-static", [](auto& value) {
+        value.threads = 16U;
+        value.segment_candidates = 65'536U;
+        value.thread_placement = fsieve::ThreadPlacement::physical_core_spread;
+    });
+    add("t16-s8192-physical-dynamic", [](auto& value) {
+        value.threads = 16U;
+        value.thread_placement = fsieve::ThreadPlacement::physical_core_spread;
+        value.scheduling = fsieve::Scheduling::dynamic_segments;
+    });
+    return result;
+}
+
+[[nodiscard]] std::vector<Variant> make_variants(
+    const primeforge::SystemInfo& system,
+    const std::string_view suite) {
+    if (suite != "diagnostic") return make_cpu_variants();
     fsieve::Options baseline;
     baseline.threads = std::max(1U, system.cpu.physical_cores);
     baseline.segment_candidates = 8'192U;
@@ -186,10 +288,11 @@ int main(const int argc, char** argv) {
         std::filesystem::create_directories(arguments.output_directory);
         const primeforge::PortableSha256Provider sha256;
         const auto system = primeforge::collect_system_info();
-        const std::vector<Regime> regimes{
-            {"small", 64U, 16U}, {"medium", 256U, 16U}, {"large", 1'024U, 16U}};
-        const auto variants = make_variants(system);
-        const auto primes = primeforge::sieve::generate_primes_reference(2U, 32U).primes;
+        const auto regimes = make_regimes(arguments.suite);
+        const auto variants = make_variants(system, arguments.suite);
+        const auto prime_end = arguments.suite == "diagnostic" ? 32U : 98U;
+        const auto primes =
+            primeforge::sieve::generate_primes_reference(2U, prime_end).primes;
         std::vector<Sample> samples;
 
         for (std::size_t regime_index = 0U; regime_index < regimes.size(); ++regime_index) {
@@ -247,6 +350,7 @@ int main(const int argc, char** argv) {
                     throw std::runtime_error("timed result disagrees with scalar reference");
                 }
                 samples.push_back({
+                    arguments.suite,
                     regime.name,
                     variant.name,
                     repetition,
@@ -274,9 +378,9 @@ int main(const int argc, char** argv) {
             }
         }
 
-        std::string raw = "schema_version\tregime\tvariant\trepetition\torder\telapsed_nanoseconds\tcandidates\teliminated\trule_checks\tmodular_checks\texact_checks\tbounded_magnitude_checks\tbig_integer_checks\tfactor_witnesses\tlegacy_factor_second_pass\tresult_sha256\tdirect_bitset_writes_applied\tresidue_enumeration_applied\tvector_applied\tcrt_applied\thuge_pages_applied\tpinning_applied\taffinity_workers_requested\taffinity_workers_applied\ttelemetry_status\tperformance_valid\tperformance_claim\n";
+        std::string raw = "schema_version\tsuite\tregime\tvariant\trepetition\torder\telapsed_nanoseconds\tcandidates\teliminated\trule_checks\tmodular_checks\texact_checks\tbounded_magnitude_checks\tbig_integer_checks\tfactor_witnesses\tlegacy_factor_second_pass\tresult_sha256\tdirect_bitset_writes_applied\tresidue_enumeration_applied\tvector_applied\tcrt_applied\thuge_pages_applied\tpinning_applied\taffinity_workers_requested\taffinity_workers_applied\ttelemetry_status\tperformance_valid\tperformance_claim\n";
         for (const auto& sample : samples) {
-            raw += "1\t" + sample.regime + '\t' + sample.variant + '\t' +
+            raw += "1\t" + sample.suite + '\t' + sample.regime + '\t' + sample.variant + '\t' +
                    std::to_string(sample.repetition) + '\t' + std::to_string(sample.order) + '\t' +
                    std::to_string(sample.elapsed_nanoseconds) + '\t' +
                    std::to_string(sample.candidates) + '\t' + std::to_string(sample.eliminated) + '\t' +
@@ -297,7 +401,7 @@ int main(const int argc, char** argv) {
         }
         write_text(arguments.output_directory / "raw.tsv", raw);
 
-        std::string summary = "schema_version\tregime\tvariant\tsamples\tminimum_nanoseconds\tmedian_nanoseconds\tmaximum_nanoseconds\tmedian_absolute_deviation_nanoseconds\tconfidence_low_nanoseconds\tconfidence_high_nanoseconds\ttelemetry_status\tperformance_valid\tperformance_claim\n";
+        std::string summary = "schema_version\tsuite\tregime\tvariant\tsamples\tminimum_nanoseconds\tmedian_nanoseconds\tmaximum_nanoseconds\tmedian_absolute_deviation_nanoseconds\tconfidence_low_nanoseconds\tconfidence_high_nanoseconds\ttelemetry_status\tperformance_valid\tperformance_claim\n";
         for (const auto& regime : regimes) {
             for (const auto& variant : variants) {
                 std::vector<std::uint64_t> durations;
@@ -307,7 +411,7 @@ int main(const int argc, char** argv) {
                     }
                 }
                 const auto statistics = benchmark::summarize(durations);
-                summary += "1\t" + regime.name + '\t' + variant.name + '\t' +
+                summary += "1\t" + arguments.suite + '\t' + regime.name + '\t' + variant.name + '\t' +
                            std::to_string(durations.size()) + '\t' +
                            std::to_string(statistics.minimum) + '\t' +
                            std::to_string(statistics.median) + '\t' +
@@ -319,15 +423,16 @@ int main(const int argc, char** argv) {
             }
         }
         write_text(arguments.output_directory / "summary.tsv", summary);
-        std::cout << "stage10_samples=" << samples.size() << '\n'
+        std::cout << "suite=" << arguments.suite << '\n'
+                  << "samples=" << samples.size() << '\n'
                   << "variants=" << variants.size() << '\n'
                   << "regimes=" << regimes.size() << '\n'
                   << "telemetry_status=UNAVAILABLE\n"
                   << "performance_claim=NONE\n"
-                  << "PrimeForge stage 10 experiment harness: PASS\n";
+                  << "PrimeForge family sieve experiment harness: PASS\n";
         return 0;
     } catch (const std::exception& error) {
-        std::cerr << "PrimeForge stage 10 experiment harness: FAIL: " << error.what() << '\n';
+        std::cerr << "PrimeForge family sieve experiment harness: FAIL: " << error.what() << '\n';
         return 1;
     }
 }

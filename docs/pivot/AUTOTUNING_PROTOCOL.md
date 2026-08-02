@@ -38,3 +38,11 @@ compatibility match. A mismatch triggers validation or retuning, never silent us
 
 If no candidate is robustly better, the outcome is `INCONCLUSIVE` or `FAILED` and
 the conservative reference remains active.
+
+## PIVOT-03 outcome
+
+The 2026-08-02 CPU study used 315 calibration and 315 held-out validation
+executions. All canonical outputs were exact, but the CPU temperature and package
+power fields remained `UNKNOWN` and regime rankings were inconsistent. The
+outcome is therefore `INCONCLUSIVE`; no target profile or performance claim was
+retained. See `docs/reports/PIVOT_03.md` and NR-0036.

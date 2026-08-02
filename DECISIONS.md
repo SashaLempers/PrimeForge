@@ -520,3 +520,15 @@ Every enumerated pair still undergoes the independent modular and proper-factor
 checks. An explicit full-scan option and all noncanonical layouts retain the
 general path for differential verification. This is an algorithmic reduction in
 visited pairs; diagnostic timings remain ineligible for a performance claim.
+
+## D-0069 - PIVOT-03 closes inconclusive without changing the safe profile
+
+**Status:** Accepted - 2026-08-02
+
+Calibration and validation use nonoverlapping k/n domains and the same 15 CPU
+profiles. All 630 executions are correct, but target CPU temperature and package
+power remain unavailable and regime winners are not stable. PrimeForge therefore
+does not infer an optimum from elapsed time. The product keeps one thread,
+8192-candidate segments, static scheduling and Windows scheduler management.
+The topology, direct-word and compiled-residue engine improvements remain because
+their correctness and structural work reductions do not depend on a timing rank.

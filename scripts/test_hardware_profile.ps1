@@ -13,6 +13,7 @@ $profileA = Join-Path $WorkingDirectory 'profile-a.json'
 $profileB = Join-Path $WorkingDirectory 'profile-b.json'
 $identityA = Join-Path $WorkingDirectory 'identity-a.json'
 $identityB = Join-Path $WorkingDirectory 'identity-b.json'
+$profileWithoutNvidia = Join-Path $WorkingDirectory 'profile-without-nvidia.json'
 
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Collector -OutputPath $profileA -IdentityOutputPath $identityA -SelfTestPath $SelfTestPath | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'First hardware-profile collection failed.' }
@@ -49,5 +50,12 @@ if ($profile.cpu.brand.status -notin @('DETECTED', 'UNKNOWN')) { throw 'CPU bran
 if ($profile.memory.total_physical_bytes.status -ne 'DETECTED') { throw 'Physical memory was not detected.' }
 if ($profile.telemetry_capabilities.cpu_temperature.status -ne 'UNKNOWN' -or $profile.telemetry_capabilities.cpu_temperature.value -ne 'UNKNOWN') { throw 'Unavailable CPU temperature must remain UNKNOWN.' }
 if ($profile.toolchain.cuda_toolkit_nvcc.status -eq 'UNKNOWN' -and $profile.toolchain.cuda_toolkit_nvcc.value -ne 'UNKNOWN') { throw 'Unknown CUDA toolkit value is inconsistent.' }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Collector -OutputPath $profileWithoutNvidia -SelfTestPath $SelfTestPath -DisableNvidiaSmi | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'No-NVIDIA hardware-profile collection failed.' }
+$withoutNvidia = Get-Content -Raw -LiteralPath $profileWithoutNvidia | ConvertFrom-Json
+if (@($withoutNvidia.gpu.nvidia).Count -ne 0) { throw 'Disabled nvidia-smi must produce an empty NVIDIA inventory.' }
+if ($withoutNvidia.telemetry_capabilities.gpu_temperature.status -ne 'UNKNOWN') { throw 'Missing nvidia-smi temperature must remain UNKNOWN.' }
+if ($withoutNvidia.telemetry_capabilities.gpu_power.status -ne 'UNKNOWN') { throw 'Missing nvidia-smi power must remain UNKNOWN.' }
 
 Write-Output 'primeforge-hardware-profile-tests: PASS'

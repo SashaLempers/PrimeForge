@@ -41,8 +41,10 @@ No safe limit or performance value is inferred.
 
 `primeforge.hardware_profile` runs the collector twice and checks exact byte
 identity, canonical profile id, no BOM/trailing newline, source-state consistency,
-and the required `UNKNOWN` fields. It is a Windows inventory test. Linux/GCC keeps
-the portable 17-test correctness suite and does not fabricate Windows hardware.
+and the required `UNKNOWN` fields. It also disables `nvidia-smi` explicitly and
+requires an empty NVIDIA inventory plus `UNKNOWN` GPU temperature/power. It is a
+Windows inventory test. Linux/GCC keeps the portable 17-test correctness suite and
+does not fabricate Windows hardware.
 
 ## Clean local gate
 
@@ -55,12 +57,21 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\run_all.ps1 -Cle
 Results:
 
 - Debug configure PASS, build 59/59, zero PrimeForge warnings;
-- Debug CTest 18/18 PASS in 41.69 s; hardware-profile test 4.09 s;
+- Debug CTest 18/18 PASS in 42.93 s; hardware-profile test 5.86 s;
 - Debug explicit self-test PASS;
 - Release configure PASS, build 59/59, zero PrimeForge warnings;
-- Release CTest 18/18 PASS in 8.54 s; hardware-profile test 4.10 s;
+- Release CTest 18/18 PASS in 10.25 s; hardware-profile test 5.82 s;
 - Release explicit self-test PASS;
 - final script result: `PrimeForge complete local verification: PASS`.
 
 The collector performs short read-only inventory commands. No benchmark,
 autotuning, CUDA kernel or prolonged load ran in this milestone.
+
+## Initial hosted failure and correction
+
+Private run `30765994946` passed Linux/GCC in 1 min 01 s and the first 17 Windows
+tests, then failed the hardware-profile test because the GPU-less runner caused an
+empty PowerShell conditional result to become `$null`; strict-mode `.Count`
+correctly stopped the collector. NR-0027 records the failure. The collector now
+materializes an explicit array, and the local test forces this GPU-less path. A
+new private workflow is required for closure; no warning or assertion was relaxed.

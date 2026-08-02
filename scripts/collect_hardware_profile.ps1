@@ -4,7 +4,8 @@
 param(
     [string]$OutputPath = 'profiles\hardware_profile.json',
     [string]$IdentityOutputPath = '',
-    [string]$SelfTestPath = ''
+    [string]$SelfTestPath = '',
+    [switch]$DisableNvidiaSmi
 )
 
 $ErrorActionPreference = 'Stop'
@@ -178,7 +179,7 @@ $memoryModules = @(Get-CimInstance Win32_PhysicalMemory | Sort-Object BankLabel,
     }
 })
 
-$nvidiaSmi = Get-Command nvidia-smi.exe -ErrorAction SilentlyContinue
+$nvidiaSmi = if ($DisableNvidiaSmi) { $null } else { Get-Command nvidia-smi.exe -ErrorAction SilentlyContinue }
 $nvidiaRows = @()
 if ($nvidiaSmi) {
     $query = @(& $nvidiaSmi.Source '--query-gpu=name,driver_version,memory.total,vbios_version,pci.bus_id,compute_cap' '--format=csv,noheader,nounits' 2>$null)
@@ -208,7 +209,7 @@ $telemetryQuery = @()
 if ($nvidiaSmi) {
     $telemetryQuery = @(& $nvidiaSmi.Source '--query-gpu=temperature.gpu,temperature.memory,power.draw,clocks.sm,utilization.gpu,memory.used,memory.free' '--format=csv,noheader,nounits' 2>$null | Select-Object -First 1)
 }
-$telemetryFields = if ($telemetryQuery.Count) { @($telemetryQuery[0] -split ',' | ForEach-Object { $_.Trim() }) } else { @() }
+$telemetryFields = @(if ($telemetryQuery.Count) { $telemetryQuery[0] -split ',' | ForEach-Object { $_.Trim() } })
 function Get-NvidiaTelemetryAvailability {
     param([int]$Index, [string]$Name)
     if ($telemetryFields.Count -le $Index -or $telemetryFields[$Index] -eq 'N/A') {

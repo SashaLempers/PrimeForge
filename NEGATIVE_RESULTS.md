@@ -255,3 +255,12 @@ Each future entry must include:
 - **Failure criterion:** H2 requires a statistically robust end-to-end gain on at least one validation regime, not selection of the same fixed bound or an ineligible timing difference.
 - **Conclusion:** H2 is `FAILED` for the retained small, medium, and large regimes. Fixed-medium remains the conservative fallback; no general impossibility claim is made.
 - **Retry condition:** a distinct preregistered family set with a materially representative external PRP cost, reliable stability/energy telemetry, and an adaptive choice that outperforms the best preregistered fixed strategy.
+
+## NR-0027 — Empty NVIDIA telemetry inventory became null in hosted Windows CI
+
+- **Date:** 2026-08-02
+- **Change tested:** PIVOT-01 private workflow run `30765994946`, Windows/MSVC `primeforge.hardware_profile` test.
+- **Evidence:** the runner has no `nvidia-smi`. PowerShell unrolled the intended empty telemetry-field array to `$null`; strict mode rejected `.Count`. The preceding 17 Windows tests passed, Linux/GCC passed, and the target host with seven NVIDIA query fields passed locally.
+- **Failure criterion:** a missing GPU or telemetry provider must produce source-labelled `UNKNOWN`, never a collector failure.
+- **Conclusion:** the collector now wraps the conditional result in an explicit array. The test suite forces a no-`nvidia-smi` path even on the target host and requires an empty NVIDIA inventory plus `UNKNOWN` temperature and power.
+- **Retry condition:** clean local Debug/Release gates and a new private Windows runner without NVIDIA hardware must pass the hardware-profile test.

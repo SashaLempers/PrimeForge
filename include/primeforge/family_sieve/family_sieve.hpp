@@ -34,6 +34,7 @@ struct Options {
     std::uint64_t segment_candidates{8'192U};
     unsigned int threads{1U};
     bool compressed_classes{true};
+    bool enumerate_residue_classes{true};
     std::size_t wheel_prime_count{};
     std::size_t crt_prime_count{};
     std::uint64_t crt_memory_limit_bytes{8U * 1024U * 1024U};
@@ -56,6 +57,7 @@ struct Result {
     std::uint64_t big_integer_checks{};
     bool vector_mode_applied{};
     bool direct_bitset_writes_applied{};
+    bool residue_enumeration_applied{};
     bool crt_applied{};
     bool huge_pages_applied{};
     bool thread_pinning_applied{};

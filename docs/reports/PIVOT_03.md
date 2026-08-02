@@ -193,3 +193,58 @@ matching event in the gate interval. CUDA was not invoked by this CPU campaign.
 Worker, watchdog, search and verification all exited zero. CPU temperature and
 package power remain `UNKNOWN`, so this was a short correctness campaign rather
 than a prolonged load or performance validation.
+
+## Fifth engine tranche: direct compiled-residue enumeration
+
+The production sieve still scanned every candidate in a segment for every
+compiled forbidden rule, only to test whether the candidate belonged to the
+rule's already known k/n residue classes. The canonical compressed path now
+enumerates those arithmetic progressions directly. Each enumerated pair is still
+rechecked modulo the prime and against the exact proper-factor boundary before
+it can set a result bit. The explicit `full-rule-scan` mode and every
+noncanonical traversal retain the old path as a differential oracle.
+
+Across the 1,024-, 4,096- and 16,384-candidate diagnostic regimes, the optimized
+path visited exactly 1,128, 4,492 and 17,978 rule-candidate pairs; the full scan
+visited 90,112, 360,448 and 1,441,792. Both produced the same 353, 1,438 and
+5,836 eliminated candidates, identical result hashes, identical modular/exact
+check counts and identical canonical factor vectors when requested. These exact
+operation counts establish removed work without asserting a timing speedup.
+
+The watchdog-supervised 441-row diagnostic passed with raw SHA-256
+`33583A499839BA363B0F1019438B43D2B0F8450AF350DAE1825A1E22C72B0327`
+and summary SHA-256
+`4F9A79274FF55B2EB2E352B4C6E46F379FD03C7D90E6435A6473EBD3C02C0F1F`.
+Five telemetry samples recorded maximum GPU temperature 52 C, maximum GPU power
+47.26 W, minimum available RAM 43,667,378,176 bytes, minimum free VRAM 13,639
+MiB and zero throttling. CPU temperature and package power remain `UNKNOWN`, so
+all timing rows continue to state `performance_valid=NO` and
+`performance_claim=NONE`.
+
+## Contribution directe au logiciel final
+
+This tranche replaces the dominant generic nested scan with the sparse search
+space already produced by PrimeForge's congruence compiler. It directly reduces
+candidate-generation work while preserving an executable full-scan oracle and
+all local proof obligations. The residue iterator is complete for the canonical
+production layout. Further PIVOT-03 work should now measure thread/segment
+selection on this new complete path rather than optimize the removed scan.
+
+The final clean gate compiled 93/93 targets without a PrimeForge warning in
+both configurations. Debug passed 31/31 tests in 45.84 s and Release passed
+31/31 in 15.57 s; both explicit self-tests reported C++23 and PASS. A fresh
+watchdog-supervised real campaign again produced 117 sieve composites, 9 base-2
+negative witnesses, 34 proven primes and 126 composites. Independent
+verification accepted 160/160 records and 208 manifest files, with zero
+semantic record difference from the retained campaign.
+
+The campaign watchdog recorded 27 samples, maximum GPU temperature 52 C,
+maximum GPU power 60.71 W, minimum available RAM 43,528,187,904 bytes, minimum
+free VRAM 13,633 MiB and zero throttle samples. The gate interval contained zero
+WHEA events; CUDA was not invoked. Worker, watchdog, search and verification
+exited zero. CPU temperature and package power remain `UNKNOWN`; no prolonged
+load or performance-valid benchmark was run.
+
+The preceding direct-word commit `d35425e` is independently green in private
+workflow `30772608766`: Linux/GCC completed in 1 min 6 s and Windows/MSVC,
+including the closed MVP package gate, in 7 min 15 s.

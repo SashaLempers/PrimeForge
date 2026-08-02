@@ -44,6 +44,15 @@ canonical word; these cases keep the worker-local merge path. Consequently AVX2
 and AVX-512 merge modes are relevant only to the fallback path, not to the
 aligned production path where no merge remains.
 
+The canonical compressed prime-major path also consumes each compiled
+`(k-index,n-index)` residue class as an arithmetic progression. It enumerates
+only matching pairs inside the current segment, then rechecks divisibility and
+proper-factor magnitude exactly as before. It does not trust a table match as a
+proof by itself. `enumerate_residue_classes=false` retains the complete rule by
+candidate scan, and transposed, candidate-major, SoA, prefetch and uncompressed
+experiments use that general path automatically. This gives every fast result an
+independent differential fallback.
+
 ## Measurement boundary
 
 `primeforge-family-sieve-benchmark` performs warmup, uses a fixed-seed randomized schedule, runs at least seven repetitions, and times congruence compilation, the complete sieve, and result hashing. It compares every timed result to the scalar output before accepting a row. The retained matrix changes one variable from the baseline at a time over small, medium, and large finite regimes.
@@ -62,7 +71,8 @@ recreates the removed second traversal. Their timing rows remain
 `performance_valid=NO` and `performance_claim=NONE`; structural removal of a
 complete redundant pass does not turn those rows into a benchmark claim.
 Raw rows also state whether `direct_bitset_writes_applied`; this is an execution
-fact, not a performance assertion.
+fact, not a performance assertion. They similarly record
+`residue_enumeration_applied` and include a `full-rule-scan` variant.
 
 Run a clean retained diagnostic collection with:
 

@@ -11,7 +11,8 @@ The fixed correctness-first path is:
 
 1. generate primes through the configured inclusive bound;
 2. compile congruence rules and run the correctness-fixed one-thread family
-   sieve with aligned direct canonical-bitset writes;
+   sieve by enumerating its compiled residue classes, with aligned direct
+   canonical-bitset writes;
 3. retain the smallest proper factor during that same sieve traversal and
    revalidate it at the result boundary;
 4. run the internal base-2 strong probable-prime filter on survivors;

@@ -60,6 +60,7 @@ struct Sample {
     std::string result_sha256;
     bool legacy_factor_second_pass{};
     bool direct_bitset_writes_applied{};
+    bool residue_enumeration_applied{};
     bool vector_applied{};
     bool crt_applied{};
     bool huge_pages_applied{};
@@ -121,6 +122,7 @@ struct Sample {
     add("segment-l3", [](auto& value) { value.segment_candidates = 65'536U; });
     add("dynamic-scheduling", [](auto& value) { value.scheduling = fsieve::Scheduling::dynamic_segments; });
     add("uncompressed-classes", [](auto& value) { value.compressed_classes = false; });
+    add("full-rule-scan", [](auto& value) { value.enumerate_residue_classes = false; });
     add("small-prime-wheel", [](auto& value) { value.wheel_prime_count = 4U; });
     add("bounded-crt", [](auto& value) { value.crt_prime_count = 3U; });
     add("avx2-merge", [](auto& value) { value.vector_mode = fsieve::VectorMode::avx2; });
@@ -261,6 +263,7 @@ int main(const int argc, char** argv) {
                     hash,
                     variant.legacy_factor_second_pass,
                     result.direct_bitset_writes_applied,
+                    result.residue_enumeration_applied,
                     result.vector_mode_applied,
                     result.crt_applied,
                     result.huge_pages_applied,
@@ -271,7 +274,7 @@ int main(const int argc, char** argv) {
             }
         }
 
-        std::string raw = "schema_version\tregime\tvariant\trepetition\torder\telapsed_nanoseconds\tcandidates\teliminated\trule_checks\tmodular_checks\texact_checks\tbounded_magnitude_checks\tbig_integer_checks\tfactor_witnesses\tlegacy_factor_second_pass\tresult_sha256\tdirect_bitset_writes_applied\tvector_applied\tcrt_applied\thuge_pages_applied\tpinning_applied\taffinity_workers_requested\taffinity_workers_applied\ttelemetry_status\tperformance_valid\tperformance_claim\n";
+        std::string raw = "schema_version\tregime\tvariant\trepetition\torder\telapsed_nanoseconds\tcandidates\teliminated\trule_checks\tmodular_checks\texact_checks\tbounded_magnitude_checks\tbig_integer_checks\tfactor_witnesses\tlegacy_factor_second_pass\tresult_sha256\tdirect_bitset_writes_applied\tresidue_enumeration_applied\tvector_applied\tcrt_applied\thuge_pages_applied\tpinning_applied\taffinity_workers_requested\taffinity_workers_applied\ttelemetry_status\tperformance_valid\tperformance_claim\n";
         for (const auto& sample : samples) {
             raw += "1\t" + sample.regime + '\t' + sample.variant + '\t' +
                    std::to_string(sample.repetition) + '\t' + std::to_string(sample.order) + '\t' +
@@ -285,6 +288,7 @@ int main(const int argc, char** argv) {
                    yes_no(sample.legacy_factor_second_pass) + '\t' +
                    sample.result_sha256 + '\t' +
                    yes_no(sample.direct_bitset_writes_applied) + '\t' +
+                   yes_no(sample.residue_enumeration_applied) + '\t' +
                    yes_no(sample.vector_applied) + '\t' + yes_no(sample.crt_applied) + '\t' +
                    yes_no(sample.huge_pages_applied) + '\t' + yes_no(sample.pinning_applied) +
                    '\t' + std::to_string(sample.affinity_workers_requested) +

@@ -507,3 +507,16 @@ removes the worker-local full-bitset allocation and the subsequent per-worker
 merge without atomics. Transposed traversal, list storage and non-word-aligned
 segments keep the previous safe fallback. SIMD merge selection applies only to
 that fallback because the aligned production path has no merge to vectorize.
+
+## D-0068 - The production sieve enumerates compiled residue classes
+
+**Status:** Accepted - 2026-08-02
+
+For compressed, prime-major, canonical k-major traversal, the congruence table
+already identifies the exact arithmetic progressions of matching k and n
+indices. The production sieve enumerates those pairs directly inside each
+segment instead of scanning every candidate and retesting the class modulus.
+Every enumerated pair still undergoes the independent modular and proper-factor
+checks. An explicit full-scan option and all noncanonical layouts retain the
+general path for differential verification. This is an algorithmic reduction in
+visited pairs; diagnostic timings remain ineligible for a performance claim.

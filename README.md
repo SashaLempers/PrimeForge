@@ -21,7 +21,9 @@ repository and release remain private.
 
 Post-release PIVOT-03 work now keeps proper-factor evidence in the original
 sieve traversal and lets aligned k-major segments write disjoint canonical
-bitset words directly. The released archive is unchanged; the optimized source
+bitset words directly. That same path now enumerates the compiled forbidden
+residue pairs instead of scanning every candidate for every rule. The released
+archive is unchanged; the optimized source
 path remains under Debug/Release, differential and private-CI validation before
 a later release. No timing is promoted to a performance claim.
 

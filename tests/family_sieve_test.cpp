@@ -101,6 +101,8 @@ int main() {
         check(expected.eliminated_words == reference, "baseline equals direct scalar reference");
         check(expected.direct_bitset_writes_applied,
               "word-aligned dense baseline writes disjoint result words directly");
+        check(expected.residue_enumeration_applied,
+              "canonical compressed baseline enumerates compiled residue classes");
         check(expected.eliminated_count != 0U, "test family has eliminations");
         check_factor_witnesses(expected, family, "baseline");
         check(expected.factor_witnesses == reference_factors,
@@ -214,6 +216,22 @@ int main() {
               "non-word-aligned segments retain the safe worker-local fallback");
         check(!fsieve::run(table, sha256, variants[1]).direct_bitset_writes_applied,
               "transposed traversal retains the safe worker-local fallback");
+        const auto transposed_result = fsieve::run(table, sha256, variants[1]);
+        const auto candidate_major_result = fsieve::run(table, sha256, variants[2]);
+        const auto soa_result = fsieve::run(table, sha256, variants[3]);
+        check(!transposed_result.residue_enumeration_applied &&
+                  !candidate_major_result.residue_enumeration_applied &&
+                  !soa_result.residue_enumeration_applied,
+              "noncanonical experimental traversals retain the general scan");
+        auto full_scan = baseline;
+        full_scan.enumerate_residue_classes = false;
+        const auto full_scan_result = fsieve::run(table, sha256, full_scan);
+        check(!full_scan_result.residue_enumeration_applied &&
+                  full_scan_result.eliminated_words == expected.eliminated_words &&
+                  full_scan_result.factor_witnesses == expected.factor_witnesses,
+              "explicit full scan remains an exact differential fallback");
+        check(expected.rule_checks < full_scan_result.rule_checks,
+              "residue enumeration visits fewer rule-candidate pairs than full scanning");
         auto unaligned_avx2 = variants.back();
         unaligned_avx2.vector_mode = fsieve::VectorMode::avx2;
         auto unaligned_avx512 = variants.back();

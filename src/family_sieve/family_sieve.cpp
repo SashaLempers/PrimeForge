@@ -297,6 +297,53 @@ void record_elimination(
     return result;
 }
 
+[[nodiscard]] bool use_residue_enumeration(const Options& options) noexcept {
+    return options.enumerate_residue_classes && options.compressed_classes &&
+           options.orientation == BitsetOrientation::by_k &&
+           options.loop_order == LoopOrder::prime_major &&
+           options.metadata_layout == MetadataLayout::array_of_structures &&
+           !options.explicit_prefetch;
+}
+
+template <typename Function>
+void for_each_matching_n_index(
+    const congruence::ForbiddenRule& rule,
+    const congruence::Progression& progression,
+    Function&& function) {
+    const auto count = progression.size();
+    if (rule.exponent_scope == congruence::ExponentRuleScope::exact_exponent) {
+        if (progression.contains(rule.exact_exponent)) {
+            function(progression.index_of(rule.exact_exponent));
+        }
+        return;
+    }
+    if (rule.exponent_scope ==
+        congruence::ExponentRuleScope::positive_exponents) {
+        for (std::uint64_t index = 0U; index < count; ++index) {
+            if (progression.value_at(index) > 0) function(index);
+        }
+        return;
+    }
+    for (auto index = rule.exponent_index_residue; index < count;) {
+        function(index);
+        if (rule.exponent_index_modulus > count - 1U - index) break;
+        index += rule.exponent_index_modulus;
+    }
+}
+
+[[nodiscard]] std::uint64_t first_congruent_index_at_or_after(
+    const std::uint64_t residue,
+    const std::uint64_t modulus,
+    const std::uint64_t lower) noexcept {
+    if (residue >= lower) return residue;
+    const auto delta = lower - residue;
+    const auto steps = delta / modulus + (delta % modulus == 0U ? 0U : 1U);
+    if (steps > (std::numeric_limits<std::uint64_t>::max() - residue) / modulus) {
+        return std::numeric_limits<std::uint64_t>::max();
+    }
+    return residue + steps * modulus;
+}
+
 void prefetch_address(const void* const address) noexcept {
 #if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
     _mm_prefetch(static_cast<const char*>(address), _MM_HINT_T0);
@@ -393,6 +440,30 @@ void scan_segment(
             check_soa(traversal, rule_index);
         }
     };
+
+    if (use_residue_enumeration(options)) {
+        if (traversal_begin >= traversal_end) return;
+        const auto k_begin = traversal_begin / n_count;
+        const auto k_end = (traversal_end - 1U) / n_count + 1U;
+        for (const auto& rule : rules) {
+            for_each_matching_n_index(
+                rule, table.family.n, [&](const std::uint64_t n_index) {
+                    auto k_index = first_congruent_index_at_or_after(
+                        rule.k_index_residue, rule.k_index_modulus, k_begin);
+                    while (k_index < k_end) {
+                        const auto traversal =
+                            canonical_index(k_index, n_index, n_count);
+                        if (traversal >= traversal_begin &&
+                            traversal < traversal_end) {
+                            inspect(traversal, rule.prime, true);
+                        }
+                        if (rule.k_index_modulus > k_end - 1U - k_index) break;
+                        k_index += rule.k_index_modulus;
+                    }
+                });
+        }
+        return;
+    }
 
     if (options.loop_order == LoopOrder::prime_major) {
         for (std::size_t rule_index = 0U; rule_index < rules.size(); ++rule_index) {
@@ -551,7 +622,9 @@ Result run(
     const auto candidate_count = checked_candidate_count(table.family);
     const auto word_count = static_cast<std::size_t>((candidate_count + 63U) / 64U);
     const auto rules = flatten_rules(table);
-    const auto columns = make_columns(rules);
+    const auto columns = options.metadata_layout == MetadataLayout::structure_of_arrays
+        ? make_columns(rules)
+        : RuleColumns{};
     std::vector<std::uint64_t> premarked(word_count, 0U);
     std::vector<std::uint64_t> premarked_factor_witnesses;
     if (options.retain_factor_witnesses) {
@@ -654,6 +727,7 @@ Result run(
     result.eliminated_words = std::move(premarked);
     result.factor_witnesses = std::move(premarked_factor_witnesses);
     result.direct_bitset_writes_applied = direct_bitset_writes;
+    result.residue_enumeration_applied = use_residue_enumeration(options);
     result.crt_applied = crt_applied;
     result.affinity_workers_requested =
         options.thread_placement == ThreadPlacement::scheduler_managed ? 0U : thread_count;
@@ -755,6 +829,8 @@ std::string describe(const Options& options) {
            << ";segment=" << options.segment_candidates
            << ";schedule=" << (options.scheduling == Scheduling::static_partition ? "static" : "dynamic")
            << ";compressed=" << (options.compressed_classes ? "yes" : "no")
+           << ";residue-enumeration="
+           << (options.enumerate_residue_classes ? "requested" : "disabled")
            << ";wheel-primes=" << options.wheel_prime_count
            << ";crt-primes=" << options.crt_prime_count
            << ";factor-witnesses=" << (options.retain_factor_witnesses ? "yes" : "no")

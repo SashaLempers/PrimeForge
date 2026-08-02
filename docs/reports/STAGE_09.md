@@ -49,6 +49,8 @@ The sample with `b=2`, `c=1`, odd `k in [1,31] step 2`, `n in [0,12] step 2`, pr
 - Compressed rules are a correctness implementation; stage 10 must benchmark alternative storage/loop designs before selecting an optimized default.
 - Exact application has the existing 10,000,000-bit safety limit; table compilation itself does not construct `N`.
 - SHA-256 is identity/integrity, not table authenticity.
-- Hosted Windows/Linux CI evidence will be added after the private workflow completes.
+- Private Windows/Linux CI is mandatory before closure.
 
-**Local status:** Accepted — 2026-08-02
+Private workflow run `30763968249` passed at commit `e0b82d52a4770fc8f80b212dbb53cfb5b9e9f440`: Linux/GCC completed in 56 s and Windows/MSVC completed clean Debug and Release in 3 min 19 s. The cross-platform absolute gate is therefore closed.
+
+**Status:** Accepted — 2026-08-02

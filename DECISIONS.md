@@ -253,3 +253,21 @@ The huge-page option performs an allocation availability probe, immediately rele
 **Status:** Accepted — 2026-08-02
 
 Stage-10 timing rows are useful for harness validation and work-count diagnosis, but `UNAVAILABLE` stability and energy telemetry force `performance_valid=NO` and `performance_claim=NONE`. The reference-safe baseline remains the default until a preregistered eligible experiment demonstrates a stable multi-regime optimum.
+
+## D-0043 — Adaptive bounds use measured family selectivity
+
+**Status:** Accepted — 2026-08-02
+
+Offline and online models consume actual candidate and elimination counts for each bound. They contain no `1/q` selectivity approximation. Costs use integer nanoseconds with saturation, and malformed nonmonotonic curves are rejected. Fixed medium remains the reversible fallback.
+
+## D-0044 — Stage-11 next-test output is PRP-only
+
+**Status:** Accepted — 2026-08-02
+
+The pre-adapter next-test workload is a base-2 strong PRP over bounded unsigned-64-bit candidates. A positive output is `PROBABLE_PRIME`, never `PROVEN_PRIME`. A retained strong pseudoprime must pass the PRP and fail the independent deterministic classifier.
+
+## D-0045 — Calibration cannot vote on its own validation
+
+**Status:** Accepted — 2026-08-02
+
+Families are labeled calibration or validation before timing. Offline choices use only calibration rows. The fixed-low, fixed-medium, fixed-high, offline, and online strategies are compared only on distinct validation families and report uncertainty per regime.

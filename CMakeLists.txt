@@ -102,6 +102,17 @@ target_include_directories(primeforge_benchmark
 target_compile_features(primeforge_benchmark PUBLIC cxx_std_23)
 primeforge_enable_strict_warnings(primeforge_benchmark)
 
+add_library(primeforge_adaptive STATIC src/adaptive_bound/adaptive_bound.cpp)
+add_library(PrimeForge::adaptive ALIAS primeforge_adaptive)
+target_include_directories(primeforge_adaptive
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(primeforge_adaptive PUBLIC PrimeForge::core PrimeForge::benchmark)
+target_compile_features(primeforge_adaptive PUBLIC cxx_std_23)
+primeforge_enable_strict_warnings(primeforge_adaptive)
+
 if(WIN32)
     target_compile_definitions(primeforge_core PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
     target_link_libraries(primeforge_core PRIVATE user32)
@@ -183,6 +194,16 @@ target_link_libraries(
 target_compile_features(primeforge-family-sieve-benchmark PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge-family-sieve-benchmark)
 
+add_executable(primeforge-adaptive-bound-tests tests/adaptive_bound_test.cpp)
+target_link_libraries(primeforge-adaptive-bound-tests PRIVATE PrimeForge::adaptive)
+target_compile_features(primeforge-adaptive-bound-tests PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-adaptive-bound-tests)
+
+add_executable(primeforge-adaptive-bound-benchmark src/adaptive_bound/main.cpp)
+target_link_libraries(primeforge-adaptive-bound-benchmark PRIVATE PrimeForge::adaptive)
+target_compile_features(primeforge-adaptive-bound-benchmark PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-adaptive-bound-benchmark)
+
 if(BUILD_TESTING)
     add_test(NAME primeforge.unit COMMAND primeforge-tests)
     add_test(NAME primeforge.selftest COMMAND primeforge-selftest)
@@ -211,6 +232,7 @@ if(BUILD_TESTING)
     )
     add_test(NAME primeforge.congruence_compiler COMMAND primeforge-congruence-tests)
     add_test(NAME primeforge.family_sieve COMMAND primeforge-family-sieve-tests)
+    add_test(NAME primeforge.adaptive_bound COMMAND primeforge-adaptive-bound-tests)
     add_test(
         NAME primeforge.congruence_cli
         COMMAND primeforge-congruence

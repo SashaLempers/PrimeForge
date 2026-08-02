@@ -237,3 +237,12 @@ Each future entry must include:
 - **Failure criterion:** the stage-10 scientific gate requires a stable optimal configuration per regime, not merely a timing difference on one uncontrolled host session.
 - **Conclusion:** correctness and a segment-count bottleneck are reproduced, but the optimum gate is `INCONCLUSIVE`. The reference-safe default is unchanged, and execution proceeds without a performance claim.
 - **Retry condition:** preregistered multi-regime collection with reliable stability telemetry, controlled background conditions, and compatible repeated intervals.
+
+## NR-0025 — Initial PRP separation vector was removed by prefiltering
+
+- **Date:** 2026-08-02
+- **Change tested:** first stage-11 adaptive-bound unit gate using 2047 as a base-2 strong pseudoprime.
+- **Evidence:** the PRP routine deliberately trial-divides through 37 and rejected 2047 by factor 23 before reaching the strong test; 15/16 CTest tests passed and the new test failed its intended positive assertion.
+- **Failure criterion:** the retained negative vector must exercise the PRP-positive/proof-negative boundary, not merely be composite.
+- **Conclusion:** the fixture is now 1,373,653, which passes the implemented base-2 strong PRP and fails the independent deterministic 64-bit classifier. The corrected gate passes without weakening the prefilter.
+- **Retry condition:** every future PRP backend must retain at least one backend-positive, independently composite vector.

@@ -63,7 +63,11 @@ $environmentLines = @(
     "ambient_temperature_celsius`tUNKNOWN",
     "performance_claim`tNONE"
 )
-[System.IO.File]::WriteAllLines($environmentPath, $environmentLines, [System.Text.UTF8Encoding]::new($false))
+[System.IO.File]::WriteAllText(
+    $environmentPath,
+    (($environmentLines -join "`n") + "`n"),
+    [System.Text.UTF8Encoding]::new($false)
+)
 
 $rawLines = [System.Collections.Generic.List[string]]::new()
 $rawLines.Add("schema_version`trange`tvariant`trepetition`torder`tbegin`tend`tcount`telapsed_nanoseconds`tperformance_valid")
@@ -98,7 +102,11 @@ foreach ($range in $ranges) {
         }
     }
 }
-[System.IO.File]::WriteAllLines($rawPath, $rawLines, [System.Text.UTF8Encoding]::new($false))
+[System.IO.File]::WriteAllText(
+    $rawPath,
+    (($rawLines -join "`n") + "`n"),
+    [System.Text.UTF8Encoding]::new($false)
+)
 $records = @(Import-Csv -LiteralPath $rawPath -Delimiter "`t")
 $summaryLines = [System.Collections.Generic.List[string]]::new()
 $summaryLines.Add("schema_version`trange`tvariant`tsamples`tcount`tminimum_nanoseconds`tmedian_nanoseconds`tmaximum_nanoseconds`tmedian_absolute_deviation_nanoseconds`tperformance_valid`tperformance_claim")
@@ -123,5 +131,9 @@ foreach ($range in $ranges) {
     }
 }
 $summaryPath = Join-Path $output 'summary.tsv'
-[System.IO.File]::WriteAllLines($summaryPath, $summaryLines, [System.Text.UTF8Encoding]::new($false))
+[System.IO.File]::WriteAllText(
+    $summaryPath,
+    (($summaryLines -join "`n") + "`n"),
+    [System.Text.UTF8Encoding]::new($false)
+)
 Write-Host "Stage 6 benchmark collection: PASS ($($records.Count) samples; counts agree; performance claim NONE; output $output)"

@@ -19,11 +19,15 @@ These binaries are local external oracles under ignored `out/` paths. They are n
 
 The stage-6 script schedules nine variants over three 10000000-integer ranges with seven randomized repetitions after warmup. It records integer process elapsed time, exact counts, commit/dirty state, and unknown telemetry. Process startup is included. Temperature, frequency, power, wall energy, and ambient temperature are `UNKNOWN`; `performance_valid=NO` and `performance_claim=NONE` apply to every row.
 
-No result claims that PrimeForge is faster than primesieve. Wheel 210 and SIMD were not retained. The first preliminary timing run had an invalid count parser and is recorded as NR-0016; only the corrected clean-tree evidence may close this gate.
+No result claims that PrimeForge is faster than primesieve. Wheel 210 and SIMD were not retained. The first preliminary timing run had invalid PowerShell aggregation and is recorded as NR-0016.
+
+The retained corrected run is generated only after the canonical-LF evidence writer itself is committed and the worktree is clean. Every retained row remains ineligible for performance use.
 
 ## Build status
 
-The first non-clean local pass compiled Debug and Release with zero PrimeForge warnings. Debug passed the new sieve target. Release passed 7/8 tests; only the existing corpus executable was blocked before start by Windows Application Control (NR-0017), while the new sieve regression passed. Final clean local and hosted CI results are appended only after they succeed.
+The final clean local pass compiled Debug and Release with zero PrimeForge warnings. Debug passed 8/8 tests in 1.21 s. Release passed 7/8 tests in 0.75 s; only the unchanged self-test executable was blocked before start by Windows Application Control, while unit, corpus, sieve, benchmark, and licensing tests all passed. This enforced host limitation is NR-0017/NR-0009; no policy was weakened.
+
+Private workflow run `30762227654` passed at implementation commit `52c6d58e1ee9cf13587f7f107c7c6fbbd92f6619`: Linux/GCC in 19 s and Windows/MSVC, including clean Debug and Release via `run_all.ps1`, in 1 min 16 s. Hosted Windows therefore supplies the complete independent 8/8 Release execution gate that local Application Control prevented.
 
 ## Commands
 

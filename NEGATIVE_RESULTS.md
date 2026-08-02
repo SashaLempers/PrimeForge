@@ -183,3 +183,12 @@ Each future entry must include:
 - **Failure criterion:** capability detection or a noisy timing difference cannot justify additional optimized code.
 - **Conclusion:** these paths are not implemented or retained. Wheel 30, bit packing, buckets, prefetch, and both bucket layouts remain independently testable; conservative defaults select the simple byte path.
 - **Retry condition:** a preregistered, telemetry-complete multi-range benchmark demonstrates a repeatable end-to-end gain without correctness divergence.
+
+## NR-0019 — Initial retained stage-6 TSV used host-native CRLF
+
+- **Date:** 2026-08-02
+- **Change tested:** hash stability of the corrected clean-tree benchmark evidence after Git normalization.
+- **Evidence:** `.gitattributes` requires LF for TSV, but `.NET WriteAllLines` emitted host-native CRLF on Windows; staging would therefore change the evidence bytes and invalidate their pre-commit SHA-256 values.
+- **Failure criterion:** a retained artifact must have identical bytes and hashes after Windows/Linux checkout.
+- **Conclusion:** the provisional evidence directory was deleted before commit. The writer now serializes explicit UTF-8/LF bytes, and `.sha256` manifests also have an explicit LF rule. Evidence is regenerated only from the resulting clean commit.
+- **Retry condition:** pre-commit hashes, staged normalized bytes, and post-checkout hashes must match exactly.

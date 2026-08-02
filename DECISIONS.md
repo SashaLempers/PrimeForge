@@ -229,3 +229,27 @@ Finite signed-64-bit progressions carry a positive unsigned step. Exponent perio
 **Status:** Accepted — 2026-08-02
 
 Canonical SHA-256 detects ordinary mutation. Validation also deterministically recompiles the table and compares canonical bytes, catching a mutated rule even when its hash is recomputed. This does not authenticate an untrusted family definition or signer; later provenance layers remain necessary.
+
+## D-0039 — Stage-10 options cannot bypass local factor witnesses
+
+**Status:** Accepted — 2026-08-02
+
+All storage, traversal, scheduling, vector, wheel, and CRT paths produce only a potential match until exact candidate semantics and a proper prime-factor witness are rechecked. The canonical output is compared with the stage-9 scalar reference. No survivor receives a primality status.
+
+## D-0040 — SIMD dispatch is narrow and runtime-gated
+
+**Status:** Accepted — 2026-08-02
+
+Separate AVX2 and AVX-512 translation units implement only per-worker bitset merging. Runtime CPUID and OS state select them; unsupported systems use the scalar path. PrimeForge does not describe this narrow experiment as vectorizing the complete sieve and does not build a globally incompatible executable.
+
+## D-0041 — Huge pages and affinity stay reversible experiments
+
+**Status:** Accepted — 2026-08-02
+
+The huge-page option performs an allocation availability probe, immediately releases it, requests no privilege, and is never required. Windows worker affinity is temporary and restored. Linux remains compilable with both options conservatively reported as not applied where no implementation exists.
+
+## D-0042 — Telemetry-incomplete timing cannot choose a default
+
+**Status:** Accepted — 2026-08-02
+
+Stage-10 timing rows are useful for harness validation and work-count diagnosis, but `UNAVAILABLE` stability and energy telemetry force `performance_valid=NO` and `performance_claim=NONE`. The reference-safe baseline remains the default until a preregistered eligible experiment demonstrates a stable multi-regime optimum.

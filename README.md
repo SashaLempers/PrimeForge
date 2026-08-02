@@ -4,7 +4,7 @@ PrimeForge is a C++23 research platform for auditable prime search, proof, verif
 
 The project currently makes no claim of superior performance, mathematical novelty, or discovery of a new prime. A probable prime is never reported as a proven prime.
 
-## Current milestone: stage 9
+## Current milestone: stage 10
 
 - `primeforge_core`: portable core interfaces and foundational types;
 - `primeforge-selftest`: compiler, OS, architecture, CPU, GPU-presence, and policy checks;
@@ -20,10 +20,12 @@ The project currently makes no claim of superior performance, mathematical novel
 - `primeforge-family-tests`: parser, AST, domain, canonicalization, and 2,000,000-case exact/modular gate.
 - `primeforge-congruence`: compile and audit compressed factor-witness rules for `k*b^n+c`;
 - `primeforge-congruence-tests`: scalar/compiled differential, fuzz, mutation, and zero-prime-elimination gate.
+- `primeforge-family-sieve-tests`: one-factor CPU-option matrix and scalar-equivalence gate;
+- `primeforge-family-sieve-benchmark`: randomized complete-path diagnostic collector.
 
 No external numerical, JSON, cryptographic, or GPU library is linked at this stage. Stage 8 uses a small original arbitrary-precision integer solely for family-definition correctness; it is not presented as a performance engine. The source audit selects only future integration modes and adds no runtime dependency.
 
-The congruence rules and local compositeness proof are specified in `docs/CONGRUENCE_COMPILER.md`; the closed, bounded family grammar is in `docs/FAMILY_LANGUAGE.md`. The work-unit identity and mathematical coverage proof are in `docs/WORK_UNITS.md`; the stage-6 algorithm and toggle boundary are in `docs/SIEVE.md`. The state-of-the-art inventory is in `docs/STATE_OF_THE_ART.md`. The 68-case correctness corpus and its independent evidence are documented in `docs/CORPUS.md`. The claim-safe measurement rules are in `docs/BENCHMARK_PROTOCOL.md`. Pinned component evidence and unresolved gaps are indexed by `audits/INDEX.md`.
+The CPU experiment boundary is specified in `docs/FAMILY_SIEVE.md`; the congruence rules and local compositeness proof are in `docs/CONGRUENCE_COMPILER.md`; the closed, bounded family grammar is in `docs/FAMILY_LANGUAGE.md`. The work-unit identity and mathematical coverage proof are in `docs/WORK_UNITS.md`; the stage-6 algorithm and toggle boundary are in `docs/SIEVE.md`. The state-of-the-art inventory is in `docs/STATE_OF_THE_ART.md`. The 68-case correctness corpus and its independent evidence are documented in `docs/CORPUS.md`. The claim-safe measurement rules are in `docs/BENCHMARK_PROTOCOL.md`. Pinned component evidence and unresolved gaps are indexed by `audits/INDEX.md`.
 
 The licensing/provenance boundary is documented in `LICENSING.md`, `docs/PROVENANCE_POLICY.md`, and `licenses/DISTRIBUTION_MANIFEST.tsv`. Verify a distribution with:
 
@@ -55,7 +57,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/run_all.ps1 -Cle
 
 See `docs/BUILD_WINDOWS.md` and `docs/CANONICAL_JSON.md`.
 
-Milestone evidence is kept in `docs/reports/`. Stage 9 compiles and validates factor rules but does not start a search campaign or call a primality engine. A survivor is never promoted to probable or proven prime. primesieve, FLINT, PARI/GP, and proth20 remain isolated local oracles only.
+Milestone evidence is kept in `docs/reports/`. Stage 10 experiments with CPU application of validated factor rules but does not start a search campaign or call a primality engine. Its telemetry-incomplete timings carry `performance_claim=NONE`; no production optimum is asserted. A survivor is never promoted to probable or proven prime. primesieve, FLINT, PARI/GP, and proth20 remain isolated local oracles only.
 
 ## Governance and licensing
 

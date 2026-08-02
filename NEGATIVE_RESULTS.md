@@ -219,3 +219,12 @@ Each future entry must include:
 - **Failure criterion:** an incremental build must not leave an object stale after a tracked header changes.
 - **Conclusion:** CMake now repairs only the observed UTF-8 double-encoding of the localized non-breaking spaces before Ninja rules are generated. Correctly detected prefixes in any locale remain unchanged. No compiler warning or security control is disabled.
 - **Retry condition:** a clean configure/build must populate nonzero header dependencies, and a touched tracked header must make the dependent object dirty.
+
+## NR-0023 — Stage-10 Windows macros were redundantly defined
+
+- **Date:** 2026-08-02
+- **Change tested:** first Debug compilation of the stage-10 family-sieve source.
+- **Evidence:** MSVC emitted C4005 for `WIN32_LEAN_AND_MEAN` and `NOMINMAX`, because the target already defines both on the command line; `/WX` correctly stopped the build.
+- **Failure criterion:** zero warnings from original PrimeForge code.
+- **Conclusion:** the two source-level definitions were removed. CMake remains the single definition site, and no warning or error policy was weakened.
+- **Retry condition:** corrected Debug and Release builds must complete with `/W4 /WX /permissive-`.

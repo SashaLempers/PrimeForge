@@ -42,6 +42,34 @@ function(primeforge_enable_strict_warnings target)
     endif()
 endfunction()
 
+set(primeforge_family_sieve_sources
+    src/family_sieve/family_sieve.cpp
+    src/family_sieve/vector_scalar.cpp
+)
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|amd64|x86_64|x86|i[3-6]86)$")
+    list(APPEND primeforge_family_sieve_sources
+        src/family_sieve/vector_avx2.cpp
+        src/family_sieve/vector_avx512.cpp
+    )
+    if(MSVC)
+        set_source_files_properties(
+            src/family_sieve/vector_avx2.cpp PROPERTIES COMPILE_OPTIONS "/arch:AVX2"
+        )
+        set_source_files_properties(
+            src/family_sieve/vector_avx512.cpp PROPERTIES COMPILE_OPTIONS "/arch:AVX512"
+        )
+    else()
+        set_source_files_properties(
+            src/family_sieve/vector_avx2.cpp PROPERTIES COMPILE_OPTIONS "-mavx2"
+        )
+        set_source_files_properties(
+            src/family_sieve/vector_avx512.cpp PROPERTIES COMPILE_OPTIONS "-mavx512f"
+        )
+    endif()
+else()
+    message(FATAL_ERROR "Stage-10 vector experiment currently requires an x86 or x86-64 build host")
+endif()
+
 add_library(primeforge_core STATIC
     src/congruence/compiler.cpp
     src/core/sha256.cpp
@@ -52,6 +80,7 @@ add_library(primeforge_core STATIC
     src/math/mul128.cpp
     src/sieve/sieve.cpp
     src/work/work_unit.cpp
+    ${primeforge_family_sieve_sources}
 )
 add_library(PrimeForge::core ALIAS primeforge_core)
 
@@ -142,6 +171,18 @@ target_link_libraries(primeforge-congruence PRIVATE PrimeForge::core)
 target_compile_features(primeforge-congruence PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge-congruence)
 
+add_executable(primeforge-family-sieve-tests tests/family_sieve_test.cpp)
+target_link_libraries(primeforge-family-sieve-tests PRIVATE PrimeForge::core)
+target_compile_features(primeforge-family-sieve-tests PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-family-sieve-tests)
+
+add_executable(primeforge-family-sieve-benchmark src/family_sieve/main.cpp)
+target_link_libraries(
+    primeforge-family-sieve-benchmark PRIVATE PrimeForge::core PrimeForge::benchmark
+)
+target_compile_features(primeforge-family-sieve-benchmark PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-family-sieve-benchmark)
+
 if(BUILD_TESTING)
     add_test(NAME primeforge.unit COMMAND primeforge-tests)
     add_test(NAME primeforge.selftest COMMAND primeforge-selftest)
@@ -169,6 +210,7 @@ if(BUILD_TESTING)
             --modulus 11
     )
     add_test(NAME primeforge.congruence_compiler COMMAND primeforge-congruence-tests)
+    add_test(NAME primeforge.family_sieve COMMAND primeforge-family-sieve-tests)
     add_test(
         NAME primeforge.congruence_cli
         COMMAND primeforge-congruence

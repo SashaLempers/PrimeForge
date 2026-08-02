@@ -138,3 +138,12 @@ Each future entry must include:
 - **Failure criterion:** complete local Release execution was impossible under the enforced policy.
 - **Conclusion:** this is a recurrence of NR-0009, not a corpus disagreement. The security policy remained enabled. A later single clean `run_all.ps1 -Clean` execution passed Release 5/5 and both explicit self-tests; private hosted Windows CI remains the independent Release gate.
 - **Retry condition:** a CA-trusted signing path, an authorized development policy, or hosted CI.
+
+## NR-0014 — Certificate fixtures checked out as CRLF on hosted Windows
+
+- **Date:** 2026-08-02
+- **Change tested:** stage-4 hosted workflow run `30761294078` at commit `04d59ed11d3b55226c56dad957fd8cdc4191bcf9`.
+- **Evidence:** Linux/GCC passed. Windows/MSVC compiled all 10 steps, then `primeforge.corpus` rejected `pari-primecert-valid.txt` because checkout converted its LF terminator to CRLF; the parser intentionally enforces the v1 byte format.
+- **Failure criterion:** Windows CI passed 4/5 rather than the required 5/5.
+- **Conclusion:** `.gitattributes` now marks `corpus/v1/certificates/*.txt` as `text eol=lf`. The user-provided specification remains explicitly `-text`, preserving its original bytes and SHA-256.
+- **Retry condition:** every new corpus extension needs an explicit line-ending rule and a passing Windows/Linux checkout test.

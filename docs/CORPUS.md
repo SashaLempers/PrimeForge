@@ -2,7 +2,7 @@
 
 ## Version and stability
 
-`corpus/v1/` is the immutable first corpus schema. Any incompatible field or semantic change creates `v2`; existing evidence is never silently reinterpreted. All tracked corpus files are UTF-8 without BOM, use LF line endings, and have no trailing whitespace.
+`corpus/v1/` is the immutable first corpus schema. Any incompatible field or semantic change creates `v2`; existing evidence is never silently reinterpreted. All tracked corpus files are UTF-8 without BOM, use LF line endings, and have no trailing whitespace. `.gitattributes` enforces LF for both TSV evidence and certificate text fixtures on Windows and Linux checkouts.
 
 The main file is `cases.tsv`. It uses exactly nine tab-separated fields:
 

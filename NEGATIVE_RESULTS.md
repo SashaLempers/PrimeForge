@@ -192,3 +192,12 @@ Each future entry must include:
 - **Failure criterion:** a retained artifact must have identical bytes and hashes after Windows/Linux checkout.
 - **Conclusion:** the provisional evidence directory was deleted before commit. The writer now serializes explicit UTF-8/LF bytes, and `.sha256` manifests also have an explicit LF rule. Evidence is regenerated only from the resulting clean commit.
 - **Retry condition:** pre-commit hashes, staged normalized bytes, and post-checkout hashes must match exactly.
+
+## NR-0020 — Stage-7 clean Debug unit executable blocked before start
+
+- **Date:** 2026-08-02
+- **Change tested:** clean local stage-7 Debug/Release gate.
+- **Evidence:** all 27 Debug compilation/link steps completed with zero PrimeForge warnings. CTest passed 9/10; Windows Application Control blocked the unchanged `primeforge-tests.exe` before process start. The new work-unit test and CLI both passed. A prior non-clean Debug run passed 10/10, and the subsequently compiled Release tree passed 10/10 in 3.97 s.
+- **Failure criterion:** the single clean `run_all.ps1 -Clean` orchestration could not finish its Debug phase.
+- **Conclusion:** the enforced host policy remains unchanged. The failure is not a test assertion or coverage disagreement. Private hosted Windows/Linux CI is required before stage 7 closes.
+- **Retry condition:** full hosted CI, or a trusted-signing/authorized-development path documented in NR-0009.

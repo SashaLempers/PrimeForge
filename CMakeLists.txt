@@ -29,6 +29,7 @@ add_library(primeforge_core STATIC
     src/core/system_info.cpp
     src/math/mul128.cpp
     src/sieve/sieve.cpp
+    src/work/work_unit.cpp
 )
 add_library(PrimeForge::core ALIAS primeforge_core)
 
@@ -89,6 +90,16 @@ target_link_libraries(primeforge-sieve-tests PRIVATE PrimeForge::core)
 target_compile_features(primeforge-sieve-tests PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge-sieve-tests)
 
+add_executable(primeforge-work-unit-tests tests/work_unit_test.cpp)
+target_link_libraries(primeforge-work-unit-tests PRIVATE PrimeForge::core)
+target_compile_features(primeforge-work-unit-tests PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-work-unit-tests)
+
+add_executable(primeforge-work-units src/work/main.cpp)
+target_link_libraries(primeforge-work-units PRIVATE PrimeForge::core)
+target_compile_features(primeforge-work-units PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-work-units)
+
 if(BUILD_TESTING)
     add_test(NAME primeforge.unit COMMAND primeforge-tests)
     add_test(NAME primeforge.selftest COMMAND primeforge-selftest)
@@ -104,6 +115,21 @@ if(BUILD_TESTING)
     add_test(
         NAME primeforge.sieve
         COMMAND primeforge-sieve-tests ${CMAKE_CURRENT_SOURCE_DIR}/corpus/v1/cases.tsv
+    )
+    add_test(NAME primeforge.work_units COMMAND primeforge-work-unit-tests)
+    add_test(
+        NAME primeforge.work_units_cli
+        COMMAND primeforge-work-units
+            --begin 0
+            --end 1000
+            --span 137
+            --output-dir ${CMAKE_CURRENT_BINARY_DIR}/work-unit-smoke
+            --family-id family.test.v1
+            --definition-sha256 09367f1d4242c68f3546995f3566c69fc5ff80cc6fcc8bd02c4368fcd905ce60
+            --constraint n%3!=0
+            --constraint k%2==1
+            --proof-policy PROVE_IF_SURVIVES
+            --seed 20260802
     )
     add_test(
         NAME primeforge.benchmark_smoke

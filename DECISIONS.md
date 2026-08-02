@@ -163,3 +163,21 @@ The simplest byte-storage segmented path is the default. Wheel 30, bit packing, 
 **Status:** Accepted — 2026-08-02
 
 The public API uses pairs of 64-bit words. MSVC x64 uses `_umul128`/`_udiv128`; GCC and Clang may use their native unsigned 128-bit extension internally; every build retains a portable 32-bit-limb and add/double reference. Boundary and fixed-seed differential tests are mandatory before later modular algorithms may use the fast path.
+
+## D-0028 — Work-unit identity is content-addressed
+
+**Status:** Accepted — 2026-08-02
+
+`work_unit_id` is the lowercase SHA-256 of the canonical work-unit object with its id omitted. Constraints are sorted and deduplicated before hashing, parameter intervals are half-open, and large values are decimal strings. The stage-7 serializer rejects non-ASCII user strings; ASCII is an NFC-safe strict subset, while silent incomplete Unicode normalization is not acceptable.
+
+## D-0029 — SHA-256 is internal and test-vector gated
+
+**Status:** Accepted — 2026-08-02
+
+Stage 7 technically requires real SHA-256 for identifiers, so PrimeForge supplies an internal portable backend behind the existing injectable interface. It passes standard empty, short, and multi-block vectors plus an independently calculated work-unit vector. OpenSSL remains unjustified and absent.
+
+## D-0030 — Checkpoint replacement preserves the last durable state
+
+**Status:** Accepted — 2026-08-02
+
+Checkpoint updates use a same-directory `.new` file, native durable flush, close, and atomic replace. Injected failures before flush and before replace must leave the previous target unchanged. The guarantee applies to tested local filesystems; remote/network filesystem semantics are not assumed.

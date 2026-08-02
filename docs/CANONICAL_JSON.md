@@ -32,4 +32,4 @@ PrimeForge canonical JSON is a restricted deterministic subset of RFC 8259. The 
 
 The logical value is validated, normalized, ordered, and serialized according to this document. SHA-256 is calculated over the resulting exact bytes. A newline, BOM, alternate key order, non-minimal escape, or non-canonical decimal representation changes or invalidates the byte representation. Windows and Linux implementations must share cross-platform golden vectors before work-unit identifiers depend on this format.
 
-Stage 1 defines this contract and the SHA-256 provider interface only. It deliberately adds no JSON or cryptographic backend.
+Stage 1 defined this contract and the injectable provider interface. Stage 7 adds an internal portable SHA-256 backend and a schema-specific work-unit serializer. The serializer currently accepts only ASCII user strings, a strict subset that is already valid UTF-8/NFC; it rejects non-ASCII rather than pretending to normalize Unicode. No general-purpose JSON parser or external cryptographic dependency has been added.

@@ -4,7 +4,7 @@
 
 **Date:** 2026-08-02
 
-**CI status:** pending milestone push
+**CI status:** PASS for milestone commit `dd64b2152b3397b5150828f5348cf6fdd7eb8ea0`; Windows 54 s, Linux 8 s
 
 ## Toolchain and machine observed
 
@@ -65,12 +65,12 @@ The first clean automation attempt reached and passed Debug CTest, then stopped 
 - Canonical JSON rules are documented; no floating-point values are permitted.
 - The internal SHA-256 interface and digest representation pass tests; no cryptographic backend has been integrated yet.
 - No OpenSSL, primesieve, GMP, FLINT, CUDA, or external numerical engine was installed or linked.
-- `actions/checkout` is pinned to immutable commit `11d5960a326750d5838078e36cf38b85af677262` with an individual license decision.
+- `actions/checkout` v6 is pinned to immutable commit `d23441a48e516b6c34aea4fa41551a30e30af803`, uses the Node.js 24 action runtime, and has an individual license decision.
 - The specification's staged Git blob and working-tree file both hash to `A87A3DDDF710E3080C9A3F1247644FF9505ECBCF470358015E9EDF19214A01C1` after disabling text normalization for specifications.
 
 ## Limitations at this gate
 
-- The Linux workflow is compile-testable by design but its hosted CI result is not recorded until after the milestone push.
+- Hosted Windows/MSVC and Linux/GCC workflows passed. The first run used checkout v4 successfully but produced GitHub's Node.js 20 deprecation annotation; the action was advanced conservatively to the immutable v6/Node.js 24 commit recorded above and must pass the follow-up workflow.
 - Electrical consumption is `UNKNOWN`; TDP was not used as a substitute.
 - No performance benchmark or performance claim exists.
 - Canonical JSON has a normative format document but no full encoder yet.

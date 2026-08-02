@@ -32,3 +32,13 @@ Each future entry must include:
 - **Failure criterion:** the complete clean automation did not reach its final PASS line.
 - **Conclusion:** `Invoke-External` now defaults its argument array to an empty array, and self-tests are invoked without explicitly binding an empty value. A full clean Debug and Release rerun passed.
 - **Retry condition:** retained as a regression path in every `run_all.ps1 -Clean` execution.
+
+## NR-0003 — Deprecated CI action runtime
+
+- **Date:** 2026-08-02
+- **Change tested:** hosted CI for stage 1 commit `dd64b2152b3397b5150828f5348cf6fdd7eb8ea0`.
+- **Environment:** GitHub-hosted Windows and Ubuntu runners; workflow run `30758589531`.
+- **Evidence:** both jobs passed, but GitHub annotated `actions/checkout` v4 because its Node.js 20 runtime is deprecated and forcibly upgraded on hosted runners.
+- **Failure criterion:** no avoidable deprecated component should remain in the reproducibility path.
+- **Conclusion:** the workflow now pins official `actions/checkout` v6 commit `d23441a48e516b6c34aea4fa41551a30e30af803`, whose `action.yml` declares `node24`; its MIT license hash is unchanged and recorded in `SOURCES.lock`.
+- **Retry condition:** every CI-action revision change requires an immutable pin, runtime inspection, license check, and a passing hosted workflow.

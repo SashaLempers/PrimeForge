@@ -79,7 +79,11 @@ void validate_job_id(const std::string_view value) {
         const auto script = working_directory / "request.gp";
         std::ofstream output{script, std::ios::binary | std::ios::trunc};
         if (!output) throw std::runtime_error("cannot create PARI request");
-        output << "n=" << input << ";if(isprime(n),print(\"PRIMEFORGE:PROVEN_PRIME\"),print(\"PRIMEFORGE:COMPOSITE\"));quit()\n";
+        output << "n=" << input
+               << ";if(isprime(n),c=primecert(n);write(\"certificate.txt\",c);"
+                  "if(primecertisvalid(c),print(\"PRIMEFORGE:PROVEN_PRIME\"),"
+                  "print(\"PRIMEFORGE:CERTIFICATE_INVALID\")),"
+                  "print(\"PRIMEFORGE:COMPOSITE\"));quit()\n";
         return {"-q", script.string()};
     }
     if (kind == ExternalEngineKind::fixture) {
@@ -376,6 +380,18 @@ ArtifactVerification ExternalEngineAdapter::verify_artifacts(
 }
 
 EngineResult ExternalEngineAdapter::run(const EngineRequest& request) {
+    std::string observed_executable_sha256;
+    try {
+        if (!std::filesystem::is_regular_file(config_.executable)) {
+            return parsed(PrimalityStatus::untested, "EXECUTABLE_PREFLIGHT_FAILED");
+        }
+        observed_executable_sha256 = hash_file(config_.executable, *sha256_);
+        if (observed_executable_sha256 != config_.expected_executable_sha256) {
+            return parsed(PrimalityStatus::untested, "EXECUTABLE_PREFLIGHT_FAILED");
+        }
+    } catch (const std::exception&) {
+        return parsed(PrimalityStatus::untested, "EXECUTABLE_PREFLIGHT_FAILED");
+    }
     const auto prepared = prepare(request);
     const auto process = run_process(prepared);
     const auto verification = verify_artifacts(process);
@@ -385,7 +401,17 @@ EngineResult ExternalEngineAdapter::run(const EngineRequest& request) {
         result.raw_stderr_path = process.raw_stderr_path;
         return result;
     }
-    return parse(process);
+    auto result = parse(process);
+    result.engine_executable_sha256 = observed_executable_sha256;
+    if (config_.can_produce_proof &&
+        result.status.primality == PrimalityStatus::proven_prime) {
+        const auto certificate = prepared.working_directory / "certificate.txt";
+        if (!std::filesystem::is_regular_file(certificate)) {
+            return parsed(PrimalityStatus::untested, "PROOF_ARTIFACT_MISSING");
+        }
+        result.proof_artifact_paths.push_back(certificate);
+    }
+    return result;
 }
 
 std::string ExternalEngineAdapter::report_capabilities() const {

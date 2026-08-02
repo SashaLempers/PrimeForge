@@ -62,13 +62,17 @@ Completed at the MVP-01 milestone. The retained domain is 160 valid candidates
 with `k=1..31 step 2` and `n=5..14`. See `docs/mvp/SEARCH_CONFIG.md` and
 `docs/reports/MVP_01.md`.
 
-### MVP-02 — Complete search pipeline
+### MVP-02 — Complete search pipeline (PASS locally)
 
 Connect the existing congruence compiler and family sieve to survivor enumeration,
 the internal PRP, PARI proof production and FLINT independent verification. Emit
 stable JSONL results with all three status axes and retain raw external outputs.
 Gate: every known expected prime and composite is classified correctly; every
 prime result has its proof/verification evidence; no PRP-only record says proven.
+
+Implemented and locally validated on the full 160-candidate known campaign. See
+`docs/mvp/RESULTS.md` and `docs/reports/MVP_02.md`. The milestone is final only
+after its private Windows/Linux CI run is green.
 
 ### MVP-03 — Recovery, finalization and verification
 

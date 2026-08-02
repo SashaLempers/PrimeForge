@@ -116,6 +116,17 @@ target_link_libraries(primeforge_adaptive PUBLIC PrimeForge::core PrimeForge::be
 target_compile_features(primeforge_adaptive PUBLIC cxx_std_23)
 primeforge_enable_strict_warnings(primeforge_adaptive)
 
+add_library(primeforge_mvp STATIC src/mvp/search_pipeline.cpp)
+add_library(PrimeForge::mvp ALIAS primeforge_mvp)
+target_include_directories(primeforge_mvp
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(primeforge_mvp PUBLIC PrimeForge::core PrimeForge::adaptive)
+target_compile_features(primeforge_mvp PUBLIC cxx_std_23)
+primeforge_enable_strict_warnings(primeforge_mvp)
+
 add_library(primeforge_runtime STATIC
     src/runtime/benchmark_logger.cpp
     src/runtime/benchmark_watchdog.cpp
@@ -145,7 +156,7 @@ target_compile_features(primeforge-selftest PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge-selftest)
 
 add_executable(primeforge src/cli/main.cpp)
-target_link_libraries(primeforge PRIVATE PrimeForge::core)
+target_link_libraries(primeforge PRIVATE PrimeForge::mvp)
 target_compile_features(primeforge PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge)
 
@@ -153,6 +164,11 @@ add_executable(primeforge-mvp-tests tests/mvp_test.cpp)
 target_link_libraries(primeforge-mvp-tests PRIVATE PrimeForge::core)
 target_compile_features(primeforge-mvp-tests PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge-mvp-tests)
+
+add_executable(primeforge-mvp-pipeline-tests tests/mvp_pipeline_test.cpp)
+target_link_libraries(primeforge-mvp-pipeline-tests PRIVATE PrimeForge::mvp)
+target_compile_features(primeforge-mvp-pipeline-tests PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-mvp-pipeline-tests)
 
 add_executable(primeforge-tests tests/test_main.cpp)
 target_link_libraries(primeforge-tests PRIVATE PrimeForge::core)
@@ -296,6 +312,12 @@ if(BUILD_TESTING)
     add_test(NAME primeforge.unit COMMAND primeforge-tests)
     add_test(NAME primeforge.selftest COMMAND primeforge-selftest)
     add_test(NAME primeforge.mvp_planning COMMAND primeforge-mvp-tests)
+    add_test(
+        NAME primeforge.mvp_pipeline
+        COMMAND primeforge-mvp-pipeline-tests
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/mvp/search.yaml
+            ${CMAKE_CURRENT_SOURCE_DIR}/corpus/mvp/known_proth_small_primes.tsv
+    )
     add_test(NAME primeforge.mvp_cli_selftest COMMAND primeforge selftest)
     add_test(
         NAME primeforge.mvp_cli_inspect
@@ -306,7 +328,10 @@ if(BUILD_TESTING)
         COMMAND primeforge inspect
             --config ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/search_hash_mismatch.yaml
     )
-    set_tests_properties(primeforge.mvp_cli_hash_mismatch PROPERTIES WILL_FAIL TRUE)
+    set_tests_properties(
+        primeforge.mvp_cli_hash_mismatch
+        PROPERTIES WILL_FAIL TRUE WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
     add_test(
         NAME primeforge.corpus
         COMMAND primeforge-corpus-tests

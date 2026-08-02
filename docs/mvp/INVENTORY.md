@@ -14,13 +14,13 @@ MVP must add it.
 | Work units without gaps/duplicates | READY | Deterministic `(k,n)` flattening, five hashed units and exact coverage gate | No MVP work remaining |
 | Compile congruences | READY | `compile_congruences`, mutation and exhaustive differential tests | Call it from the campaign plan with a fixed prime list |
 | Sieve candidates | READY | `family_sieve::run`, scalar-reference equality | Enumerate survivors and reconstruct retained factor witnesses |
-| Adapted PRP | PARTIAL | Base-2 strong PRP routine with PRP/proof separation test | Campaign result record and composite witness/diagnostic handling |
-| Separate status axes | READY | `PrimalityStatus`, `VerificationStatus`, `NoveltyStatus` | Serialize all axes in every result; never infer one from another |
-| Produce a proof | PARTIAL | Audited local PARI/GP 2.17.4 and hardened process adapter | Generate/store `primecert`, exact binary hash and raw logs |
-| Verify with a second engine | PARTIAL | Audited local FLINT 3.6.0 oracle; PARI certificate fixtures | Run PARI certificate validation and independent FLINT decision |
+| Adapted PRP | READY | Base-2 strong PRP campaign path and PRP/proof separation gates | No MVP work remaining |
+| Separate status axes | READY | Every canonical result serializes all three axes independently | No MVP work remaining |
+| Produce a proof | READY | Hash-preflight PARI `primecert`/`primecertisvalid`, artifact hash and raw logs | Revalidate stored proof in MVP-03 `verify` |
+| Verify with a second engine | READY | Hash-preflight FLINT process and fail-closed agreement gate | Re-run from final verifier in MVP-03 |
 | Atomic checkpoint | READY | SHA-256 `CheckpointManager`, corruption/fault tests | Define campaign payload: config id, next unit/index and result ledger state |
 | Resume without replay/omission | MISSING | Atomic primitive and durable JSONL logger | Validate checkpoint/output prefix and continue idempotently |
-| `results.jsonl` | MISSING | Canonical JSON rules and append-only logger | Stable result schema, factor/proof/log references and status axes |
+| `results.jsonl` | READY | Stable ordered schema with statuses, witnesses, provenance and artifact paths | Prefix validation for resume in MVP-03 |
 | `coverage_report.json` | PARTIAL | Work-unit coverage verifier | Campaign completion, candidate counts and duplicate/hole checks |
 | `MANIFEST.sha256` | MISSING | Portable SHA-256 provider | Deterministic inventory of all final user-facing artifacts |
 | `primeforge.exe` commands | PARTIAL | Unified dispatcher; operational `selftest` and `inspect` | Implement `search/resume/verify` |

@@ -291,3 +291,12 @@ Each future entry must include:
 - **Failure criterion:** a successful one-target probe was incorrectly treated as proof that the hosted job supplied and permitted a complete multi-worker physical-core plan.
 - **Conclusion:** physical and logical plans are now assessed independently and print exact plan/applied counts. Generic Windows hosts do not stand in for the target. A target-specific test recognizes the Ryzen 9 9950X3D, runs 16 physical workers and strictly requires the complete 16/16 path.
 - **Retry condition:** a new hosted Windows/Linux run must pass while the local target continues to report and apply the full interleaved plan.
+
+## NR-0031 - The MVP-01 hash-mismatch fixture used a Windows filename
+
+- **Date:** 2026-08-02
+- **Change tested:** private workflow run `30769392438` for MVP-01.
+- **Evidence:** Windows/MSVC passed its complete job. Linux/GCC built without warnings and passed 28/29 tests, but the negative inspect fixture named `primeforge.exe`; the Linux product is `primeforge`, so the supposed present mismatched file was correctly reported unavailable and the `WILL_FAIL` test unexpectedly succeeded.
+- **Failure criterion:** the same provenance-negative test must exercise a present file on Windows and Linux.
+- **Conclusion:** the fixture now points to tracked `CMakeLists.txt`, and its CTest working directory is the source root. The file exists on both platforms and cannot match the all-zero expected hash. The production hash rule is unchanged.
+- **Retry condition:** the next private Windows/Linux workflow must pass the mismatch-negative test on both jobs.

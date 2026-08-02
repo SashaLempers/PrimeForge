@@ -28,8 +28,10 @@ struct EngineRequest {
 struct EngineResult {
     CandidateStatus status;
     std::string diagnostics;
+    std::string engine_executable_sha256;
     std::filesystem::path raw_stdout_path;
     std::filesystem::path raw_stderr_path;
+    std::vector<std::filesystem::path> proof_artifact_paths;
 };
 
 class EngineAdapter {

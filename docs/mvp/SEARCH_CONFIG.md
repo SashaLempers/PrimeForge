@@ -53,7 +53,7 @@ From the repository root after a Release build:
 
 `inspect` validates configuration, cardinality, work-unit coverage and local
 engine hashes. A missing engine is reported `UNAVAILABLE`; a present engine with
-the wrong hash fails closed. It does not execute either engine. `search`,
-`resume` and `verify` are intentionally unavailable until their correctness
-gates are implemented in MVP-02 and MVP-03.
-
+the wrong hash fails closed. It does not execute either engine. `search` is
+implemented by MVP-02 and uses this exact inspected plan. `resume`
+and `verify` remain intentionally unavailable until their recovery and artifact
+gates are implemented in MVP-03.

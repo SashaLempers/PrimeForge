@@ -25,9 +25,16 @@ inspection:
   --config examples\mvp\search.yaml
 ```
 
-The strict schema and current command boundary are documented in
-`docs/mvp/SEARCH_CONFIG.md`. `search`, `resume` and `verify` remain fail-closed
-until the following MVP milestones validate their end-to-end semantics.
+The strict schema is documented in `docs/mvp/SEARCH_CONFIG.md`. The complete
+MVP-02 search/proof path is now available:
+
+```powershell
+& .\out\build\msvc-release\primeforge.exe search `
+  --config examples\mvp\search.yaml
+```
+
+The output/status contract is in `docs/mvp/RESULTS.md`. `resume` and `verify`
+remain fail-closed until MVP-03 validates recovery and final artifact semantics.
 
 PIVOT-00 changes priorities and documentation, not mathematical results. The
 pre-pivot baseline is secured at commit `35dde4a`. PIVOT-01 provides the fresh,

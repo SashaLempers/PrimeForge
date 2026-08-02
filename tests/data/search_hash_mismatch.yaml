@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# primeforge.exe exists in the CTest working directory but cannot match zero.
+# CMakeLists.txt exists in the configured CTest working directory but cannot match zero.
 schema: primeforge.search.v1
 campaign_name: hash-mismatch-negative
 family: proth
@@ -26,9 +26,8 @@ output:
   directory: out/campaigns/hash-mismatch-negative
 engines:
   pari_gp:
-    path: primeforge.exe
+    path: CMakeLists.txt
     sha256: 0000000000000000000000000000000000000000000000000000000000000000
   flint:
     path: absent-flint.exe
     sha256: 0000000000000000000000000000000000000000000000000000000000000000
-

@@ -135,8 +135,9 @@ int main(const int argc, char** argv) {
         const auto mismatch_result = mismatch_adapter.run(
             {"known-hash-mismatch", "fixture", "FIXTURE:COMPOSITE", work_root});
         check(mismatch_result.status.primality == primeforge::PrimalityStatus::untested &&
-                  mismatch_result.diagnostics == "ARTIFACT_VERIFICATION_FAILED",
-              "binary hash mismatch blocks classification");
+                  mismatch_result.diagnostics == "EXECUTABLE_PREFLIGHT_FAILED" &&
+                  !std::filesystem::exists(work_root / "known-hash-mismatch"),
+              "binary hash mismatch blocks process execution and classification");
 
         expect_failure(
             [&] { static_cast<void>(adapter.prepare({"../escape", "fixture", "x", work_root})); },

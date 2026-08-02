@@ -441,3 +441,16 @@ Candidate ownership is k-major and n-minor, so the retained one-dimensional
 work-unit verifier proves exact ownership of the Cartesian family without a
 database. This is deliberately narrow: broader YAML and arbitrary-size domains
 must not delay the first complete engine.
+
+## D-0063 - Completed primes require two explicit external obligations
+
+**Status:** Accepted - 2026-08-02
+
+A positive internal base-2 strong test remains only `PROBABLE_PRIME`. The MVP
+promotes it to `PROVEN_PRIME` only when the pinned PARI/GP process writes a
+`primecert` artifact and its wrapper reports successful `primecertisvalid`.
+`INDEPENDENTLY_VERIFIED` is assigned only after the separately pinned FLINT
+process agrees. Both binaries are hashed before execution, all raw outputs stay
+inside the campaign, and any missing artifact, unknown output or disagreement
+fails the campaign. This contract is correctness-first and makes no throughput
+claim.

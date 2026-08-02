@@ -2,8 +2,11 @@
 
 #include "primeforge/core/sha256.hpp"
 #include "primeforge/core/system_info.hpp"
+#include "primeforge/engine/external_adapter.hpp"
 #include "primeforge/mvp/search_config.hpp"
+#include "primeforge/mvp/search_pipeline.hpp"
 
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -45,7 +48,7 @@ void print_engine(
 
 [[nodiscard]] std::filesystem::path config_argument(const int argc, char** argv) {
     if (argc != 4 || std::string_view{argv[2]} != "--config") {
-        throw std::invalid_argument("usage: primeforge inspect --config search.yaml");
+        throw std::invalid_argument("usage: primeforge <inspect|search> --config search.yaml");
     }
     return argv[3];
 }
@@ -109,6 +112,46 @@ void run_inspect(const std::filesystem::path& config_path) {
               << "inspect.status=PASS\n";
 }
 
+void run_search(const std::filesystem::path& config_path) {
+    const primeforge::PortableSha256Provider sha256;
+    const auto config = primeforge::mvp::load_search_config(config_path);
+
+    primeforge::engine::ExternalAdapterConfig pari;
+    pari.kind = primeforge::engine::ExternalEngineKind::pari_gp;
+    pari.stable_id = "pari-gp-2.17.4-primecert";
+    pari.parser_version = "primeforge-external-parser-v1";
+    pari.executable = config.pari_gp.path;
+    pari.expected_executable_sha256 = config.pari_gp.expected_sha256;
+    pari.supported_families = {"primeforge.proth.uint64.v1"};
+    pari.timeout = std::chrono::milliseconds{30'000};
+    pari.memory_limit_bytes = 512U * 1024U * 1024U;
+    pari.can_produce_proof = true;
+    primeforge::engine::ExternalEngineAdapter proof_engine{pari, sha256};
+
+    primeforge::engine::ExternalAdapterConfig flint;
+    flint.kind = primeforge::engine::ExternalEngineKind::flint;
+    flint.stable_id = "flint-3.6.0-independent";
+    flint.parser_version = "primeforge-external-parser-v1";
+    flint.executable = config.flint.path;
+    flint.expected_executable_sha256 = config.flint.expected_sha256;
+    flint.supported_families = {"primeforge.proth.uint64.v1"};
+    flint.timeout = std::chrono::milliseconds{30'000};
+    flint.memory_limit_bytes = 512U * 1024U * 1024U;
+    primeforge::engine::ExternalEngineAdapter independent_engine{flint, sha256};
+
+    const auto summary = primeforge::mvp::execute_search(
+        config, sha256, proof_engine, independent_engine);
+    std::cout << "search.campaign_id=" << summary.plan.campaign_id << '\n'
+              << "search.candidates=" << summary.plan.candidate_count << '\n'
+              << "search.sieve_composites=" << summary.sieve_composite_count << '\n'
+              << "search.base2_composites=" << summary.base2_composite_count << '\n'
+              << "search.external_classifications=" << summary.externally_classified_count << '\n'
+              << "search.proven_primes=" << summary.proven_prime_count << '\n'
+              << "search.composites=" << summary.composite_count << '\n'
+              << "search.results=" << summary.results_path.string() << '\n'
+              << "search.status=PASS\n";
+}
+
 }  // namespace
 
 int main(const int argc, char** argv) {
@@ -122,7 +165,9 @@ int main(const int argc, char** argv) {
             run_selftest();
         } else if (command == "inspect") {
             run_inspect(config_argument(argc, argv));
-        } else if (command == "search" || command == "resume" || command == "verify") {
+        } else if (command == "search") {
+            run_search(config_argument(argc, argv));
+        } else if (command == "resume" || command == "verify") {
             throw std::invalid_argument(std::string{command} + " is scheduled for MVP-02/MVP-03");
         } else {
             throw std::invalid_argument("unknown or malformed primeforge command");

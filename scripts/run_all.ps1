@@ -1,4 +1,6 @@
 [CmdletBinding()]
+# SPDX-License-Identifier: Apache-2.0
+
 param(
     [switch]$Clean
 )

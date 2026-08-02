@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 #include "primeforge/core/sha256.hpp"
 #include "primeforge/core/status.hpp"
 #include "primeforge/core/system_info.hpp"

@@ -90,5 +90,15 @@ Each future entry must include:
 - **Environment:** the first run_all invocation was launched with an external five-second command timeout, shorter than the build; child build processes briefly outlived the timed-out parent while a retry began.
 - **Evidence:** the overlapping retry linked the Release unit-test executable, but CTest reported BAD_COMMAND when starting it; immediate direct execution and a targeted verbose CTest retry both passed.
 - **Failure criterion:** the complete clean gate did not pass in the overlapping state.
-- **Conclusion:** after all orphaned build processes ended, a single non-overlapping clean run completed successfully: Debug 2/2, Release 2/2, and both self-tests PASS. No source-code defect was found.
+- **Conclusion:** after all orphaned build processes ended, a single non-overlapping clean run completed successfully: Debug 2/2, Release 2/2, and both self-tests PASS. Later Code Integrity events showed that the BAD_COMMAND itself was an Application Control signature-policy block, not proven build-directory corruption; NR-0009 supersedes the initial causal diagnosis.
 - **Retry condition:** full build commands must receive a timeout longer than the whole gate and must never be relaunched while child processes remain active.
+
+## NR-0009 — Windows Application Control intermittently blocks unsigned local Release binaries
+
+- **Date:** 2026-08-02
+- **Change tested:** final stage 3 clean Debug/Release gate.
+- **Environment:** Windows 11 10.0.26200 with Smart App Control/App Control enforcement policy 0283ac0f-fff1-49ae-ada1-8a933130cad6.
+- **Evidence:** Debug passed 4/4. Release compiled 8/8; primeforge.unit and both license tests passed, but CTest could not start primeforge-selftest. Direct execution produced “Une stratégie de contrôle d'application a bloqué ce fichier.” CodeIntegrity/Operational events 3033 and 3077 state that the unsigned generated executable did not meet Enterprise signing level requirements.
+- **Failure criterion:** the newly generated local Release executable could not be launched even though compilation completed.
+- **Conclusion:** this is an enforced host security decision, not a test assertion failure. PrimeForge does not disable or weaken Application Control automatically. The identical source had already passed a complete local Debug/Release gate before a later clean relink changed the unsigned binary, and private hosted Windows CI remains the independent Release execution gate.
+- **Retry condition:** use a CA-trusted code-signing path, an authorized development machine/VM policy, or hosted CI. Do not repeatedly relink to seek a favorable reputation decision.

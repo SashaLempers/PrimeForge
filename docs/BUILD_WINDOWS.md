@@ -35,3 +35,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/run_all.ps1 -Cle
 ```
 
 The script locates Visual Studio with `vswhere`, loads its developer environment, deletes only the two known build directories when `-Clean` is supplied, and stops at the first failure.
+
+## Smart App Control / Application Control
+
+On a Windows host with Smart App Control or an enterprise Application Control policy in enforcement mode, a freshly linked unsigned development executable can be blocked before its main function runs. CTest then reports BAD_COMMAND or “Process not started”; the CodeIntegrity/Operational log records event 3077.
+
+PrimeForge does not disable this protection. Microsoft documents that unknown unsigned code is blocked by default and that a trusted CA signature is the supported trust path:
+
+https://learn.microsoft.com/windows/apps/develop/smart-app-control/overview
+
+Use the private hosted Windows CI, an authorized development VM/policy, or an approved CA-backed signing process. Do not classify an Application Control launch block as a failed mathematical test, and do not claim a local PASS when the executable did not run.

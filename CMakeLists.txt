@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 cmake_minimum_required(VERSION 3.25)
 
 project(
@@ -54,4 +56,30 @@ primeforge_enable_strict_warnings(primeforge-tests)
 if(BUILD_TESTING)
     add_test(NAME primeforge.unit COMMAND primeforge-tests)
     add_test(NAME primeforge.selftest COMMAND primeforge-selftest)
+
+    add_test(
+        NAME primeforge.license_distribution
+        COMMAND ${CMAKE_COMMAND}
+            -DPRIMEFORGE_ROOT=${CMAKE_CURRENT_SOURCE_DIR}
+            -DMANIFEST=${CMAKE_CURRENT_SOURCE_DIR}/licenses/DISTRIBUTION_MANIFEST.tsv
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyDistributionLicenses.cmake
+    )
+    add_test(
+        NAME primeforge.license_missing_negative
+        COMMAND ${CMAKE_COMMAND}
+            -DPRIMEFORGE_ROOT=${CMAKE_CURRENT_SOURCE_DIR}
+            -DMANIFEST=${CMAKE_CURRENT_SOURCE_DIR}/tests/data/distribution_manifest_missing_license.tsv
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyDistributionLicenses.cmake
+    )
+    set_tests_properties(primeforge.license_missing_negative PROPERTIES WILL_FAIL TRUE)
 endif()
+
+add_custom_target(
+    primeforge-distribution-check
+    COMMAND ${CMAKE_COMMAND}
+        -DPRIMEFORGE_ROOT=${CMAKE_CURRENT_SOURCE_DIR}
+        -DMANIFEST=${CMAKE_CURRENT_SOURCE_DIR}/licenses/DISTRIBUTION_MANIFEST.tsv
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyDistributionLicenses.cmake
+    COMMENT "Verifying distribution license manifest"
+    VERBATIM
+)

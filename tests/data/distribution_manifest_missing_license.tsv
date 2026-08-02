@@ -1,0 +1,2 @@
+component	classification	integration	redistributed	license_file	license_sha256	notice_file	source_id
+Deliberately missing fixture	ORIGINAL	BUILT_IN	YES	tests/data/DOES_NOT_EXIST.license	0000000000000000000000000000000000000000000000000000000000000000	NOT_REQUIRED	TEST-NEGATIVE

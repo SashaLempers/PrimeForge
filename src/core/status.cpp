@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 #include "primeforge/core/status.hpp"
 
 namespace primeforge {

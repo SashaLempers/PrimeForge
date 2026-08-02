@@ -97,3 +97,21 @@ PrimeGrid and GIMPS are treated as external services, not dependencies. A local 
 **Status:** Accepted — 2026-08-02
 
 The short primesieve process timings satisfy the stage 2 request for a simple observed case only. They include process startup, have three repetitions, and do not use the stage 5 protocol. They cannot support comparative, throughput, energy, or “best” claims.
+
+## D-0017 — Apache-2.0 retained for original PrimeForge code
+
+**Status:** Accepted — 2026-08-02
+
+After reviewing the standard Apache guidance and GNU compatibility notes, Apache-2.0 remains the unchanged license for original PrimeForge source/build logic. LICENSE and NOTICE accompany distributions. This is a governance decision rather than legal advice and grants no rights in specifications, data, generated artifacts, or third-party material.
+
+## D-0018 — Distribution classification and redistribution are independent
+
+**Status:** Accepted — 2026-08-02
+
+The machine-readable distribution manifest separates relationship (ORIGINAL, LINKED, EXTERNAL, REFERENCE, REJECTED, CI_ONLY, or DEVELOPMENT_TOOL) from redistribution (YES or NO). An external process never implies license approval. Every YES row requires a present, non-empty, hash-pinned license and any declared notice file.
+
+## D-0019 — Missing-license behavior is a tested gate
+
+**Status:** Accepted — 2026-08-02
+
+primeforge-distribution-check validates the real manifest. CTest also runs a deliberately invalid fixture under WILL_FAIL, proving that a missing required license returns failure. Future distribution automation must invoke this target before packaging.

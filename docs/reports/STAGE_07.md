@@ -29,7 +29,9 @@ The proof in `docs/WORK_UNITS.md` establishes pairwise disjointness, complete co
 
 ## Build and tests
 
-MSVC 19.51.36252.0 compiled both clean Debug and Release trees with zero PrimeForge warnings. The initial non-clean Debug gate passed 10/10 in 1.67 s. After a clean relink, Windows Application Control blocked only the unchanged Debug `primeforge-tests.exe` before start, while 9/10 passed and both new stage-7 targets passed; this host-policy event is NR-0020. Release passed 10/10 in 3.97 s, and both explicit self-tests reported C++23 and PASS. Private hosted Windows/Linux CI is required before the milestone closes.
+MSVC 19.51.36252.0 compiled both clean Debug and Release trees with zero PrimeForge warnings. The initial non-clean Debug gate passed 10/10 in 1.67 s. After a clean relink, Windows Application Control blocked only the unchanged Debug `primeforge-tests.exe` before start, while 9/10 passed and both new stage-7 targets passed; this host-policy event is NR-0020. Release passed 10/10 in 3.97 s, and both explicit self-tests reported C++23 and PASS.
+
+Private workflow run `30762598995` passed at commit `7861345839ff9848d746e99afb8f0eb72443f5ed`: Linux/GCC in 18 s and Windows/MSVC, including clean Debug and Release, in 1 min 31 s. Stage 7 is closed.
 
 ## Commands
 

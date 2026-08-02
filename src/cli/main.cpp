@@ -3,10 +3,12 @@
 #include "primeforge/core/sha256.hpp"
 #include "primeforge/core/system_info.hpp"
 #include "primeforge/engine/external_adapter.hpp"
+#include "primeforge/mvp/campaign_verifier.hpp"
 #include "primeforge/mvp/search_config.hpp"
 #include "primeforge/mvp/search_pipeline.hpp"
 
 #include <chrono>
+#include <csignal>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -16,6 +18,10 @@
 #include <string_view>
 
 namespace {
+
+volatile std::sig_atomic_t graceful_stop_requested = 0;
+
+void handle_interrupt(const int) { graceful_stop_requested = 1; }
 
 [[nodiscard]] std::string hash_file(
     const std::filesystem::path& path, const primeforge::Sha256Provider& sha256) {
@@ -49,6 +55,17 @@ void print_engine(
 [[nodiscard]] std::filesystem::path config_argument(const int argc, char** argv) {
     if (argc != 4 || std::string_view{argv[2]} != "--config") {
         throw std::invalid_argument("usage: primeforge <inspect|search> --config search.yaml");
+    }
+    return argv[3];
+}
+
+[[nodiscard]] std::filesystem::path named_path_argument(
+    const int argc,
+    char** argv,
+    const std::string_view option,
+    const std::string_view usage) {
+    if (argc != 4 || std::string_view{argv[2]} != option) {
+        throw std::invalid_argument(std::string{usage});
     }
     return argv[3];
 }
@@ -112,10 +129,8 @@ void run_inspect(const std::filesystem::path& config_path) {
               << "inspect.status=PASS\n";
 }
 
-void run_search(const std::filesystem::path& config_path) {
-    const primeforge::PortableSha256Provider sha256;
-    const auto config = primeforge::mvp::load_search_config(config_path);
-
+[[nodiscard]] primeforge::engine::ExternalAdapterConfig pari_config(
+    const primeforge::mvp::SearchConfig& config) {
     primeforge::engine::ExternalAdapterConfig pari;
     pari.kind = primeforge::engine::ExternalEngineKind::pari_gp;
     pari.stable_id = "pari-gp-2.17.4-primecert";
@@ -126,8 +141,11 @@ void run_search(const std::filesystem::path& config_path) {
     pari.timeout = std::chrono::milliseconds{30'000};
     pari.memory_limit_bytes = 512U * 1024U * 1024U;
     pari.can_produce_proof = true;
-    primeforge::engine::ExternalEngineAdapter proof_engine{pari, sha256};
+    return pari;
+}
 
+[[nodiscard]] primeforge::engine::ExternalAdapterConfig flint_config(
+    const primeforge::mvp::SearchConfig& config) {
     primeforge::engine::ExternalAdapterConfig flint;
     flint.kind = primeforge::engine::ExternalEngineKind::flint;
     flint.stable_id = "flint-3.6.0-independent";
@@ -137,10 +155,10 @@ void run_search(const std::filesystem::path& config_path) {
     flint.supported_families = {"primeforge.proth.uint64.v1"};
     flint.timeout = std::chrono::milliseconds{30'000};
     flint.memory_limit_bytes = 512U * 1024U * 1024U;
-    primeforge::engine::ExternalEngineAdapter independent_engine{flint, sha256};
+    return flint;
+}
 
-    const auto summary = primeforge::mvp::execute_search(
-        config, sha256, proof_engine, independent_engine);
+void print_search_summary(const primeforge::mvp::SearchSummary& summary) {
     std::cout << "search.campaign_id=" << summary.plan.campaign_id << '\n'
               << "search.candidates=" << summary.plan.candidate_count << '\n'
               << "search.sieve_composites=" << summary.sieve_composite_count << '\n'
@@ -149,7 +167,64 @@ void run_search(const std::filesystem::path& config_path) {
               << "search.proven_primes=" << summary.proven_prime_count << '\n'
               << "search.composites=" << summary.composite_count << '\n'
               << "search.results=" << summary.results_path.string() << '\n'
-              << "search.status=PASS\n";
+              << "search.checkpoint=" << summary.checkpoint_path.string() << '\n'
+              << "search.status=" << (summary.completed ? "PASS" : "STOPPED") << '\n';
+}
+
+void run_search(const std::filesystem::path& config_path) {
+    const primeforge::PortableSha256Provider sha256;
+    const auto config = primeforge::mvp::load_search_config(config_path);
+    primeforge::engine::ExternalEngineAdapter proof_engine{pari_config(config), sha256};
+    primeforge::engine::ExternalEngineAdapter independent_engine{
+        flint_config(config), sha256};
+    primeforge::mvp::SearchExecutionOptions options;
+    options.stop_requested = [] { return graceful_stop_requested != 0; };
+    const auto summary = primeforge::mvp::execute_search(
+        config, sha256, proof_engine, independent_engine, options);
+    print_search_summary(summary);
+}
+
+void run_resume(const std::filesystem::path& checkpoint_path) {
+    const auto absolute_checkpoint = std::filesystem::absolute(checkpoint_path);
+    const auto config_path = absolute_checkpoint.parent_path() / "search.yaml";
+    const primeforge::PortableSha256Provider sha256;
+    const auto config = primeforge::mvp::load_search_config(config_path);
+    if (std::filesystem::absolute(config.output_directory).lexically_normal() !=
+        absolute_checkpoint.parent_path().lexically_normal()) {
+        throw std::runtime_error("checkpoint directory does not match recovery configuration");
+    }
+    primeforge::engine::ExternalEngineAdapter proof_engine{pari_config(config), sha256};
+    primeforge::engine::ExternalEngineAdapter independent_engine{
+        flint_config(config), sha256};
+    primeforge::mvp::SearchExecutionOptions options;
+    options.resume_existing = true;
+    options.stop_requested = [] { return graceful_stop_requested != 0; };
+    const auto summary = primeforge::mvp::execute_search(
+        config, sha256, proof_engine, independent_engine, options);
+    print_search_summary(summary);
+}
+
+void run_verify(const std::filesystem::path& results_path) {
+    const auto absolute_results = std::filesystem::absolute(results_path);
+    const auto config = primeforge::mvp::load_search_config(
+        absolute_results.parent_path() / "search.yaml");
+    const primeforge::PortableSha256Provider sha256;
+    auto certificate = pari_config(config);
+    certificate.kind = primeforge::engine::ExternalEngineKind::pari_gp_certificate;
+    certificate.stable_id = "pari-gp-2.17.4-primecert-verifier";
+    certificate.can_produce_proof = false;
+    primeforge::engine::ExternalEngineAdapter certificate_verifier{
+        certificate, sha256};
+    primeforge::engine::ExternalEngineAdapter independent_engine{
+        flint_config(config), sha256};
+    const auto summary = primeforge::mvp::verify_campaign(
+        absolute_results, sha256, certificate_verifier, independent_engine);
+    std::cout << "verify.campaign_id=" << summary.campaign_id << '\n'
+              << "verify.records=" << summary.record_count << '\n'
+              << "verify.proven_primes=" << summary.proven_prime_count << '\n'
+              << "verify.composites=" << summary.composite_count << '\n'
+              << "verify.manifest_files=" << summary.manifest_file_count << '\n'
+              << "verify.status=PASS\n";
 }
 
 }  // namespace
@@ -161,14 +236,23 @@ int main(const int argc, char** argv) {
                 "usage: primeforge <selftest|inspect|search|resume|verify> [options]");
         }
         const std::string_view command{argv[1]};
+        if (command == "search" || command == "resume") {
+            std::signal(SIGINT, handle_interrupt);
+        }
         if (command == "selftest" && argc == 2) {
             run_selftest();
         } else if (command == "inspect") {
             run_inspect(config_argument(argc, argv));
         } else if (command == "search") {
             run_search(config_argument(argc, argv));
-        } else if (command == "resume" || command == "verify") {
-            throw std::invalid_argument(std::string{command} + " is scheduled for MVP-02/MVP-03");
+        } else if (command == "resume") {
+            run_resume(named_path_argument(
+                argc, argv, "--checkpoint",
+                "usage: primeforge resume --checkpoint <file>"));
+        } else if (command == "verify") {
+            run_verify(named_path_argument(
+                argc, argv, "--result",
+                "usage: primeforge verify --result <results.jsonl>"));
         } else {
             throw std::invalid_argument("unknown or malformed primeforge command");
         }

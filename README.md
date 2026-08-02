@@ -33,8 +33,22 @@ MVP-02 search/proof path is now available:
   --config examples\mvp\search.yaml
 ```
 
-The output/status contract is in `docs/mvp/RESULTS.md`. `resume` and `verify`
-remain fail-closed until MVP-03 validates recovery and final artifact semantics.
+The output/status contract is in `docs/mvp/RESULTS.md`. MVP-03 adds durable
+checkpoints, deterministic finalization and independent verification:
+
+```powershell
+& .\out\build\msvc-release\primeforge.exe resume `
+  --checkpoint out\campaigns\known-proth-small\campaign.checkpoint.json
+
+& .\out\build\msvc-release\primeforge.exe verify `
+  --result out\campaigns\known-proth-small\results.jsonl
+```
+
+`Ctrl+C` requests a clean stop after the current candidate. `resume` validates
+the checkpoint and the exact committed result prefix before continuing. A
+completed campaign contains `coverage_report.json` and `MANIFEST.sha256`; verify
+fails closed on a missing, extra or modified file. The complete recovery and
+verification contract is in `docs/mvp/RECOVERY_AND_VERIFICATION.md`.
 
 PIVOT-00 changes priorities and documentation, not mathematical results. The
 pre-pivot baseline is secured at commit `35dde4a`. PIVOT-01 provides the fresh,

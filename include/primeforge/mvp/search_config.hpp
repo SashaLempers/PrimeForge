@@ -58,6 +58,7 @@ struct CampaignPlan {
 [[nodiscard]] SearchConfig parse_search_config(std::string_view yaml);
 [[nodiscard]] SearchConfig load_search_config(const std::filesystem::path& path);
 [[nodiscard]] std::string canonical_search_config(const SearchConfig& config);
+[[nodiscard]] std::string render_search_config_yaml(const SearchConfig& config);
 [[nodiscard]] std::string search_config_sha256(
     const SearchConfig& config, const Sha256Provider& sha256);
 [[nodiscard]] std::uint64_t candidate_count(const SearchConfig& config);

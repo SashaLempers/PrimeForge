@@ -116,7 +116,10 @@ target_link_libraries(primeforge_adaptive PUBLIC PrimeForge::core PrimeForge::be
 target_compile_features(primeforge_adaptive PUBLIC cxx_std_23)
 primeforge_enable_strict_warnings(primeforge_adaptive)
 
-add_library(primeforge_mvp STATIC src/mvp/search_pipeline.cpp)
+add_library(primeforge_mvp STATIC
+    src/mvp/campaign_verifier.cpp
+    src/mvp/search_pipeline.cpp
+)
 add_library(PrimeForge::mvp ALIAS primeforge_mvp)
 target_include_directories(primeforge_mvp
     PUBLIC
@@ -142,6 +145,7 @@ target_include_directories(primeforge_runtime
 target_link_libraries(primeforge_runtime PUBLIC PrimeForge::core)
 target_compile_features(primeforge_runtime PUBLIC cxx_std_23)
 primeforge_enable_strict_warnings(primeforge_runtime)
+target_link_libraries(primeforge_mvp PUBLIC PrimeForge::runtime)
 
 if(WIN32)
     target_compile_definitions(primeforge_core PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)

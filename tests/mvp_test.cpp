@@ -88,6 +88,11 @@ int main() {
         check(plan.configuration_sha256 ==
                   "32964b70c8c51c230b5fdfe776edf5c0531a8963d002ca63b209c86b1b015c41",
               "known campaign canonical SHA-256");
+        const auto rendered = primeforge::mvp::render_search_config_yaml(config);
+        const auto rendered_config = primeforge::mvp::parse_search_config(rendered);
+        check(primeforge::mvp::canonical_search_config(rendered_config) ==
+                  primeforge::mvp::canonical_search_config(config),
+              "rendered recovery configuration round-trips logically");
         check(plan.candidate_count == 160U && plan.work_units.size() == 5U &&
                   plan.coverage.valid,
               "exact five-unit campaign plan");

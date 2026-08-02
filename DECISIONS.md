@@ -454,3 +454,18 @@ process agrees. Both binaries are hashed before execution, all raw outputs stay
 inside the campaign, and any missing artifact, unknown output or disagreement
 fails the campaign. This contract is correctness-first and makes no throughput
 claim.
+
+## D-0064 - Campaign recovery authenticates the durable ledger prefix
+
+**Status:** Accepted - 2026-08-02
+
+The campaign ledger is append-only and flushed to stable storage after every
+candidate. An atomic SHA-256 checkpoint records the campaign/configuration
+identity, next flat index, exact ledger byte length and SHA-256 of that prefix.
+Resume accepts only a contiguous, domain-consistent prefix. If a process stopped
+after a durable append but before its next checkpoint, PrimeForge rolls back only
+that authenticated uncommitted suffix and the corresponding campaign-owned
+engine job directories before replaying it. Finalization writes exact coverage
+and a sorted manifest of every regular campaign file except the manifest itself.
+This narrow transaction model avoids a database while making omission,
+duplication, mutation and unexpected files fail closed.

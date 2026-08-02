@@ -62,7 +62,7 @@ Completed at the MVP-01 milestone. The retained domain is 160 valid candidates
 with `k=1..31 step 2` and `n=5..14`. See `docs/mvp/SEARCH_CONFIG.md` and
 `docs/reports/MVP_01.md`.
 
-### MVP-02 — Complete search pipeline (PASS locally)
+### MVP-02 — Complete search pipeline (PASS)
 
 Connect the existing congruence compiler and family sieve to survivor enumeration,
 the internal PRP, PARI proof production and FLINT independent verification. Emit
@@ -70,17 +70,25 @@ stable JSONL results with all three status axes and retain raw external outputs.
 Gate: every known expected prime and composite is classified correctly; every
 prime result has its proof/verification evidence; no PRP-only record says proven.
 
-Implemented and locally validated on the full 160-candidate known campaign. See
-`docs/mvp/RESULTS.md` and `docs/reports/MVP_02.md`. The milestone is final only
-after its private Windows/Linux CI run is green.
+Implemented and validated on the full 160-candidate known campaign. The private
+Windows/MSVC and Linux/GCC workflow `30769963195` passed. See
+`docs/mvp/RESULTS.md` and `docs/reports/MVP_02.md`.
 
-### MVP-03 — Recovery, finalization and verification
+### MVP-03 — Recovery, finalization and verification (PASS locally)
 
 Checkpoint after bounded batches, stop cleanly on request, resume without replay
 or omission, create the coverage report and SHA-256 manifest, and implement
 `verify`. Gate: an injected interruption plus resume produces byte-identical final
 logical results to an uninterrupted run; deletion, duplication or mutation is
 detected.
+
+Implemented locally. The retained gate stops after candidate 37, resumes from an
+authenticated ledger prefix and produces a byte-identical result ledger to an
+uninterrupted run. The final verifier checks the complete manifest inventory,
+coverage, coordinates, factors, PRP witnesses, stored engine evidence, PARI
+certificates and a fresh FLINT verdict. See
+`docs/mvp/RECOVERY_AND_VERIFICATION.md` and `docs/reports/MVP_03.md`. Final
+milestone status requires the private Windows/Linux workflow to pass.
 
 ### MVP-04 — Known campaign and private release
 

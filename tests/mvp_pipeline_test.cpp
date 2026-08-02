@@ -2,6 +2,7 @@
 
 #include "primeforge/core/sha256.hpp"
 #include "primeforge/engine/engine_adapter.hpp"
+#include "primeforge/mvp/campaign_verifier.hpp"
 #include "primeforge/mvp/search_config.hpp"
 #include "primeforge/mvp/search_pipeline.hpp"
 
@@ -104,7 +105,12 @@ public:
         const auto stderr_path = directory / "stderr.txt";
         {
             std::ofstream output{stdout_path, std::ios::binary};
-            output << (prime ? "PROVEN_PRIME\n" : "COMPOSITE\n");
+            if (proof_) {
+                output << (prime ? "PRIMEFORGE:PROVEN_PRIME\n"
+                                 : "PRIMEFORGE:COMPOSITE\n");
+            } else {
+                output << (prime ? "PROVEN_PRIME\n" : "COMPOSITE\n");
+            }
         }
         { std::ofstream output{stderr_path, std::ios::binary}; }
 
@@ -132,6 +138,41 @@ private:
     const std::set<std::uint64_t>* known_primes_{};
     bool proof_{};
     bool disagree_{};
+};
+
+class KnownCertificateVerifier final : public primeforge::EngineAdapter {
+public:
+    [[nodiscard]] std::string_view id() const noexcept override {
+        return "known-certificate-verifier";
+    }
+
+    [[nodiscard]] primeforge::EngineCapabilities capabilities() const override {
+        return {{"primeforge.proth.uint64.v1"}, false, false, false};
+    }
+
+    [[nodiscard]] bool supports(
+        const primeforge::EngineRequest& request) const noexcept override {
+        return request.family_id == "primeforge.proth.uint64.v1";
+    }
+
+    [[nodiscard]] primeforge::EngineResult run(
+        const primeforge::EngineRequest& request) override {
+        const auto separator = request.canonical_input.find('|');
+        if (separator == std::string::npos) {
+            throw std::invalid_argument("known certificate request malformed");
+        }
+        const auto decimal = request.canonical_input.substr(0U, separator);
+        const auto path = request.canonical_input.substr(separator + 1U);
+        primeforge::EngineResult result;
+        result.status.primality =
+            read_file(path) == "KNOWN-CERTIFICATE:" + decimal + "\n"
+                ? primeforge::PrimalityStatus::proven_prime
+                : primeforge::PrimalityStatus::untested;
+        result.status.verification = primeforge::VerificationStatus::unverified;
+        result.status.novelty = primeforge::NoveltyStatus::not_checked;
+        result.engine_executable_sha256 = std::string(64U, 'c');
+        return result;
+    }
 };
 
 template <typename Function>
@@ -165,6 +206,8 @@ int main(const int argc, char** argv) {
                   "known prime values are unique");
         }
         check(expected.size() == 34U, "known corpus contains 34 primes");
+        config.pari_gp.expected_sha256 = std::string(64U, 'a');
+        config.flint.expected_sha256 = std::string(64U, 'b');
         config.output_directory = "mvp-pipeline-test-output";
         std::filesystem::remove_all(config.output_directory);
 
@@ -172,7 +215,10 @@ int main(const int argc, char** argv) {
         KnownEngine independent{"known-flint-independent", known_primes, false};
         const auto first = primeforge::mvp::execute_search(
             config, sha256, proof, independent);
-        check(first.records.size() == 160U && first.plan.coverage.valid,
+        check(first.completed && first.records.size() == 160U &&
+                  first.plan.coverage.valid &&
+                  std::filesystem::is_regular_file(first.coverage_report_path) &&
+                  std::filesystem::is_regular_file(first.manifest_path),
               "complete exact campaign output");
         check(first.proven_prime_count == known_primes.size() &&
                   first.composite_count == 160U - known_primes.size(),
@@ -201,12 +247,45 @@ int main(const int argc, char** argv) {
         const auto first_bytes = read_file(first.results_path);
         check(std::ranges::count(first_bytes, '\n') == 160,
               "one canonical JSONL record per candidate");
+        KnownCertificateVerifier certificate_verifier;
+        const auto verified = primeforge::mvp::verify_campaign(
+            first.results_path, sha256, certificate_verifier, independent);
+        check(verified.valid && verified.record_count == 160U &&
+                  verified.proven_prime_count == known_primes.size(),
+              "final manifest, witnesses, certificates and independent verdicts verify");
+        {
+            std::ofstream mutation{first.results_path, std::ios::binary | std::ios::app};
+            mutation << "MUTATION\n";
+        }
+        expect_failure(
+            [&] {
+                static_cast<void>(primeforge::mvp::verify_campaign(
+                    first.results_path, sha256, certificate_verifier, independent));
+            },
+            "manifest detects a mutated result ledger");
 
         std::filesystem::remove_all(config.output_directory);
         const auto second = primeforge::mvp::execute_search(
             config, sha256, proof, independent);
         check(read_file(second.results_path) == first_bytes,
               "repeat search produces byte-identical logical results");
+
+        std::filesystem::remove_all(config.output_directory);
+        primeforge::mvp::SearchExecutionOptions stop_options;
+        stop_options.clean_stop_after_candidates = 37U;
+        const auto interrupted = primeforge::mvp::execute_search(
+            config, sha256, proof, independent, stop_options);
+        check(!interrupted.completed &&
+                  std::ranges::count(read_file(interrupted.results_path), '\n') == 37 &&
+                  std::filesystem::is_regular_file(interrupted.checkpoint_path) &&
+                  !std::filesystem::exists(interrupted.manifest_path),
+              "clean interruption leaves an exact resumable prefix");
+        primeforge::mvp::SearchExecutionOptions resume_options;
+        resume_options.resume_existing = true;
+        const auto resumed = primeforge::mvp::execute_search(
+            config, sha256, proof, independent, resume_options);
+        check(resumed.completed && read_file(resumed.results_path) == first_bytes,
+              "interruption and resume reproduce uninterrupted logical results");
 
         std::filesystem::remove_all(config.output_directory);
         config.output_directory = "mvp-pipeline-disagreement-output";
@@ -219,12 +298,18 @@ int main(const int argc, char** argv) {
                     config, sha256, proof, disagreeing));
             },
             "independent disagreement fails the campaign");
-        check(!std::filesystem::exists(config.output_directory / "results.jsonl"),
-              "failed campaign has no completed results ledger");
+        check(std::filesystem::exists(config.output_directory / "results.jsonl") &&
+                  !std::filesystem::exists(
+                      config.output_directory / "MANIFEST.sha256") &&
+                  !std::filesystem::exists(
+                      config.output_directory / "coverage_report.json"),
+              "failed campaign retains a prefix but no finalized artifacts");
 
         std::cout << "known_candidates=160\n"
                   << "known_proven_primes=" << known_primes.size() << '\n'
                   << "deterministic_results=YES\n"
+                  << "interruption_resume_identical=YES\n"
+                  << "manifest_mutation_rejected=YES\n"
                   << "independent_disagreement_rejected=YES\n"
                   << "PrimeForge MVP pipeline tests: PASS\n";
         return 0;

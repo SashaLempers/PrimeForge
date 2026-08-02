@@ -9,6 +9,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -47,14 +48,25 @@ struct SearchSummary {
     std::uint64_t composite_count{};
     std::filesystem::path output_directory;
     std::filesystem::path results_path;
+    std::filesystem::path checkpoint_path;
+    std::filesystem::path coverage_report_path;
+    std::filesystem::path manifest_path;
+    bool completed{};
     std::vector<SearchRecord> records;
+};
+
+struct SearchExecutionOptions {
+    bool resume_existing{};
+    std::optional<std::uint64_t> clean_stop_after_candidates;
+    std::function<bool()> stop_requested;
 };
 
 [[nodiscard]] SearchSummary execute_search(
     const SearchConfig& config,
     const Sha256Provider& sha256,
     EngineAdapter& proof_engine,
-    EngineAdapter& independent_engine);
+    EngineAdapter& independent_engine,
+    const SearchExecutionOptions& options = {});
 
 [[nodiscard]] std::string canonical_search_record(
     const SearchRecord& record, const std::filesystem::path& output_directory);

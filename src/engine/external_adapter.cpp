@@ -86,6 +86,29 @@ void validate_job_id(const std::string_view value) {
                   "print(\"PRIMEFORGE:COMPOSITE\"));quit()\n";
         return {"-q", script.string()};
     }
+    if (kind == ExternalEngineKind::pari_gp_certificate) {
+        const auto separator = input.find('|');
+        if (separator == std::string::npos) {
+            throw std::invalid_argument("PARI certificate input is value|path");
+        }
+        const auto value = input.substr(0U, separator);
+        const auto certificate = input.substr(separator + 1U);
+        if (value.empty() || certificate.empty() ||
+            !std::ranges::all_of(value, [](const char digit) {
+                return digit >= '0' && digit <= '9';
+            }) || certificate.find_first_of("\"|\\") != std::string::npos) {
+            throw std::invalid_argument("unsafe PARI certificate verification input");
+        }
+        const auto script = working_directory / "verify-certificate.gp";
+        std::ofstream output{script, std::ios::binary | std::ios::trunc};
+        if (!output) throw std::runtime_error("cannot create PARI certificate verifier");
+        output << "n=" << value << ";c=readvec(\"" << certificate
+               << "\")[1];v=if(type(c)==\"t_INT\",c,c[1]);"
+                  "if(v==n&&primecertisvalid(c),"
+                  "print(\"PRIMEFORGE:CERTIFICATE_VALID\"),"
+                  "print(\"PRIMEFORGE:CERTIFICATE_INVALID\"));quit()\n";
+        return {"-q", script.string()};
+    }
     if (kind == ExternalEngineKind::fixture) {
         return {input};
     }
@@ -276,6 +299,11 @@ EngineResult parse_external_output(
         if (contains(raw_stdout, "PRIMEFORGE:COMPOSITE")) {
             return parsed(PrimalityStatus::composite, "PARI_WRAPPER_COMPOSITE_MARKER");
         }
+    } else if (kind == ExternalEngineKind::pari_gp_certificate) {
+        if (contains(raw_stdout, "PRIMEFORGE:CERTIFICATE_VALID")) {
+            return parsed(PrimalityStatus::proven_prime,
+                          "PARI_CERTIFICATE_VALID_MARKER");
+        }
     } else if (kind == ExternalEngineKind::openpfgw) {
         if (contains(combined, "PRIMEFORGE_PFGW:COMPOSITE")) return parsed(PrimalityStatus::composite, "PFGW_V1_COMPOSITE");
         if (contains(combined, "PRIMEFORGE_PFGW:PRP")) return parsed(PrimalityStatus::probable_prime, "PFGW_V1_PRP");
@@ -428,6 +456,7 @@ std::string to_string(const ExternalEngineKind kind) {
         case ExternalEngineKind::primesieve: return "primesieve";
         case ExternalEngineKind::flint: return "flint";
         case ExternalEngineKind::pari_gp: return "pari-gp";
+        case ExternalEngineKind::pari_gp_certificate: return "pari-gp-certificate";
         case ExternalEngineKind::openpfgw: return "openpfgw";
         case ExternalEngineKind::genefer22: return "genefer22";
         case ExternalEngineKind::mersenne_prpll: return "mersenne-prpll";

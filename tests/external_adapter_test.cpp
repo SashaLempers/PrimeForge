@@ -67,6 +67,9 @@ int main(const int argc, char** argv) {
                      primeforge::PrimalityStatus::composite);
         check_parser(engine::ExternalEngineKind::pari_gp, "PRIMEFORGE:PROVEN_PRIME\n",
                      primeforge::PrimalityStatus::proven_prime);
+        check_parser(engine::ExternalEngineKind::pari_gp_certificate,
+                     "PRIMEFORGE:CERTIFICATE_VALID\n",
+                     primeforge::PrimalityStatus::proven_prime);
         check_parser(engine::ExternalEngineKind::openpfgw, "PRIMEFORGE_PFGW:PRP\n",
                      primeforge::PrimalityStatus::probable_prime);
         check_parser(engine::ExternalEngineKind::genefer22, "PRIMEFORGE_GENEFER:PRP\n",
@@ -142,7 +145,7 @@ int main(const int argc, char** argv) {
         expect_failure(
             [&] { static_cast<void>(adapter.prepare({"../escape", "fixture", "x", work_root})); },
             "path traversal job id rejected");
-        std::cout << "external_parser_kinds_checked=8\n"
+        std::cout << "external_parser_kinds_checked=9\n"
                   << "timeout_enforced=YES\n"
                   << "memory_limit_configured=YES\n"
                   << "raw_outputs_retained=YES\n"

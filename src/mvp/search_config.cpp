@@ -363,6 +363,52 @@ std::string canonical_search_config(const SearchConfig& config) {
            ",\"work_unit_candidates\":" + decimal(config.work_unit_candidates) + "}";
 }
 
+std::string render_search_config_yaml(const SearchConfig& config) {
+    validate_config(config);
+    const auto quote_yaml = [](const std::string_view value) {
+        std::string result{"\""};
+        for (const char character : value) {
+            if (character == '\\' || character == '"') result.push_back('\\');
+            result.push_back(character);
+        }
+        result.push_back('"');
+        return result;
+    };
+    return "# SPDX-License-Identifier: Apache-2.0\n"
+           "# Canonical PrimeForge campaign copy for recovery and verification.\n"
+           "schema: " + quote_yaml(config.schema) + "\n"
+           "campaign_name: " + quote_yaml(config.campaign_name) + "\n"
+           "family: " + quote_yaml(config.family) + "\n"
+           "expression: " + quote_yaml(config.expression) + "\n"
+           "parameters:\n"
+           "  k:\n"
+           "    start: " + std::to_string(config.k_start) + "\n"
+           "    stop: " + std::to_string(config.k_stop) + "\n"
+           "    step: " + std::to_string(config.k_step) + "\n"
+           "  n:\n"
+           "    start: " + std::to_string(config.n_start) + "\n"
+           "    stop: " + std::to_string(config.n_stop) + "\n"
+           "    step: " + std::to_string(config.n_step) + "\n"
+           "constraints:\n"
+           "  odd_k: true\n"
+           "  k_less_than_2_pow_n: true\n"
+           "work_units:\n"
+           "  candidates_per_unit: " + std::to_string(config.work_unit_candidates) + "\n"
+           "sieve:\n"
+           "  maximum_prime: " + std::to_string(config.sieve_maximum_prime) + "\n"
+           "checkpoint:\n"
+           "  every_candidates: " + std::to_string(config.checkpoint_every_candidates) + "\n"
+           "output:\n"
+           "  directory: " + quote_yaml(config.output_directory.generic_string()) + "\n"
+           "engines:\n"
+           "  pari_gp:\n"
+           "    path: " + quote_yaml(config.pari_gp.path.generic_string()) + "\n"
+           "    sha256: " + quote_yaml(config.pari_gp.expected_sha256) + "\n"
+           "  flint:\n"
+           "    path: " + quote_yaml(config.flint.path.generic_string()) + "\n"
+           "    sha256: " + quote_yaml(config.flint.expected_sha256) + "\n";
+}
+
 std::string search_config_sha256(
     const SearchConfig& config, const Sha256Provider& sha256) {
     const auto canonical = canonical_search_config(config);

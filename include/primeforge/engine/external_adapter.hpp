@@ -19,6 +19,7 @@ enum class ExternalEngineKind {
     primesieve,
     flint,
     pari_gp,
+    pari_gp_certificate,
     openpfgw,
     genefer22,
     mersenne_prpll,

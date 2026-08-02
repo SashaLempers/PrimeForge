@@ -51,3 +51,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/run_benchmark_ga
 ```
 
 For a reliable wall meter, add its measured integer millijoules and stable identifier. Do not enter TDP or a software estimate as wall energy.
+
+Recalculate retained evidence independently with:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify_benchmark_evidence.ps1
+```

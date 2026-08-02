@@ -1,0 +1,29 @@
+key	value
+schema_version	1
+commit	bfac505a1097ca81e63c2248ded35db0713fe66c
+repository_dirty	NO
+captured_utc	2026-08-02T19:56:10Z
+compiler_path	C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\cl.exe
+compiler_version	19.51.36252.0
+os_caption	Microsoft Windows 11 Famille
+os_version	10.0.26200
+os_architecture	64 bits
+cpu_name	AMD Ryzen 9 9950X3D 16-Core Processor
+physical_cores	16
+logical_cores	32
+memory_bytes	66184978432
+bios_manufacturer	American Megatrends Inc.
+bios_version	1605
+gpu_adapters	AMD Radeon(TM) Graphics@32.0.21042.62;NVIDIA GeForce RTX 5080@32.0.16.1074
+sampling_profiler	UNKNOWN
+hardware_counters	UNKNOWN
+cpu_temperature_celsius	UNKNOWN
+cpu_frequency_hz	UNKNOWN
+electrical_power_watts	UNKNOWN
+wall_energy_joules	UNKNOWN
+hardware_errors	UNKNOWN
+throttling	UNKNOWN
+timed_region	congruence compilation; complete family sieve; result hashing
+repetitions	7
+performance_valid	NO
+performance_claim	NONE

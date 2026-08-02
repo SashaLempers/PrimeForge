@@ -57,7 +57,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/run_all.ps1 -Cle
 
 See `docs/BUILD_WINDOWS.md` and `docs/CANONICAL_JSON.md`.
 
-Milestone evidence is kept in `docs/reports/`. Stage 10 experiments with CPU application of validated factor rules but does not start a search campaign or call a primality engine. Its telemetry-incomplete timings carry `performance_claim=NONE`; no production optimum is asserted. A survivor is never promoted to probable or proven prime. primesieve, FLINT, PARI/GP, and proth20 remain isolated local oracles only.
+Milestone evidence is kept in `docs/reports/`. Stage 10 experiments with CPU application of validated factor rules but does not start a search campaign or call a primality engine. Its 357 retained telemetry-incomplete samples carry `performance_claim=NONE`; a segment-parallelism bottleneck is reproduced, but the optimum gate is `INCONCLUSIVE` and no production optimum is asserted. A survivor is never promoted to probable or proven prime. primesieve, FLINT, PARI/GP, and proth20 remain isolated local oracles only.
 
 ## Governance and licensing
 

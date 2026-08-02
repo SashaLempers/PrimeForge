@@ -228,3 +228,12 @@ Each future entry must include:
 - **Failure criterion:** zero warnings from original PrimeForge code.
 - **Conclusion:** the two source-level definitions were removed. CMake remains the single definition site, and no warning or error policy was weakened.
 - **Retry condition:** corrected Debug and Release builds must complete with `/W4 /WX /permissive-`.
+
+## NR-0024 — Stage-10 host telemetry cannot support an optimum claim
+
+- **Date:** 2026-08-02
+- **Change tested:** 357 clean-commit family-sieve samples across 17 one-factor configurations and three regimes.
+- **Evidence:** all outputs agree with the scalar reference, but temperature, effective frequency, power, energy, hardware-error, throttle, profiler, and hardware-counter fields are `UNKNOWN`; every row states `telemetry_status=UNAVAILABLE`, `performance_valid=NO`, and `performance_claim=NONE`.
+- **Failure criterion:** the stage-10 scientific gate requires a stable optimal configuration per regime, not merely a timing difference on one uncontrolled host session.
+- **Conclusion:** correctness and a segment-count bottleneck are reproduced, but the optimum gate is `INCONCLUSIVE`. The reference-safe default is unchanged, and execution proceeds without a performance claim.
+- **Retry condition:** preregistered multi-regime collection with reliable stability telemetry, controlled background conditions, and compatible repeated intervals.

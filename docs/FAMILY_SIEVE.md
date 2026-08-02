@@ -29,7 +29,7 @@ AVX2 and AVX-512 currently vectorize only the deterministic merge of per-worker 
 
 `primeforge-family-sieve-benchmark` performs warmup, uses a fixed-seed randomized schedule, runs at least seven repetitions, and times congruence compilation, the complete sieve, and result hashing. It compares every timed result to the scalar output before accepting a row. The retained matrix changes one variable from the baseline at a time over small, medium, and large finite regimes.
 
-The host currently has no integrated reliable provider for temperature, effective frequency, throttling, hardware errors, or wall energy. Those fields remain `UNKNOWN`, telemetry is `UNAVAILABLE`, every row has `performance_valid=NO`, and `performance_claim=NONE`. Therefore diagnostic curves may locate work-count changes, but they cannot establish an optimal production configuration or support a performance assertion.
+The host currently has no integrated reliable provider for temperature, effective frequency, throttling, hardware errors, or wall energy. Those fields remain `UNKNOWN`, telemetry is `UNAVAILABLE`, every row has `performance_valid=NO`, and `performance_claim=NONE`. The retained data locates segment parallelism as a bottleneck, but it cannot establish an optimal production configuration or support a performance assertion.
 
 Run a clean retained diagnostic collection with:
 

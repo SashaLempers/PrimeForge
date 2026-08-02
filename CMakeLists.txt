@@ -114,9 +114,27 @@ target_link_libraries(primeforge_adaptive PUBLIC PrimeForge::core PrimeForge::be
 target_compile_features(primeforge_adaptive PUBLIC cxx_std_23)
 primeforge_enable_strict_warnings(primeforge_adaptive)
 
+add_library(primeforge_runtime STATIC
+    src/runtime/benchmark_logger.cpp
+    src/runtime/benchmark_watchdog.cpp
+    src/runtime/checkpoint_manager.cpp
+    src/runtime/hardware_monitor.cpp
+)
+add_library(PrimeForge::runtime ALIAS primeforge_runtime)
+target_include_directories(primeforge_runtime
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(primeforge_runtime PUBLIC PrimeForge::core)
+target_compile_features(primeforge_runtime PUBLIC cxx_std_23)
+primeforge_enable_strict_warnings(primeforge_runtime)
+
 if(WIN32)
     target_compile_definitions(primeforge_core PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
     target_link_libraries(primeforge_core PRIVATE user32)
+    target_compile_definitions(primeforge_runtime PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+    target_link_libraries(primeforge_runtime PRIVATE PowrProf)
 endif()
 
 add_executable(primeforge-selftest src/selftest/main.cpp)
@@ -219,6 +237,39 @@ target_link_libraries(primeforge-adapters PRIVATE PrimeForge::core)
 target_compile_features(primeforge-adapters PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge-adapters)
 
+add_executable(hardware_monitor src/runtime/hardware_monitor_main.cpp)
+target_link_libraries(hardware_monitor PRIVATE PrimeForge::runtime)
+target_compile_features(hardware_monitor PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(hardware_monitor)
+
+add_executable(benchmark_logger src/runtime/benchmark_logger_main.cpp)
+target_link_libraries(benchmark_logger PRIVATE PrimeForge::runtime)
+target_compile_features(benchmark_logger PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(benchmark_logger)
+
+add_executable(checkpoint_manager src/runtime/checkpoint_manager_main.cpp)
+target_link_libraries(checkpoint_manager PRIVATE PrimeForge::runtime)
+target_compile_features(checkpoint_manager PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(checkpoint_manager)
+
+add_executable(benchmark_watchdog src/runtime/benchmark_watchdog_main.cpp)
+target_link_libraries(benchmark_watchdog PRIVATE PrimeForge::runtime)
+target_compile_features(benchmark_watchdog PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(benchmark_watchdog)
+
+add_executable(primeforge-runtime-tests tests/runtime_test.cpp)
+target_link_libraries(primeforge-runtime-tests PRIVATE PrimeForge::runtime)
+target_compile_features(primeforge-runtime-tests PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-runtime-tests)
+
+add_executable(primeforge-watchdog-fixture tests/watchdog_fixture.cpp)
+target_compile_features(primeforge-watchdog-fixture PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-watchdog-fixture)
+
+add_executable(primeforge-watchdog-process-tests tests/watchdog_process_test.cpp)
+target_compile_features(primeforge-watchdog-process-tests PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-watchdog-process-tests)
+
 if(BUILD_TESTING)
     add_test(NAME primeforge.unit COMMAND primeforge-tests)
     add_test(NAME primeforge.selftest COMMAND primeforge-selftest)
@@ -254,6 +305,38 @@ if(BUILD_TESTING)
             $<TARGET_FILE:primeforge-adapter-fixture>
             ${CMAKE_CURRENT_BINARY_DIR}/external-adapter-test-work
     )
+    add_test(NAME primeforge.runtime COMMAND primeforge-runtime-tests)
+    add_test(
+        NAME primeforge.watchdog_process
+        COMMAND primeforge-watchdog-process-tests
+            $<TARGET_FILE:benchmark_watchdog>
+            $<TARGET_FILE:primeforge-watchdog-fixture>
+            ${CMAKE_CURRENT_BINARY_DIR}/watchdog-process-test
+    )
+    add_test(NAME primeforge.hardware_monitor_cli COMMAND hardware_monitor --once)
+    add_test(
+        NAME primeforge.benchmark_logger_cli
+        COMMAND benchmark_logger
+            --log ${CMAKE_CURRENT_BINARY_DIR}/runtime-smoke/events.jsonl
+            --campaign ctest-runtime
+            --event smoke
+            --payload-json "{}"
+    )
+    add_test(
+        NAME primeforge.checkpoint_write_cli
+        COMMAND checkpoint_manager write
+            --path ${CMAKE_CURRENT_BINARY_DIR}/runtime-smoke/checkpoint.json
+            --campaign ctest-runtime
+            --sequence 7
+            --progress 1000
+            --payload resumable
+    )
+    add_test(
+        NAME primeforge.checkpoint_read_cli
+        COMMAND checkpoint_manager read
+            --path ${CMAKE_CURRENT_BINARY_DIR}/runtime-smoke/checkpoint.json
+    )
+    set_tests_properties(primeforge.checkpoint_read_cli PROPERTIES DEPENDS primeforge.checkpoint_write_cli)
     add_test(
         NAME primeforge.congruence_cli
         COMMAND primeforge-congruence

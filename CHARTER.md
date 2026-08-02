@@ -8,6 +8,12 @@ GPU and memory operate as one bounded, checkpointed pipeline that eliminates
 composites with witnesses, preserves evidence, and distinguishes probable
 primality from proof and independent verification.
 
+The prime-search, proof and verification engine is the product. Hardware
+specialization is a means to make that engine faster on the target; infrastructure
+exists only to make the engine safe, reproducible and operable. Decisions are
+ordered accordingly: engine algorithms and end-to-end capability first, target
+CPU/GPU optimization second, minimum necessary infrastructure third.
+
 ## Initial scope
 
 - Windows 11, C++23, MSVC and CUDA form the only performance path.
@@ -64,3 +70,10 @@ A pivot milestone advances only when its versioned criteria pass. A failed
 hypothesis or optimization is preserved in `NEGATIVE_RESULTS.md`; failure is an
 acceptable scientific result, but it is not silently converted into success. The
 governing sequence is `docs/pivot/NEW_ROADMAP.md`.
+
+Before each milestone, the implementation must state how it advances the final
+Windows engine. If successive milestones cease to improve the engine directly,
+work returns to candidate generation, congruence compilation, sieving, routing,
+CPU/GPU execution, proof, verification or recovery. Every new milestone report
+contains a `Contribution directe au logiciel final` section and says whether its
+infrastructure is complete or requires a specific later integration.

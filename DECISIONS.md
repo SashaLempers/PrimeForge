@@ -371,3 +371,25 @@ discovered local MSVC host compiler. The generated executable stays under
 ignored `out/`; CUDA headers, runtime binaries and probe executables are not
 redistributed. Toolkit, runtime, driver API, UMD and device capability versions
 are separate source-labelled observations.
+
+## D-0057 — The prime-search engine outranks hardware and infrastructure work
+
+**Status:** Accepted — 2026-08-02
+
+PrimeForge remains a search, proof and independent-verification engine. Decisions
+prioritize end-to-end engine capability, then measured specialization for the
+Ryzen 9 9950X3D and RTX 5080, then only the infrastructure needed to operate that
+engine safely. Hardware profiling is not a substitute product. Repeated
+infrastructure-only milestones trigger an explicit return to engine development.
+
+## D-0058 — PIVOT-02 closes at the minimum safe long-run boundary
+
+**Status:** Accepted — 2026-08-02
+
+PIVOT-02 consists of four reusable components: `hardware_monitor`,
+`benchmark_logger`, `checkpoint_manager` and the independent
+`benchmark_watchdog`. It detects genuinely available telemetry and reported
+throttling, writes durable bounded-memory logs, validates resumable atomic
+checkpoints, and proves graceful/forced process stop. It does not add a dashboard,
+database, scheduler or generic process manager. Detailed interference attribution
+is deferred until a concrete engine benchmark supplies a measurable workload.

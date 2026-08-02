@@ -264,3 +264,12 @@ Each future entry must include:
 - **Failure criterion:** a missing GPU or telemetry provider must produce source-labelled `UNKNOWN`, never a collector failure.
 - **Conclusion:** the collector now wraps the conditional result in an explicit array. The test suite forces a no-`nvidia-smi` path even on the target host and requires an empty NVIDIA inventory plus `UNKNOWN` temperature and power.
 - **Retry condition:** clean local Debug/Release gates and a new private Windows runner without NVIDIA hardware must pass the hardware-profile test.
+
+## NR-0028 — Initial watchdog process-test command was misquoted on Windows
+
+- **Date:** 2026-08-02
+- **Change tested:** first Debug process-level fault test for the independent watchdog.
+- **Evidence:** 23/24 tests passed; `cmd.exe` rejected a command beginning with a quoted relative executable path, so the fixture never published its PID and no watchdog behavior was exercised.
+- **Failure criterion:** the process test must launch both independent executables and observe graceful and forced termination.
+- **Conclusion:** the test launcher now accepts only paths without shell metacharacters and passes them directly. The project and CI build roots satisfy that conservative constraint; no watchdog assertion is relaxed.
+- **Retry condition:** both cooperative and hung fixture modes must complete, leave durable stop events, and pass in Debug, Release, Windows and Linux CI.

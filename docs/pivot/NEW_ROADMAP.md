@@ -6,10 +6,10 @@ documentation, a milestone commit, a push to the private repository and green
 Windows/Linux CI. Linux validates portable correctness; Windows validates the
 target fast path.
 
-Current progress: PIVOT-00 is accepted at commit `ce22b91`. PIVOT-01 and its
-GPU-less hosted-runner correction are accepted at commit `97da8f9`; private
-Windows and Linux CI are green. The local CUDA inventory correction detects the
-newly installed Toolkit 13.3 and is undergoing its milestone gate.
+Current progress: PIVOT-00 is accepted at commit `ce22b91`. PIVOT-01, including
+CUDA Toolkit 13.3 detection, is accepted at commit `9379303`; private Windows and
+Linux CI run `30766835906` is green. PIVOT-02 is implemented and locally gated;
+its private CI remains the closure gate before PIVOT-03 work begins.
 
 ## PIVOT-00 — Audit and reorientation
 
@@ -28,10 +28,12 @@ Gate: stable bytes/id across repeated collection and redacted, non-secret output
 ## PIVOT-02 — Target measurement and independent watchdog
 
 Implement continuous telemetry, raw append-only logs, configurable documented
-thresholds, interference detection, performance invalidation, graceful/forced
-stop, checkpoint preservation and recovery. The watchdog is a distinct process
-and is deliberately fault-tested before prolonged work. Gate: simulated hangs,
-sensor loss, threshold violations and corrupt checkpoints are handled safely.
+thresholds, performance invalidation, graceful/forced stop, checkpoint
+preservation and recovery. The watchdog is a distinct process and is deliberately
+fault-tested before prolonged work. Gate: simulated hangs, sensor loss, threshold
+violations and corrupt checkpoints are handled safely. Detailed competing-process
+attribution waits for a concrete engine benchmark; PIVOT-02 does not grow into a
+generic machine-management subsystem.
 
 ## PIVOT-03 — Ryzen CPU autotuning
 

@@ -45,6 +45,10 @@ implemented. See `docs/pivot/PERFORMANCE_PROTOCOL.md`.
 - `primeforge-family-sieve-benchmark`: randomized complete-path diagnostic collector.
 - `primeforge-adaptive-bound-tests`: measured-selectivity model and PRP/proof-separation gate;
 - `primeforge-adaptive-bound-benchmark`: calibration/validation study for five bound strategies.
+- `hardware_monitor`: constant-memory live CPU/RAM/NVIDIA telemetry with explicit `UNKNOWN` fields;
+- `benchmark_logger`: durable append-only JSONL campaign events;
+- `checkpoint_manager`: atomic SHA-256-verified save/load for opaque engine progress;
+- `benchmark_watchdog`: independent worker supervision with graceful and forced stop.
 
 No external numerical, JSON, cryptographic, CUDA or GPU library is linked at this
 milestone. Stage 8 uses a small original arbitrary-precision integer solely for
@@ -98,6 +102,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 ```
 
 See `docs/BUILD_WINDOWS.md` and `docs/CANONICAL_JSON.md`.
+The guarded long-run component contract and exact commands are in
+`docs/pivot/RUNTIME_SAFETY.md`. No massive or prolonged benchmark has run yet.
 
 Milestone evidence is kept in `docs/reports/`. Stage 11 remains a scoped negative
 result: offline adaptation reproduced fixed-low and online exploration added cost

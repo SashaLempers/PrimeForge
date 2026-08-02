@@ -1,7 +1,7 @@
 # PIVOT-01 — real hardware profile
 
-Date: 2026-08-02. Status: PASS locally and in private Windows/Linux CI; CUDA
-inventory correction locally validated.
+Date: 2026-08-02. Status: PASS locally and in private Windows/Linux CI, including
+the CUDA inventory correction at commit `9379303`.
 
 ## Outcome
 
@@ -83,3 +83,7 @@ correctly stopped the collector. NR-0027 records the failure. The collector now
 materializes an explicit array, and the local test forces this GPU-less path. A
 corrected private run `30766235479` passed Linux in 1 min 04 s and Windows in
 4 min 39 s. No warning or assertion was relaxed.
+
+CUDA correction run `30766835906` then passed Linux in 1 min 04 s and Windows in
+5 min 00 s. Hosted runners without CUDA retain `UNKNOWN`; the target machine
+detects the complete installed stack.

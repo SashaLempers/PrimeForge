@@ -16,7 +16,9 @@ PIVOT-00 changes priorities and documentation, not mathematical results. The
 pre-pivot baseline is secured at commit `35dde4a`. PIVOT-01 provides the fresh,
 source-labelled `profiles/hardware_profile.json`, documented in
 `docs/pivot/HARDWARE_PROFILE.md`; historical observations are not silently reused
-as current measurements.
+as current measurements. The profile now discovers the installed CUDA Toolkit
+13.3, exact compiler/runtime/driver versions, RTX 5080 compute capability and all
+detection paths without making CUDA mandatory on CI hosts.
 
 Prolonged benchmarks may eventually run for hours or days without an arbitrary
 duration ceiling, but only after an independent watchdog, continuous monitoring,

@@ -6,9 +6,10 @@ documentation, a milestone commit, a push to the private repository and green
 Windows/Linux CI. Linux validates portable correctness; Windows validates the
 target fast path.
 
-Current progress: PIVOT-00 is accepted at commit `ce22b91` with private Windows
-and Linux CI green. PIVOT-01 is implemented and locally validated; its milestone
-CI is the remaining closure gate.
+Current progress: PIVOT-00 is accepted at commit `ce22b91`. PIVOT-01 and its
+GPU-less hosted-runner correction are accepted at commit `97da8f9`; private
+Windows and Linux CI are green. The local CUDA inventory correction detects the
+newly installed Toolkit 13.3 and is undergoing its milestone gate.
 
 ## PIVOT-00 — Audit and reorientation
 

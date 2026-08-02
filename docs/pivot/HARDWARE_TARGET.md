@@ -35,12 +35,13 @@ disagreement with its reference.
 PIVOT-01 produced the source-labelled canonical profile documented in
 `HARDWARE_PROFILE.md`. It detects the target CPU, GPU, memory modules, one Windows
 processor group, toolchain and available NVIDIA queries. The profile id is
-`sha256:a7a1af6ead57778ce7cadc240c7f4f14e103701d4e791228119ba2e901ae5648`.
+`sha256:f670d2a92f7fe817b6d550c7e9adc2da353d874e75d7469dc4438982cf54d32b`.
 
 CCD/cache asymmetry, sustained frequencies, measured bandwidth/latency, memory
 timings, CPU temperature/power, GPU hotspot/VRAM temperature, safe thresholds and
-throttling state remain `UNKNOWN`. The CUDA toolkit is not detected because
-`nvcc` is absent. TDP is never power.
+throttling state remain `UNKNOWN`. CUDA Toolkit 13.3 (`nvcc` 13.3.73), runtime
+13.3, NVIDIA UMD 13.3, driver 610.74 and RTX 5080 compute capability 12.0 are
+detected independently. TDP is never power.
 
 ## Safety boundary
 

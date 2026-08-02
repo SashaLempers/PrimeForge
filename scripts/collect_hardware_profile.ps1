@@ -5,7 +5,8 @@ param(
     [string]$OutputPath = 'profiles\hardware_profile.json',
     [string]$IdentityOutputPath = '',
     [string]$SelfTestPath = '',
-    [switch]$DisableNvidiaSmi
+    [switch]$DisableNvidiaSmi,
+    [switch]$DisableCudaToolkit
 )
 
 $ErrorActionPreference = 'Stop'
@@ -37,16 +38,19 @@ function Escape-JsonString {
     [void]$builder.Append('"')
     foreach ($character in $Value.ToCharArray()) {
         $code = [int]$character
+        $escaped = $null
         switch ($character) {
-            '"' { [void]$builder.Append('\"'); continue }
-            '\' { [void]$builder.Append('\\'); continue }
-            "`b" { [void]$builder.Append('\b'); continue }
-            "`t" { [void]$builder.Append('\t'); continue }
-            "`n" { [void]$builder.Append('\n'); continue }
-            "`f" { [void]$builder.Append('\f'); continue }
-            "`r" { [void]$builder.Append('\r'); continue }
+            '"' { $escaped = '\"' }
+            '\' { $escaped = '\\' }
+            "`b" { $escaped = '\b' }
+            "`t" { $escaped = '\t' }
+            "`n" { $escaped = '\n' }
+            "`f" { $escaped = '\f' }
+            "`r" { $escaped = '\r' }
         }
-        if ($code -lt 32) {
+        if ($null -ne $escaped) {
+            [void]$builder.Append($escaped)
+        } elseif ($code -lt 32) {
             [void]$builder.Append(('\u{0:x4}' -f $code))
         } else {
             [void]$builder.Append($character)
@@ -106,6 +110,86 @@ function Get-CommandVersion {
     } catch {
         return New-Observation UNKNOWN $Command 'UNKNOWN'
     }
+}
+
+function Find-CudaNvcc {
+    if ($DisableCudaToolkit) { return $null }
+
+    $candidates = [System.Collections.Generic.List[object]]::new()
+    $command = Get-Command nvcc.exe -ErrorAction SilentlyContinue
+    if ($command) {
+        $candidates.Add([pscustomobject]@{ Path = $command.Source; Method = 'PATH'; Root = (Split-Path -Parent (Split-Path -Parent $command.Source)) })
+    }
+    foreach ($variableName in @('CUDA_PATH', 'CUDA_PATH_V13_3')) {
+        $root = [Environment]::GetEnvironmentVariable($variableName)
+        if ($root) {
+            $candidate = Join-Path $root 'bin\nvcc.exe'
+            $candidates.Add([pscustomobject]@{ Path = $candidate; Method = "environment:$variableName"; Root = $root })
+        }
+    }
+    $registryRoot = 'HKLM:\SOFTWARE\NVIDIA Corporation\GPU Computing Toolkit\CUDA'
+    if (Test-Path -LiteralPath $registryRoot) {
+        foreach ($key in @(Get-ChildItem -LiteralPath $registryRoot | Sort-Object PSChildName -Descending)) {
+            $root = Join-Path 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA' $key.PSChildName
+            $candidates.Add([pscustomobject]@{ Path = (Join-Path $root 'bin\nvcc.exe'); Method = "registry:$($key.PSChildName)"; Root = $root })
+        }
+    }
+    $installationRoot = 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA'
+    if (Test-Path -LiteralPath $installationRoot) {
+        foreach ($directory in @(Get-ChildItem -LiteralPath $installationRoot -Directory | Sort-Object Name -Descending)) {
+            $candidates.Add([pscustomobject]@{ Path = (Join-Path $directory.FullName 'bin\nvcc.exe'); Method = "filesystem:$($directory.Name)"; Root = $directory.FullName })
+        }
+    }
+
+    $seen = @{}
+    foreach ($candidate in $candidates) {
+        $fullPath = [System.IO.Path]::GetFullPath($candidate.Path)
+        if (-not $seen.ContainsKey($fullPath)) {
+            $seen[$fullPath] = $true
+            if (Test-Path -LiteralPath $fullPath) {
+                return [pscustomobject]@{ Path = $fullPath; Method = $candidate.Method; Root = [System.IO.Path]::GetFullPath($candidate.Root) }
+            }
+        }
+    }
+    return $null
+}
+
+function Find-MsvcHostCompiler {
+    $candidates = [System.Collections.Generic.List[string]]::new()
+    $command = Get-Command cl.exe -ErrorAction SilentlyContinue
+    if ($command) { $candidates.Add($command.Source) }
+
+    foreach ($cache in @(
+        (Join-Path $repositoryRoot 'out\build\msvc-release\CMakeCache.txt'),
+        (Join-Path $repositoryRoot 'out\build\msvc-debug\CMakeCache.txt')
+    )) {
+        if (Test-Path -LiteralPath $cache) {
+            $compilerLine = Get-Content -LiteralPath $cache |
+                Where-Object { $_ -match '^CMAKE_CXX_COMPILER:[^=]+=' } |
+                Select-Object -First 1
+            if ($compilerLine) { $candidates.Add($compilerLine.Substring($compilerLine.IndexOf('=') + 1)) }
+        }
+    }
+
+    $vswherePath = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+    if (Test-Path -LiteralPath $vswherePath) {
+        $installationPath = (& $vswherePath -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath).Trim()
+        if ($installationPath) {
+            $toolsRoot = Join-Path $installationPath 'VC\Tools\MSVC'
+            if (Test-Path -LiteralPath $toolsRoot) {
+                foreach ($toolsVersion in @(Get-ChildItem -LiteralPath $toolsRoot -Directory | Sort-Object Name -Descending)) {
+                    $candidates.Add((Join-Path $toolsVersion.FullName 'bin\Hostx64\x64\cl.exe'))
+                }
+            }
+        }
+    }
+
+    foreach ($candidate in $candidates) {
+        if ($candidate -and (Test-Path -LiteralPath $candidate)) {
+            return [System.IO.Path]::GetFullPath($candidate)
+        }
+    }
+    return $null
 }
 
 function Get-SelfTestValues {
@@ -218,6 +302,126 @@ function Get-NvidiaTelemetryAvailability {
     return New-Observation DETECTED "nvidia-smi.$Name" 'AVAILABLE'
 }
 
+$cudaNvcc = Find-CudaNvcc
+$cudaDetectionMethod = New-Observation UNKNOWN 'CUDA detector' 'UNKNOWN'
+$cudaNvccPath = New-Observation UNKNOWN 'CUDA detector' 'UNKNOWN'
+$cudaToolkitRoot = New-Observation UNKNOWN 'CUDA detector' 'UNKNOWN'
+$cudaNvccRelease = New-Observation UNKNOWN 'nvcc --version' 'UNKNOWN'
+$cudaNvccBuild = New-Observation UNKNOWN 'nvcc --version' 'UNKNOWN'
+$cudaRuntimeLibraryPath = New-Observation UNKNOWN 'CUDA toolkit search' 'UNKNOWN'
+$cudaRuntimeLibraryVersion = New-Observation UNKNOWN 'cudart file metadata' 'UNKNOWN'
+$cudaRuntimeVersion = New-Observation UNKNOWN 'cudaRuntimeGetVersion' 'UNKNOWN'
+$cudaRuntimeVersionRaw = New-Observation UNKNOWN 'cudaRuntimeGetVersion' 'UNKNOWN'
+$cudaDriverApiVersion = New-Observation UNKNOWN 'cudaDriverGetVersion' 'UNKNOWN'
+$cudaDriverApiVersionRaw = New-Observation UNKNOWN 'cudaDriverGetVersion' 'UNKNOWN'
+$cudaCompiledRuntimeVersion = New-Observation UNKNOWN 'CUDART_VERSION' 'UNKNOWN'
+$cudaCompiledRuntimeVersionRaw = New-Observation UNKNOWN 'CUDART_VERSION' 'UNKNOWN'
+$cudaDeviceCount = New-Observation UNKNOWN 'cudaGetDeviceCount' 'UNKNOWN'
+$cudaDevices = @()
+$cudaProbeStatus = New-Observation UNKNOWN 'cuda_profile_probe' 'UNKNOWN'
+$cudaHostCompilerPath = New-Observation UNKNOWN 'MSVC host compiler detector' 'UNKNOWN'
+$cudaNvidiaSmiPath = if ($nvidiaSmi) { New-Observation DETECTED 'PATH' $nvidiaSmi.Source } else { New-Observation UNKNOWN 'PATH' 'UNKNOWN' }
+$cudaProbeSourcePath = New-Observation DETECTED 'repository path' 'tools/cuda/cuda_profile_probe.cu'
+$cudaProbeExecutablePath = New-Observation UNKNOWN 'generated repository path' 'UNKNOWN'
+
+if ($cudaNvcc) {
+    $cudaDetectionMethod = New-Observation DETECTED 'CUDA detector' $cudaNvcc.Method
+    $cudaNvccPath = New-Observation DETECTED $cudaNvcc.Method $cudaNvcc.Path
+    $cudaToolkitRoot = New-Observation DETECTED $cudaNvcc.Method $cudaNvcc.Root
+    $nvccText = (& $cudaNvcc.Path --version 2>&1 | Out-String)
+    $versionMatch = [regex]::Match($nvccText, 'release\s+([^,\r\n]+),\s+V([^\s\r\n]+)')
+    if ($versionMatch.Success) {
+        $cudaNvccRelease = New-Observation DETECTED 'nvcc --version' $versionMatch.Groups[1].Value
+        $cudaNvccBuild = New-Observation DETECTED 'nvcc --version' $versionMatch.Groups[2].Value
+    }
+
+    $runtimeLibrary = Get-ChildItem -LiteralPath $cudaNvcc.Root -Filter 'cudart64_*.dll' -Recurse -ErrorAction SilentlyContinue | Sort-Object FullName | Select-Object -First 1
+    if ($runtimeLibrary) {
+        $cudaRuntimeLibraryPath = New-Observation DETECTED 'CUDA toolkit filesystem' $runtimeLibrary.FullName
+        $cudaRuntimeLibraryVersion = New-Observation DETECTED 'cudart file metadata' $runtimeLibrary.VersionInfo.FileVersion
+    }
+
+    $probeSource = Join-Path $repositoryRoot 'tools\cuda\cuda_profile_probe.cu'
+    $probeDirectory = Join-Path $repositoryRoot 'out\hardware_probe'
+    $probeExecutable = Join-Path $probeDirectory 'cuda_profile_probe.exe'
+    $cudaProbeExecutablePath = New-Observation DETECTED 'generated repository path' 'out/hardware_probe/cuda_profile_probe.exe'
+    [System.IO.Directory]::CreateDirectory($probeDirectory) | Out-Null
+    $mustBuildProbe = -not (Test-Path -LiteralPath $probeExecutable) -or
+        (Get-Item -LiteralPath $probeSource).LastWriteTimeUtc -gt (Get-Item -LiteralPath $probeExecutable).LastWriteTimeUtc
+    if ($mustBuildProbe) {
+        $hostCompiler = Find-MsvcHostCompiler
+        if (-not $hostCompiler) {
+            throw 'CUDA profile probe compilation requires an installed MSVC host compiler, but cl.exe was not found.'
+        }
+        $cudaHostCompilerPath = New-Observation DETECTED 'MSVC host compiler detector' $hostCompiler
+        $hostCompilerDirectory = Split-Path -Parent $hostCompiler
+        $probeBuildOutput = @(& $cudaNvcc.Path '--std=c++17' '-O2' '-ccbin' $hostCompilerDirectory '-o' $probeExecutable $probeSource 2>&1)
+        if ($LASTEXITCODE -ne 0) {
+            throw "CUDA profile probe compilation failed: $($probeBuildOutput -join [Environment]::NewLine)"
+        }
+    } else {
+        $hostCompiler = Find-MsvcHostCompiler
+        if ($hostCompiler) {
+            $cudaHostCompilerPath = New-Observation DETECTED 'MSVC host compiler detector' $hostCompiler
+        }
+    }
+
+    $probeLines = @(& $probeExecutable 2>&1)
+    if ($LASTEXITCODE -eq 0) {
+        $probeValues = @{}
+        foreach ($line in $probeLines) {
+            $separator = $line.IndexOf('=')
+            if ($separator -gt 0) { $probeValues[$line.Substring(0, $separator)] = $line.Substring($separator + 1) }
+        }
+        $cudaProbeStatus = New-Observation DETECTED 'cuda_profile_probe' 'PASS'
+        $cudaRuntimeVersion = New-Observation DETECTED 'cudaRuntimeGetVersion' ([string]$probeValues['cuda.runtime.version'])
+        $cudaRuntimeVersionRaw = New-Observation DETECTED 'cudaRuntimeGetVersion' ([string]$probeValues['cuda.runtime.version_raw'])
+        $cudaDriverApiVersion = New-Observation DETECTED 'cudaDriverGetVersion' ([string]$probeValues['cuda.driver_api.version'])
+        $cudaDriverApiVersionRaw = New-Observation DETECTED 'cudaDriverGetVersion' ([string]$probeValues['cuda.driver_api.version_raw'])
+        $cudaCompiledRuntimeVersion = New-Observation DETECTED 'CUDART_VERSION' ([string]$probeValues['cuda.compiled_runtime.version'])
+        $cudaCompiledRuntimeVersionRaw = New-Observation DETECTED 'CUDART_VERSION' ([string]$probeValues['cuda.compiled_runtime.version_raw'])
+        $cudaDeviceCount = New-Observation DETECTED 'cudaGetDeviceCount' ([string]$probeValues['cuda.device_count'])
+        $deviceCountValue = [int]$probeValues['cuda.device_count']
+        $cudaDevices = @(for ($deviceIndex = 0; $deviceIndex -lt $deviceCountValue; $deviceIndex++) {
+            $prefix = "cuda.device.$deviceIndex."
+            [ordered]@{
+                async_engine_count = New-Observation DETECTED 'cudaGetDeviceProperties' ([string]$probeValues[$prefix + 'async_engine_count'])
+                can_map_host_memory = New-Observation DETECTED 'cudaGetDeviceProperties' ([string]$probeValues[$prefix + 'can_map_host_memory'])
+                compute_capability = New-Observation DETECTED 'cudaGetDeviceProperties' ([string]$probeValues[$prefix + 'compute_capability'])
+                concurrent_kernels = New-Observation DETECTED 'cudaGetDeviceProperties' ([string]$probeValues[$prefix + 'concurrent_kernels'])
+                concurrent_managed_access = New-Observation DETECTED 'cudaGetDeviceProperties' ([string]$probeValues[$prefix + 'concurrent_managed_access'])
+                cooperative_launch = New-Observation DETECTED 'cudaGetDeviceProperties' ([string]$probeValues[$prefix + 'cooperative_launch'])
+                direct_managed_memory_access_from_host = New-Observation DETECTED 'cudaGetDeviceProperties' ([string]$probeValues[$prefix + 'direct_managed_memory_access_from_host'])
+                host_native_atomic_supported = New-Observation DETECTED 'cudaGetDeviceProperties' ([string]$probeValues[$prefix + 'host_native_atomic_supported'])
+                index = New-Observation DETECTED 'cudaGetDeviceProperties' ([string]$deviceIndex)
+                l2_cache_bytes = New-Observation DETECTED 'cudaGetDeviceProperties' ([string]$probeValues[$prefix + 'l2_cache_bytes'])
+                managed_memory = New-Observation DETECTED 'cudaGetDeviceProperties' ([string]$probeValues[$prefix + 'managed_memory'])
+                max_grid_size = New-Observation DETECTED 'cudaGetDeviceProperties' ([string]$probeValues[$prefix + 'max_grid_size'])
+                max_threads_dim = New-Observation DETECTED 'cudaGetDeviceProperties' ([string]$probeValues[$prefix + 'max_threads_dim'])
+                max_threads_per_block = New-Observation DETECTED 'cudaGetDeviceProperties' ([string]$probeValues[$prefix + 'max_threads_per_block'])
+                memory_bus_width_bits = New-Observation DETECTED 'cudaGetDeviceProperties' ([string]$probeValues[$prefix + 'memory_bus_width_bits'])
+                memory_clock_khz = New-Observation DETECTED 'cudaGetDeviceProperties' ([string]$probeValues[$prefix + 'memory_clock_khz'])
+                memory_pools_supported = New-Observation DETECTED 'cudaGetDeviceProperties' ([string]$probeValues[$prefix + 'memory_pools_supported'])
+                multiprocessor_count = New-Observation DETECTED 'cudaGetDeviceProperties' ([string]$probeValues[$prefix + 'multiprocessor_count'])
+                name = New-Observation DETECTED 'cudaGetDeviceProperties' ([string]$probeValues[$prefix + 'name'])
+                pageable_memory_access = New-Observation DETECTED 'cudaGetDeviceProperties' ([string]$probeValues[$prefix + 'pageable_memory_access'])
+                total_global_memory_bytes = New-Observation DETECTED 'cudaGetDeviceProperties' ([string]$probeValues[$prefix + 'total_global_memory_bytes'])
+                unified_addressing = New-Observation DETECTED 'cudaGetDeviceProperties' ([string]$probeValues[$prefix + 'unified_addressing'])
+                warp_size = New-Observation DETECTED 'cudaGetDeviceProperties' ([string]$probeValues[$prefix + 'warp_size'])
+            }
+        })
+    } else {
+        throw "CUDA profile probe execution failed: $($probeLines -join [Environment]::NewLine)"
+    }
+}
+
+$cudaUmdVersion = New-Observation UNKNOWN 'nvidia-smi summary' 'UNKNOWN'
+if ($nvidiaSmi) {
+    $smiSummary = (& $nvidiaSmi.Source 2>$null | Out-String)
+    $umdMatch = [regex]::Match($smiSummary, 'CUDA UMD Version:\s*([0-9.]+)')
+    if ($umdMatch.Success) { $cudaUmdVersion = New-Observation DETECTED 'nvidia-smi CUDA UMD Version' $umdMatch.Groups[1].Value }
+}
+
 $visualStudioVersion = New-Observation UNKNOWN 'vswhere' 'UNKNOWN'
 $cmakeVersion = Get-CommandVersion 'cmake.exe' @('--version')
 $ninjaVersion = Get-CommandVersion 'ninja.exe' @('--version')
@@ -234,7 +438,6 @@ if (Test-Path -LiteralPath $vswhere) {
     }
 }
 
-$nvccVersion = Get-CommandVersion 'nvcc.exe' @('--version')
 $msvcBinaryVersion = New-Observation UNKNOWN 'CMake CXX compiler binary' 'UNKNOWN'
 $compilerCache = @(
     (Join-Path $repositoryRoot 'out\build\msvc-release\CMakeCache.txt'),
@@ -279,6 +482,28 @@ $identity = [ordered]@{
         processor_groups = $groupEntries
         socket = New-Observation DETECTED 'Win32_Processor.SocketDesignation' ([string]$processor.SocketDesignation)
     }
+    cuda = [ordered]@{
+        compiled_runtime_version = $cudaCompiledRuntimeVersion
+        compiled_runtime_version_raw = $cudaCompiledRuntimeVersionRaw
+        detection_method = $cudaDetectionMethod
+        devices = $cudaDevices
+        driver_api_version = $cudaDriverApiVersion
+        driver_api_version_raw = $cudaDriverApiVersionRaw
+        host_compiler_path = $cudaHostCompilerPath
+        nvidia_umd_version = $cudaUmdVersion
+        nvidia_smi_path = $cudaNvidiaSmiPath
+        nvcc_build = $cudaNvccBuild
+        nvcc_path = $cudaNvccPath
+        nvcc_release = $cudaNvccRelease
+        probe_status = $cudaProbeStatus
+        probe_executable_path = $cudaProbeExecutablePath
+        probe_source_path = $cudaProbeSourcePath
+        runtime_library_file_version = $cudaRuntimeLibraryVersion
+        runtime_library_path = $cudaRuntimeLibraryPath
+        runtime_version = $cudaRuntimeVersion
+        runtime_version_raw = $cudaRuntimeVersionRaw
+        toolkit_root = $cudaToolkitRoot
+    }
     gpu = [ordered]@{
         nvidia = $nvidiaRows
         other_adapters = $otherAdapters
@@ -316,7 +541,7 @@ $identity = [ordered]@{
     }
     toolchain = [ordered]@{
         cmake = $cmakeVersion
-        cuda_toolkit_nvcc = $nvccVersion
+        cuda_toolkit_nvcc = $cudaNvccBuild
         git = Get-CommandVersion 'git.exe' @('--version')
         msvc_binary_version = $msvcBinaryVersion
         msvc_full_version = New-Observation DETECTED 'primeforge-selftest._MSC_FULL_VER' ([string]$selfTest['compiler._MSC_FULL_VER'])

@@ -14,6 +14,7 @@ $profileB = Join-Path $WorkingDirectory 'profile-b.json'
 $identityA = Join-Path $WorkingDirectory 'identity-a.json'
 $identityB = Join-Path $WorkingDirectory 'identity-b.json'
 $profileWithoutNvidia = Join-Path $WorkingDirectory 'profile-without-nvidia.json'
+$profileWithoutCuda = Join-Path $WorkingDirectory 'profile-without-cuda.json'
 
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Collector -OutputPath $profileA -IdentityOutputPath $identityA -SelfTestPath $SelfTestPath | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'First hardware-profile collection failed.' }
@@ -50,6 +51,29 @@ if ($profile.cpu.brand.status -notin @('DETECTED', 'UNKNOWN')) { throw 'CPU bran
 if ($profile.memory.total_physical_bytes.status -ne 'DETECTED') { throw 'Physical memory was not detected.' }
 if ($profile.telemetry_capabilities.cpu_temperature.status -ne 'UNKNOWN' -or $profile.telemetry_capabilities.cpu_temperature.value -ne 'UNKNOWN') { throw 'Unavailable CPU temperature must remain UNKNOWN.' }
 if ($profile.toolchain.cuda_toolkit_nvcc.status -eq 'UNKNOWN' -and $profile.toolchain.cuda_toolkit_nvcc.value -ne 'UNKNOWN') { throw 'Unknown CUDA toolkit value is inconsistent.' }
+if ($profile.cuda.nvcc_path.status -eq 'DETECTED') {
+    foreach ($field in @(
+        $profile.cuda.nvcc_release,
+        $profile.cuda.nvcc_build,
+        $profile.cuda.toolkit_root,
+        $profile.cuda.host_compiler_path,
+        $profile.cuda.runtime_version,
+        $profile.cuda.driver_api_version,
+        $profile.cuda.compiled_runtime_version,
+        $profile.cuda.probe_status
+    )) {
+        if ($field.status -ne 'DETECTED' -or $field.value -eq 'UNKNOWN') {
+            throw 'Detected nvcc requires complete toolkit and runtime probe metadata.'
+        }
+    }
+    if ([int]$profile.cuda.devices.Count -lt 1) { throw 'Detected local CUDA runtime must report at least one CUDA device.' }
+    foreach ($device in @($profile.cuda.devices)) {
+        if ($device.compute_capability.status -ne 'DETECTED' -or $device.compute_capability.value -notmatch '^\d+\.\d+$') {
+            throw 'CUDA device compute capability is missing or malformed.'
+        }
+        if ($device.name.status -ne 'DETECTED' -or $device.name.value -eq 'UNKNOWN') { throw 'CUDA device name is missing.' }
+    }
+}
 
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Collector -OutputPath $profileWithoutNvidia -SelfTestPath $SelfTestPath -DisableNvidiaSmi | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'No-NVIDIA hardware-profile collection failed.' }
@@ -57,5 +81,12 @@ $withoutNvidia = Get-Content -Raw -LiteralPath $profileWithoutNvidia | ConvertFr
 if (@($withoutNvidia.gpu.nvidia).Count -ne 0) { throw 'Disabled nvidia-smi must produce an empty NVIDIA inventory.' }
 if ($withoutNvidia.telemetry_capabilities.gpu_temperature.status -ne 'UNKNOWN') { throw 'Missing nvidia-smi temperature must remain UNKNOWN.' }
 if ($withoutNvidia.telemetry_capabilities.gpu_power.status -ne 'UNKNOWN') { throw 'Missing nvidia-smi power must remain UNKNOWN.' }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Collector -OutputPath $profileWithoutCuda -SelfTestPath $SelfTestPath -DisableCudaToolkit | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'No-CUDA-toolkit hardware-profile collection failed.' }
+$withoutCuda = Get-Content -Raw -LiteralPath $profileWithoutCuda | ConvertFrom-Json
+if ($withoutCuda.cuda.nvcc_path.status -ne 'UNKNOWN') { throw 'Disabled CUDA toolkit must leave nvcc UNKNOWN.' }
+if ($withoutCuda.cuda.probe_status.status -ne 'UNKNOWN') { throw 'Disabled CUDA toolkit must leave the runtime probe UNKNOWN.' }
+if (@($withoutCuda.cuda.devices).Count -ne 0) { throw 'Disabled CUDA toolkit must produce an empty CUDA device inventory.' }
 
 Write-Output 'primeforge-hardware-profile-tests: PASS'

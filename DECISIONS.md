@@ -359,3 +359,15 @@ are sufficient for compatibility while avoiding unnecessary unique identifiers.
 WMI/SMBIOS clock, cache, capacity and topology fields are `DETECTED`, never
 `MEASURED`. NVIDIA query availability does not assert a safe threshold. Only a
 defined experiment may create a `MEASURED` value, and PIVOT-01 runs no load.
+
+## D-0056 — CUDA inventory uses a generated, non-distributed runtime probe
+
+**Status:** Accepted — 2026-08-02
+
+PIVOT-01 discovers `nvcc` through PATH, CUDA environment variables, the official
+NVIDIA registry key and the standard installation root, in that order. It
+compiles the original `tools/cuda/cuda_profile_probe.cu` with an automatically
+discovered local MSVC host compiler. The generated executable stays under
+ignored `out/`; CUDA headers, runtime binaries and probe executables are not
+redistributed. Toolkit, runtime, driver API, UMD and device capability versions
+are separate source-labelled observations.

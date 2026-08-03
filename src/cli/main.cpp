@@ -156,8 +156,13 @@ make_prp_backend(const std::string_view requested) {
         return primeforge::prp::make_cpu_base2_strong_prp_batch_backend(batch_capacity);
     }
 #if defined(PRIMEFORGE_HAS_CUDA_PRP)
-    if (requested == "auto" || requested == "cuda") {
+    if (requested == "cuda") {
         return primeforge::cuda_backend::make_cuda_base2_strong_prp_batch_backend(batch_capacity);
+    }
+    if (requested == "auto") {
+        constexpr std::size_t accelerator_minimum_values = 512U;
+        return primeforge::cuda_backend::make_auto_cuda_base2_strong_prp_batch_backend(
+            batch_capacity, accelerator_minimum_values);
     }
 #else
     if (requested == "cuda") {

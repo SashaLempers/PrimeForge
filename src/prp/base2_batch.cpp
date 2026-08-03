@@ -47,13 +47,15 @@ public:
             }
         };
 
-        // Avoid thread-launch overhead on the small exact regression domains.
-        if (values.size() < 512U || worker_count_ == 1U) {
+        constexpr std::size_t minimum_values_per_worker = 256U;
+        const auto useful_workers =
+            std::max<std::size_t>(1U, values.size() / minimum_values_per_worker);
+        const auto workers = std::min<std::size_t>(worker_count_, useful_workers);
+        if (workers == 1U) {
             classify_range(0U, values.size());
             return;
         }
 
-        const auto workers = std::min<std::size_t>(worker_count_, values.size());
         std::vector<std::jthread> threads;
         threads.reserve(workers);
         for (std::size_t worker = 0U; worker < workers; ++worker) {

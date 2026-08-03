@@ -28,28 +28,47 @@ void require_cuda(const cudaError_t status, const char *const operation) {
     return left >= modulus - right ? left - (modulus - right) : left + right;
 }
 
-[[nodiscard]] __device__ std::uint64_t multiply_mod_exact(std::uint64_t left, std::uint64_t right,
-                                                          const std::uint64_t modulus) noexcept {
-    left %= modulus;
-    right %= modulus;
-    std::uint64_t result = 0U;
-    while (right != 0U) {
-        if ((right & 1U) != 0U) result = add_mod(result, left, modulus);
-        right >>= 1U;
-        if (right != 0U) left = add_mod(left, left, modulus);
+[[nodiscard]] __device__ std::uint64_t montgomery_inverse(
+    const std::uint64_t odd_modulus) noexcept {
+    std::uint64_t inverse = odd_modulus;
+#pragma unroll
+    for (unsigned int iteration = 0U; iteration < 6U; ++iteration) {
+        inverse *= 2U - odd_modulus * inverse;
     }
-    return result;
+    return 0U - inverse;
 }
 
-[[nodiscard]] __device__ std::uint64_t power_mod(std::uint64_t base, std::uint64_t exponent,
-                                                 const std::uint64_t modulus) noexcept {
-    std::uint64_t result = 1U;
+[[nodiscard]] __device__ std::uint64_t montgomery_multiply(
+    const std::uint64_t left, const std::uint64_t right, const std::uint64_t modulus,
+    const std::uint64_t negative_inverse) noexcept {
+    const auto product_low = left * right;
+    const auto product_high = __umul64hi(left, right);
+    const auto factor = product_low * negative_inverse;
+    const auto correction_low = factor * modulus;
+    const auto correction_high = __umul64hi(factor, modulus);
+    const auto low_sum = product_low + correction_low;
+    const auto low_carry = static_cast<std::uint64_t>(low_sum < product_low);
+    const auto high_sum = product_high + correction_high;
+    const bool high_overflow = high_sum < product_high;
+    const auto reduced = high_sum + low_carry;
+    const bool carry_overflow = reduced < high_sum;
+    if (high_overflow || carry_overflow) return reduced - modulus;
+    return reduced >= modulus ? reduced - modulus : reduced;
+}
+
+[[nodiscard]] __device__ std::uint64_t power_mod_montgomery(
+    std::uint64_t exponent, const std::uint64_t modulus,
+    const std::uint64_t negative_inverse, const std::uint64_t one_montgomery) noexcept {
+    std::uint64_t result = one_montgomery;
+    std::uint64_t base = add_mod(one_montgomery, one_montgomery, modulus);
     while (exponent != 0U) {
         if ((exponent & 1U) != 0U) {
-            result = multiply_mod_exact(result, base, modulus);
+            result = montgomery_multiply(result, base, modulus, negative_inverse);
         }
         exponent >>= 1U;
-        if (exponent != 0U) base = multiply_mod_exact(base, base, modulus);
+        if (exponent != 0U) {
+            base = montgomery_multiply(base, base, modulus, negative_inverse);
+        }
     }
     return result;
 }
@@ -84,12 +103,17 @@ void require_cuda(const cudaError_t status, const char *const operation) {
         odd_part >>= 1U;
         ++shifts;
     }
-    auto residue = power_mod(2U, odd_part, value);
-    if (residue == 1U || residue == value - 1U) return true;
+    const auto negative_inverse = montgomery_inverse(value);
+    constexpr std::uint64_t maximum_u64 = ~std::uint64_t{0};
+    const auto one_montgomery = ((maximum_u64 % value) + 1U) % value;
+    const auto minus_one_montgomery = value - one_montgomery;
+    auto residue = power_mod_montgomery(
+        odd_part, value, negative_inverse, one_montgomery);
+    if (residue == one_montgomery || residue == minus_one_montgomery) return true;
     for (unsigned int index = 1U; index < shifts; ++index) {
-        residue = multiply_mod_exact(residue, residue, value);
-        if (residue == value - 1U) return true;
-        if (residue == 1U) return false;
+        residue = montgomery_multiply(residue, residue, value, negative_inverse);
+        if (residue == minus_one_montgomery) return true;
+        if (residue == one_montgomery) return false;
     }
     return false;
 }
@@ -201,11 +225,67 @@ private:
     prp::Base2StrongPrpVerdict *device_verdicts_{};
 };
 
+class AutoCudaBase2StrongPrpBatchBackend final : public prp::Base2StrongPrpBatchBackend {
+public:
+    AutoCudaBase2StrongPrpBatchBackend(
+        const std::size_t capacity, const std::size_t accelerator_minimum_values,
+        const int device_index)
+        : fallback_{prp::make_cpu_base2_strong_prp_batch_backend(capacity)},
+          capacity_{capacity}, accelerator_minimum_values_{accelerator_minimum_values},
+          device_index_{device_index},
+          id_{"primeforge.auto.cpu-cuda.base2-strong-prp-u64.v1[min=" +
+              std::to_string(accelerator_minimum_values) + "]"} {
+        if (capacity_ == 0U || capacity_ > maximum_capacity ||
+            accelerator_minimum_values_ == 0U ||
+            accelerator_minimum_values_ > capacity_ || device_index_ < 0) {
+            throw std::invalid_argument("automatic CUDA PRP routing boundary is invalid");
+        }
+    }
+
+    [[nodiscard]] std::string_view id() const noexcept override { return id_; }
+    [[nodiscard]] std::size_t capacity() const noexcept override { return capacity_; }
+
+    void test(const std::span<const std::uint64_t> values,
+              const std::span<prp::Base2StrongPrpVerdict> verdicts) override {
+        if (values.size() != verdicts.size()) {
+            throw std::invalid_argument("automatic CUDA PRP input/output sizes differ");
+        }
+        if (values.size() > capacity_) {
+            throw std::length_error("automatic CUDA PRP batch exceeds backend capacity");
+        }
+        if (values.size() < accelerator_minimum_values_) {
+            fallback_->test(values, verdicts);
+            return;
+        }
+        if (accelerator_ == nullptr) {
+            accelerator_ =
+                std::make_unique<CudaBase2StrongPrpBatchBackend>(capacity_, device_index_);
+        }
+        accelerator_->test(values, verdicts);
+    }
+
+private:
+    std::unique_ptr<prp::Base2StrongPrpBatchBackend> fallback_;
+    std::unique_ptr<prp::Base2StrongPrpBatchBackend> accelerator_;
+    std::size_t capacity_{};
+    std::size_t accelerator_minimum_values_{};
+    int device_index_{};
+    std::string id_;
+};
+
 }  // namespace
 
 std::unique_ptr<prp::Base2StrongPrpBatchBackend>
 make_cuda_base2_strong_prp_batch_backend(const std::size_t capacity, const int device_index) {
     return std::make_unique<CudaBase2StrongPrpBatchBackend>(capacity, device_index);
+}
+
+std::unique_ptr<prp::Base2StrongPrpBatchBackend>
+make_auto_cuda_base2_strong_prp_batch_backend(
+    const std::size_t capacity, const std::size_t accelerator_minimum_values,
+    const int device_index) {
+    return std::make_unique<AutoCudaBase2StrongPrpBatchBackend>(
+        capacity, accelerator_minimum_values, device_index);
 }
 
 }  // namespace primeforge::cuda_backend

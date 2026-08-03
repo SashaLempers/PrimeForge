@@ -79,6 +79,7 @@ struct SearchArguments {
     std::string prp_backend{"auto"};
     std::size_t prp_batch_candidates{8'192U};
     std::size_t proof_workers{4U};
+    std::size_t flint_processes{1U};
     std::optional<std::filesystem::path> stop_file;
 };
 
@@ -98,9 +99,10 @@ struct SearchArguments {
         throw std::invalid_argument("usage: primeforge search --config search.yaml "
                                     "[--stop-after count] [--prp-backend auto|cpu|cuda] "
                                     "[--prp-batch-candidates count] [--proof-workers count] "
+                                    "[--flint-processes 1|2|4|8] "
                                     "[--stop-file path]");
     }
-    SearchArguments result{argv[3], std::nullopt, "auto", 8'192U, 4U, std::nullopt};
+    SearchArguments result{argv[3], std::nullopt, "auto", 8'192U, 4U, 1U, std::nullopt};
     for (int index = 4; index < argc; index += 2) {
         const std::string_view option{argv[index]};
         const std::string_view value{argv[index + 1]};
@@ -123,6 +125,12 @@ struct SearchArguments {
                 throw std::invalid_argument("--proof-workers exceeds the bounded maximum");
             }
             result.proof_workers = static_cast<std::size_t>(count);
+        } else if (option == "--flint-processes") {
+            const auto count = parse_positive_decimal(value, option);
+            if (count != 1U && count != 2U && count != 4U && count != 8U) {
+                throw std::invalid_argument("--flint-processes requires 1, 2, 4, or 8");
+            }
+            result.flint_processes = static_cast<std::size_t>(count);
         } else if (option == "--stop-file") {
             if (value.empty()) throw std::invalid_argument("--stop-file requires a path");
             result.stop_file = std::filesystem::path{value};
@@ -138,6 +146,7 @@ struct ResumeArguments {
     std::string prp_backend{"auto"};
     std::size_t prp_batch_candidates{8'192U};
     std::size_t proof_workers{4U};
+    std::size_t flint_processes{1U};
     std::optional<std::filesystem::path> stop_file;
 };
 
@@ -145,9 +154,10 @@ struct ResumeArguments {
     if (argc < 4 || argc % 2 != 0 || std::string_view{argv[2]} != "--checkpoint") {
         throw std::invalid_argument("usage: primeforge resume --checkpoint <file> "
                                     "[--prp-backend auto|cpu|cuda] [--prp-batch-candidates count] "
-                                    "[--proof-workers count] [--stop-file path]");
+                                    "[--proof-workers count] [--flint-processes 1|2|4|8] "
+                                    "[--stop-file path]");
     }
-    ResumeArguments result{argv[3], "auto", 8'192U, 4U, std::nullopt};
+    ResumeArguments result{argv[3], "auto", 8'192U, 4U, 1U, std::nullopt};
     for (int index = 4; index < argc; index += 2) {
         const std::string_view option{argv[index]};
         const std::string_view value{argv[index + 1]};
@@ -169,6 +179,12 @@ struct ResumeArguments {
                 throw std::invalid_argument("--proof-workers exceeds the bounded maximum");
             }
             result.proof_workers = static_cast<std::size_t>(count);
+        } else if (option == "--flint-processes") {
+            const auto count = parse_positive_decimal(value, option);
+            if (count != 1U && count != 2U && count != 4U && count != 8U) {
+                throw std::invalid_argument("--flint-processes requires 1, 2, 4, or 8");
+            }
+            result.flint_processes = static_cast<std::size_t>(count);
         } else if (option == "--stop-file") {
             if (value.empty()) throw std::invalid_argument("--stop-file requires a path");
             result.stop_file = std::filesystem::path{value};
@@ -289,7 +305,8 @@ pari_config(const primeforge::mvp::SearchConfig &config) {
 }
 
 [[nodiscard]] primeforge::engine::ExternalAdapterConfig
-flint_config(const primeforge::mvp::SearchConfig &config) {
+flint_config(const primeforge::mvp::SearchConfig &config,
+             const std::size_t batch_parallel_processes = 1U) {
     primeforge::engine::ExternalAdapterConfig flint;
     flint.kind = primeforge::engine::ExternalEngineKind::flint;
     flint.stable_id = "flint-3.6.0-independent";
@@ -310,6 +327,7 @@ flint_config(const primeforge::mvp::SearchConfig &config) {
     flint.supported_families = {"primeforge.proth.uint64.v1"};
     flint.timeout = std::chrono::milliseconds{30'000};
     flint.memory_limit_bytes = 512U * 1024U * 1024U;
+    flint.batch_parallel_processes = batch_parallel_processes;
     return flint;
 }
 
@@ -322,6 +340,7 @@ void print_search_summary(const primeforge::mvp::SearchSummary &summary) {
               << "search.base2_composites=" << summary.base2_composite_count << '\n'
               << "search.prp_backend=" << summary.prp_backend_id << '\n'
               << "search.proof_workers=" << summary.native_proof_workers << '\n'
+              << "search.flint_processes=" << summary.flint_processes << '\n'
               << "search.prp_tested=" << summary.prp_tested_count << '\n'
               << "search.prp_batches=" << summary.prp_submitted_batches << '\n'
               << "search.external_classifications=" << summary.externally_classified_count << '\n'
@@ -349,12 +368,13 @@ void print_search_summary(const primeforge::mvp::SearchSummary &summary) {
 void run_search(const std::filesystem::path &config_path,
                 const std::optional<std::uint64_t> stop_after,
                 const std::string_view prp_backend_name, const std::size_t prp_batch_candidates,
-                const std::size_t proof_workers,
+                const std::size_t proof_workers, const std::size_t flint_processes,
                 const std::optional<std::filesystem::path>& stop_file) {
     const primeforge::PlatformSha256Provider sha256;
     const auto config = primeforge::mvp::load_search_config(config_path);
     primeforge::engine::ExternalEngineAdapter proof_engine{pari_config(config), sha256};
-    primeforge::engine::ExternalEngineAdapter independent_engine{flint_config(config), sha256};
+    primeforge::engine::ExternalEngineAdapter independent_engine{
+        flint_config(config, flint_processes), sha256};
     primeforge::mvp::SearchExecutionOptions options;
     auto prp_backend = make_prp_backend(prp_backend_name, prp_batch_candidates);
     std::optional<primeforge::mvp::StopRequestFile> external_stop;
@@ -374,7 +394,7 @@ void run_search(const std::filesystem::path &config_path,
 
 void run_resume(const std::filesystem::path &checkpoint_path,
                 const std::string_view prp_backend_name, const std::size_t prp_batch_candidates,
-                const std::size_t proof_workers,
+                const std::size_t proof_workers, const std::size_t flint_processes,
                 const std::optional<std::filesystem::path>& stop_file) {
     const auto absolute_checkpoint = std::filesystem::absolute(checkpoint_path);
     const auto config_path = absolute_checkpoint.parent_path() / "search.yaml";
@@ -385,7 +405,8 @@ void run_resume(const std::filesystem::path &checkpoint_path,
         throw std::runtime_error("checkpoint directory does not match recovery configuration");
     }
     primeforge::engine::ExternalEngineAdapter proof_engine{pari_config(config), sha256};
-    primeforge::engine::ExternalEngineAdapter independent_engine{flint_config(config), sha256};
+    primeforge::engine::ExternalEngineAdapter independent_engine{
+        flint_config(config, flint_processes), sha256};
     primeforge::mvp::SearchExecutionOptions options;
     auto prp_backend = make_prp_backend(prp_backend_name, prp_batch_candidates);
     std::optional<primeforge::mvp::StopRequestFile> external_stop;
@@ -444,12 +465,12 @@ int main(const int argc, char **argv) {
             const auto arguments = search_arguments(argc, argv);
             run_search(arguments.config_path, arguments.stop_after, arguments.prp_backend,
                        arguments.prp_batch_candidates, arguments.proof_workers,
-                       arguments.stop_file);
+                       arguments.flint_processes, arguments.stop_file);
         } else if (command == "resume") {
             const auto arguments = resume_arguments(argc, argv);
             run_resume(arguments.checkpoint_path, arguments.prp_backend,
                        arguments.prp_batch_candidates, arguments.proof_workers,
-                       arguments.stop_file);
+                       arguments.flint_processes, arguments.stop_file);
         } else if (command == "verify") {
             run_verify(named_path_argument(argc, argv, "--result",
                                            "usage: primeforge verify --result <results.jsonl>"));

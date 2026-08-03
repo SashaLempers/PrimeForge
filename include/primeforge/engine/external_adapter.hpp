@@ -44,6 +44,7 @@ struct ExternalAdapterConfig {
     std::vector<std::string> supported_families;
     std::chrono::milliseconds timeout{30'000};
     std::uint64_t memory_limit_bytes{512U * 1024U * 1024U};
+    std::size_t batch_parallel_processes{1U};
     bool can_produce_proof{};
     bool can_resume{};
 };

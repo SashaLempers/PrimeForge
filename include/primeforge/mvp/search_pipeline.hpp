@@ -74,6 +74,7 @@ struct SearchSummary {
     std::uint64_t prp_submitted_batches{};
     std::string prp_backend_id;
     std::size_t native_proof_workers{};
+    std::size_t flint_processes{};
     std::uint64_t externally_classified_count{};
     std::uint64_t proven_prime_count{};
     std::uint64_t composite_count{};

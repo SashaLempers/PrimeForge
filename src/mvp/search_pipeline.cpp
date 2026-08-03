@@ -407,8 +407,7 @@ void await_prp_batch(PreparedPrpBatch &batch, SearchSummary &summary) {
 void submit_independent_batch(PreparedPrpBatch &batch, const SearchConfig &config,
                               EngineAdapter &independent_engine,
                               const std::filesystem::path &output_directory) {
-    const auto parallelism = independent_engine.recommended_parallelism();
-    if (parallelism <= 1U || batch.survivor_values.empty()) return;
+    if (batch.survivor_values.empty()) return;
     batch.independent_results.resize(batch.verdicts.size());
     batch.independent_started = Clock::now();
     batch.independent_submitted = true;
@@ -631,6 +630,7 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
     SearchSummary summary;
     summary.prp_backend_id = std::string{prp_backend.id()};
     summary.native_proof_workers = execution_options.native_proof_workers;
+    summary.flint_processes = independent_engine.recommended_parallelism();
     {
         const ScopedTrace trace{"candidate_generation"};
         auto [duration, plan] = timed_value([&] { return build_campaign_plan(config, sha256); });

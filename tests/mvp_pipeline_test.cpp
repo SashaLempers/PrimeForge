@@ -102,9 +102,11 @@ public:
         std::string id,
         const std::set<std::uint64_t>& known_primes,
         const bool proof,
-        const bool disagree = false)
+        const bool disagree = false,
+        const std::size_t recommended_parallelism = 4U)
         : id_{std::move(id)}, known_primes_{&known_primes},
-          proof_{proof}, disagree_{disagree} {}
+          proof_{proof}, disagree_{disagree},
+          recommended_parallelism_{proof ? 1U : recommended_parallelism} {}
 
     [[nodiscard]] std::string_view id() const noexcept override { return id_; }
 
@@ -118,8 +120,16 @@ public:
     }
 
     [[nodiscard]] std::size_t recommended_parallelism() const noexcept override {
-        return proof_ ? 1U : 4U;
+        return recommended_parallelism_;
     }
+
+    [[nodiscard]] std::vector<primeforge::EngineResult> run_batch(
+        const std::span<const primeforge::EngineRequest> requests) override {
+        ++batch_run_count_;
+        return primeforge::EngineAdapter::run_batch(requests);
+    }
+
+    [[nodiscard]] std::size_t batch_run_count() const noexcept { return batch_run_count_; }
 
     [[nodiscard]] primeforge::EngineResult run(
         const primeforge::EngineRequest& request) override {
@@ -165,6 +175,8 @@ private:
     const std::set<std::uint64_t>* known_primes_{};
     bool proof_{};
     bool disagree_{};
+    std::size_t recommended_parallelism_{1U};
+    std::size_t batch_run_count_{};
 };
 
 class KnownCertificateVerifier final : public primeforge::EngineAdapter {
@@ -245,14 +257,15 @@ int main(const int argc, char** argv) {
         std::filesystem::remove_all(config.output_directory);
 
         KnownEngine proof{"known-pari-proof", known_primes, true};
-        KnownEngine independent{"known-flint-independent", known_primes, false};
+        KnownEngine independent_p1{"known-flint-independent", known_primes, false, false, 1U};
+        KnownEngine independent_p4{"known-flint-independent", known_primes, false, false, 4U};
         for (const auto invalid_worker_count : {std::size_t{0U}, std::size_t{65U}}) {
             primeforge::mvp::SearchExecutionOptions invalid_options;
             invalid_options.native_proof_workers = invalid_worker_count;
             expect_failure(
                 [&] {
                     static_cast<void>(primeforge::mvp::execute_search(
-                        config, sha256, proof, independent, invalid_options));
+                        config, sha256, proof, independent_p1, invalid_options));
                 },
                 "native proof worker count is bounded at the API boundary");
         }
@@ -263,12 +276,14 @@ int main(const int argc, char** argv) {
         batched_options.prp_batch_candidates = 17U;
         batched_options.native_proof_workers = 1U;
         const auto first = primeforge::mvp::execute_search(
-            config, sha256, proof, independent, batched_options);
+            config, sha256, proof, independent_p1, batched_options);
         check(first.completed && first.records.size() == 160U &&
                   first.plan.coverage.valid &&
                   std::filesystem::is_regular_file(first.coverage_report_path) &&
                   std::filesystem::is_regular_file(first.manifest_path),
               "complete exact campaign output");
+        check(first.flint_processes == 1U && independent_p1.batch_run_count() > 0U,
+              "single-process FLINT scheduling uses the batched adapter path and is reported");
         check(first.proven_prime_count == known_primes.size() &&
                   first.composite_count == 160U - known_primes.size(),
               "known classification totals");
@@ -327,7 +342,7 @@ int main(const int argc, char** argv) {
               "one canonical JSONL record per candidate");
         KnownCertificateVerifier certificate_verifier;
         const auto verified = primeforge::mvp::verify_campaign(
-            first.results_path, sha256, certificate_verifier, independent);
+            first.results_path, sha256, certificate_verifier, independent_p4);
         check(verified.valid && verified.record_count == 160U &&
                   verified.proven_prime_count == known_primes.size(),
               "final manifest, witnesses, certificates and independent verdicts verify");
@@ -338,7 +353,7 @@ int main(const int argc, char** argv) {
         expect_failure(
             [&] {
                 static_cast<void>(primeforge::mvp::verify_campaign(
-                    first.results_path, sha256, certificate_verifier, independent));
+                    first.results_path, sha256, certificate_verifier, independent_p4));
             },
             "manifest detects a mutated result ledger");
 
@@ -346,20 +361,22 @@ int main(const int argc, char** argv) {
         primeforge::mvp::SearchExecutionOptions parallel_options;
         parallel_options.native_proof_workers = 4U;
         const auto second = primeforge::mvp::execute_search(
-            config, sha256, proof, independent, parallel_options);
+            config, sha256, proof, independent_p4, parallel_options);
         check(read_file(second.results_path) == first_bytes &&
                   read_file(second.manifest_path) == first_manifest &&
                   snapshot_regular_files(second.output_directory / "proofs" / "proth") ==
                       first_certificates &&
                   !contains_atomic_temporary_file(second.output_directory),
               "parallel proof workers preserve byte-identical results, manifest, and certificates");
+        check(second.flint_processes == 4U && independent_p4.batch_run_count() > 0U,
+              "four-process FLINT scheduling is reported without changing campaign artifacts");
 
         std::filesystem::remove_all(config.output_directory);
         primeforge::mvp::SearchExecutionOptions stop_options;
         stop_options.clean_stop_after_candidates = 37U;
         stop_options.native_proof_workers = 4U;
         const auto interrupted = primeforge::mvp::execute_search(
-            config, sha256, proof, independent, stop_options);
+            config, sha256, proof, independent_p1, stop_options);
         check(!interrupted.completed &&
                   std::ranges::count(read_file(interrupted.results_path), '\n') == 37 &&
                   std::filesystem::is_regular_file(interrupted.checkpoint_path) &&
@@ -373,13 +390,15 @@ int main(const int argc, char** argv) {
         resume_options.resume_existing = true;
         resume_options.native_proof_workers = 4U;
         const auto resumed = primeforge::mvp::execute_search(
-            config, sha256, proof, independent, resume_options);
+            config, sha256, proof, independent_p4, resume_options);
         check(resumed.completed && read_file(resumed.results_path) == first_bytes &&
                   read_file(resumed.manifest_path) == first_manifest &&
                   snapshot_regular_files(resumed.output_directory / "proofs" / "proth") ==
                       first_certificates &&
                   !contains_atomic_temporary_file(resumed.output_directory),
               "interruption and resume reproduce uninterrupted logical results");
+        check(interrupted.flint_processes == 1U && resumed.flint_processes == 4U,
+              "FLINT process count is scheduling-only and may change across resume");
         check(!std::filesystem::exists(orphan) || read_file(orphan) != "ORPHAN",
               "resume removes unauthenticated native proof suffix artifacts");
 
@@ -387,7 +406,7 @@ int main(const int argc, char** argv) {
         primeforge::mvp::SearchExecutionOptions empty_prefix_options;
         empty_prefix_options.clean_stop_after_candidates = 0U;
         const auto empty_prefix = primeforge::mvp::execute_search(
-            config, sha256, proof, independent, empty_prefix_options);
+            config, sha256, proof, independent_p4, empty_prefix_options);
         check(!empty_prefix.completed && read_file(empty_prefix.results_path).empty(),
               "zero-length prefix creates a resumable checkpoint without processing candidates");
         const auto checkpoint_before_write_failure = read_file(empty_prefix.checkpoint_path);
@@ -408,7 +427,7 @@ int main(const int argc, char** argv) {
         expect_failure(
             [&] {
                 static_cast<void>(primeforge::mvp::execute_search(
-                    config, sha256, proof, independent, failing_parallel_resume));
+                    config, sha256, proof, independent_p4, failing_parallel_resume));
             },
             "parallel certificate write failure propagates to the campaign");
         check(read_file(empty_prefix.checkpoint_path) == checkpoint_before_write_failure &&
@@ -417,7 +436,7 @@ int main(const int argc, char** argv) {
               "parallel write failure leaves checkpoint and result prefix uncommitted");
         std::filesystem::remove_all(write_obstruction);
         const auto recovered_after_write_failure = primeforge::mvp::execute_search(
-            config, sha256, proof, independent, failing_parallel_resume);
+            config, sha256, proof, independent_p4, failing_parallel_resume);
         check(recovered_after_write_failure.completed &&
                   read_file(recovered_after_write_failure.results_path) == first_bytes &&
                   read_file(recovered_after_write_failure.manifest_path) == first_manifest &&

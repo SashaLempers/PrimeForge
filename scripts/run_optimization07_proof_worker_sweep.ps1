@@ -608,6 +608,8 @@ $decision = if ($eligible.Count -eq 0) {
     $fastest = $eligible[0]
     $fastestRows = @($measured | Where-Object workers -eq $fastest.workers | Sort-Object round)
     $plateauComparisons = [Collections.Generic.List[object]]::new()
+    $workerPairCount = $workers.Count * ($workers.Count - 1) / 2
+    $plateauTailProbability = 0.025 / [double]$workerPairCount
     $noisePlateau = @($eligible | Where-Object {
         $candidate = $_
         if ([int]$candidate.workers -eq [int]$fastest.workers) {
@@ -616,6 +618,7 @@ $decision = if ($eligible.Count -eq 0) {
                 fastest_workers = [int]$fastest.workers
                 fastest_paired_wins = $Repetitions
                 fastest_median_gain_percent = 0.0
+                bootstrap_family_tail_probability = $plateauTailProbability
                 fastest_bootstrap_low_percent = 0.0
                 fastest_bootstrap_high_percent = 0.0
                 fastest_significantly_faster = 'NO_SAME_VARIANT'
@@ -651,24 +654,30 @@ $decision = if ($eligible.Count -eq 0) {
         }
         $orderedPlateauBootstrap = @($plateauBootstrap | Sort-Object)
         $plateauLow = [double]$orderedPlateauBootstrap[
-            [int][Math]::Floor(0.025 * ($orderedPlateauBootstrap.Count - 1))
+            [int][Math]::Floor(
+                $plateauTailProbability * ($orderedPlateauBootstrap.Count - 1)
+            )
         ]
         $plateauHigh = [double]$orderedPlateauBootstrap[
-            [int][Math]::Ceiling(0.975 * ($orderedPlateauBootstrap.Count - 1))
+            [int][Math]::Ceiling(
+                (1.0 - $plateauTailProbability) * ($orderedPlateauBootstrap.Count - 1)
+            )
         ]
         $fastestGainNs =
             [double]$candidate.median_total_ns - [double]$fastest.median_total_ns
+        $pairedFastestMedianGain = Get-Median ([double[]]$pairedFastestGains)
         $fastestSignificantlyFaster =
-            (100.0 * $fastestGainNs / [double]$candidate.median_total_ns) -ge 3.0 -and
+            $pairedFastestMedianGain -ge 3.0 -and
             $fastestGainNs -gt 2.0 * [Math]::Max(
                 [double]$candidate.mad_total_ns, [double]$fastest.mad_total_ns
             ) -and
-            $fastestWins -eq $Repetitions -and $plateauLow -gt 0.0
+            $plateauLow -gt 0.0
         $plateauComparisons.Add([pscustomobject][ordered]@{
             candidate_workers = [int]$candidate.workers
             fastest_workers = [int]$fastest.workers
             fastest_paired_wins = $fastestWins
-            fastest_median_gain_percent = Get-Median ([double[]]$pairedFastestGains)
+            fastest_median_gain_percent = $pairedFastestMedianGain
+            bootstrap_family_tail_probability = $plateauTailProbability
             fastest_bootstrap_low_percent = $plateauLow
             fastest_bootstrap_high_percent = $plateauHigh
             fastest_significantly_faster =
@@ -683,6 +692,7 @@ $decision = if ($eligible.Count -eq 0) {
         schema_version = 1
         retained_workers = [int]$selected.workers
         decision = 'RETAIN_PARALLEL'
+        plateau_rule = 'PAIRED_MEDIAN_GAIN_GE_3_PERCENT;DELTA_GT_2_MAX_MAD;PAIRED_BOOTSTRAP_95_PERCENT_BONFERRONI_ALL_10_WORKER_PAIRS_POSITIVE'
         reason = 'SMALLEST_VARIANT_NOT_SIGNIFICANTLY_SLOWER_THAN_FASTEST_BY_PAIRED_GATE'
     }
 }

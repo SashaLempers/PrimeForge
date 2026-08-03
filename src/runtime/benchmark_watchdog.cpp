@@ -44,21 +44,46 @@ ProcessWorkerController::ProcessWorkerController(
     if (process_id_ == 0U || !stop_file_.has_filename()) {
         throw std::invalid_argument("worker pid and stop-file path are required");
     }
+#ifdef _WIN32
+    process_handle_ = OpenProcess(
+        SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE,
+        FALSE,
+        static_cast<DWORD>(process_id_));
+    if (process_handle_ == nullptr) {
+        throw std::runtime_error("cannot open worker process");
+    }
+#endif
+}
+
+ProcessWorkerController::~ProcessWorkerController() {
+#ifdef _WIN32
+    if (process_handle_ != nullptr) {
+        CloseHandle(static_cast<HANDLE>(process_handle_));
+    }
+#endif
 }
 
 bool ProcessWorkerController::alive() const {
 #ifdef _WIN32
-    HANDLE process = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE,
-                                 static_cast<DWORD>(process_id_));
-    if (process == nullptr) {
-        return false;
-    }
-    const bool result = WaitForSingleObject(process, 0U) == WAIT_TIMEOUT;
-    CloseHandle(process);
-    return result;
+    return process_handle_ != nullptr &&
+        WaitForSingleObject(static_cast<HANDLE>(process_handle_), 0U) == WAIT_TIMEOUT;
 #else
     const int result = kill(static_cast<pid_t>(process_id_), 0);
     return result == 0 || errno == EPERM;
+#endif
+}
+
+std::optional<int> ProcessWorkerController::exit_code() const {
+#ifdef _WIN32
+    DWORD code = STILL_ACTIVE;
+    if (process_handle_ == nullptr ||
+        GetExitCodeProcess(static_cast<HANDLE>(process_handle_), &code) == 0 ||
+        code == STILL_ACTIVE) {
+        return std::nullopt;
+    }
+    return static_cast<int>(code);
+#else
+    return std::nullopt;
 #endif
 }
 
@@ -71,7 +96,7 @@ void ProcessWorkerController::request_graceful_stop() {
 
 void ProcessWorkerController::force_stop() {
 #ifdef _WIN32
-    HANDLE process = OpenProcess(PROCESS_TERMINATE | SYNCHRONIZE, FALSE, static_cast<DWORD>(process_id_));
+    const auto process = static_cast<HANDLE>(process_handle_);
     if (process == nullptr) {
         if (alive()) {
             throw std::runtime_error("cannot open worker for forced termination");
@@ -79,11 +104,9 @@ void ProcessWorkerController::force_stop() {
         return;
     }
     if (TerminateProcess(process, 3U) == 0) {
-        CloseHandle(process);
         throw std::runtime_error("cannot force-stop worker");
     }
     static_cast<void>(WaitForSingleObject(process, 5'000U));
-    CloseHandle(process);
 #else
     if (kill(static_cast<pid_t>(process_id_), SIGKILL) != 0 && errno != ESRCH) {
         throw std::runtime_error("cannot force-stop worker");
@@ -103,6 +126,10 @@ BenchmarkWatchdog::BenchmarkWatchdog(
     validate_threshold(policy_.maximum_cpu_power_watts, "maximum CPU power");
     validate_threshold(policy_.maximum_gpu_temperature_celsius, "maximum GPU temperature");
     validate_threshold(policy_.maximum_gpu_power_watts, "maximum GPU power");
+    if (policy_.minimum_ram_available_bytes && *policy_.minimum_ram_available_bytes == 0U) {
+        throw std::invalid_argument("minimum available RAM must be positive");
+    }
+    validate_threshold(policy_.minimum_vram_free_mib, "minimum free VRAM");
 }
 
 std::optional<std::string> BenchmarkWatchdog::unsafe_reason(
@@ -141,6 +168,28 @@ std::optional<std::string> BenchmarkWatchdog::unsafe_reason(
     if (power && policy_.maximum_gpu_power_watts && *power > *policy_.maximum_gpu_power_watts) {
         return "GPU_POWER_THRESHOLD";
     }
+    const auto ram_available = metric_value(snapshot.ram_available_bytes);
+    if (policy_.require_ram_available && !ram_available) {
+        return "RAM_AVAILABLE_SENSOR_LOST";
+    }
+    if (ram_available && policy_.minimum_ram_available_bytes &&
+        *ram_available < static_cast<double>(*policy_.minimum_ram_available_bytes)) {
+        return "RAM_AVAILABLE_THRESHOLD";
+    }
+    const auto vram_free = metric_value(snapshot.vram_free_mib);
+    if (policy_.require_vram_free && !vram_free) {
+        return "VRAM_FREE_SENSOR_LOST";
+    }
+    if (vram_free && policy_.minimum_vram_free_mib && *vram_free < *policy_.minimum_vram_free_mib) {
+        return "VRAM_FREE_THRESHOLD";
+    }
+    const auto whea_errors = metric_value(snapshot.whea_errors_recent);
+    if (policy_.require_whea_status && !whea_errors) {
+        return "WHEA_STATUS_LOST";
+    }
+    if (whea_errors && *whea_errors > 0.0) {
+        return "WHEA_ERROR_DETECTED";
+    }
     return std::nullopt;
 }
 
@@ -149,7 +198,19 @@ WatchdogOutcome BenchmarkWatchdog::tick(
     const HardwareSnapshot& snapshot,
     const bool external_stop_requested) {
     if (!worker_.alive()) {
-        logger_.append("worker_exited", "{\"reason\":" + internal::json_escape(stop_reason_) + "}", utc_now());
+        const auto exit_code = worker_.exit_code();
+        if (exit_code && *exit_code != 0) {
+            performance_valid_ = false;
+            if (stop_reason_ == "NONE") {
+                stop_reason_ = "WORKER_EXIT_NONZERO";
+            }
+        }
+        logger_.append(
+            "worker_exited",
+            "{\"exit_code\":" + internal::json_escape(
+                exit_code ? std::to_string(*exit_code) : std::string{"UNKNOWN"}) +
+                ",\"reason\":" + internal::json_escape(stop_reason_) + "}",
+            utc_now());
         return {WatchdogDecision::worker_exited, performance_valid_, stop_reason_};
     }
 

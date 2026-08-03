@@ -16,6 +16,7 @@ class WorkerController {
 public:
     virtual ~WorkerController() = default;
     [[nodiscard]] virtual bool alive() const = 0;
+    [[nodiscard]] virtual std::optional<int> exit_code() const { return std::nullopt; }
     virtual void request_graceful_stop() = 0;
     virtual void force_stop() = 0;
 };
@@ -23,13 +24,18 @@ public:
 class ProcessWorkerController final : public WorkerController {
 public:
     ProcessWorkerController(std::uint64_t process_id, std::filesystem::path stop_file);
+    ~ProcessWorkerController() override;
+    ProcessWorkerController(const ProcessWorkerController&) = delete;
+    ProcessWorkerController& operator=(const ProcessWorkerController&) = delete;
     [[nodiscard]] bool alive() const override;
+    [[nodiscard]] std::optional<int> exit_code() const override;
     void request_graceful_stop() override;
     void force_stop() override;
 
 private:
     std::uint64_t process_id_{};
     std::filesystem::path stop_file_;
+    void* process_handle_{};
 };
 
 struct WatchdogPolicy {
@@ -38,10 +44,15 @@ struct WatchdogPolicy {
     std::optional<double> maximum_cpu_power_watts;
     std::optional<double> maximum_gpu_temperature_celsius;
     std::optional<double> maximum_gpu_power_watts;
+    std::optional<std::uint64_t> minimum_ram_available_bytes;
+    std::optional<double> minimum_vram_free_mib;
     bool require_cpu_temperature{};
     bool require_cpu_power{};
     bool require_gpu_temperature{};
     bool require_gpu_power{};
+    bool require_ram_available{};
+    bool require_vram_free{};
+    bool require_whea_status{};
 };
 
 enum class WatchdogDecision {

@@ -43,7 +43,7 @@ void exercise(
     const auto worker_stop = directory / (mode + ".worker.stop");
     const auto watchdog_stop = directory / (mode + ".watchdog.stop");
     const auto log = directory / (mode + ".jsonl");
-    {
+    if (mode != "exit7") {
         std::ofstream control(watchdog_stop, std::ios::binary);
         control << "STOP\n";
     }
@@ -68,13 +68,25 @@ void exercise(
     if (mode == "graceful") {
         check(worker_result == 0, "cooperative fixture did not exit cleanly");
     }
-    check(std::filesystem::exists(worker_stop), "watchdog did not publish graceful stop file");
+    if (mode != "exit7") {
+        check(std::filesystem::exists(worker_stop), "watchdog did not publish graceful stop file");
+    }
     std::ifstream events(log, std::ios::binary);
     const std::string content((std::istreambuf_iterator<char>(events)), std::istreambuf_iterator<char>());
-    check(content.find("graceful_stop_requested") != std::string::npos,
-          "watchdog log lacks graceful-stop event");
+    if (mode != "exit7") {
+        check(content.find("graceful_stop_requested") != std::string::npos,
+              "watchdog log lacks graceful-stop event");
+    }
     if (mode == "hang") {
         check(content.find("forced_stop") != std::string::npos, "watchdog log lacks forced-stop event");
+    } else if (mode == "exit7") {
+        check(content.find("worker_exited") != std::string::npos,
+              "watchdog log lacks nonzero worker-exit event");
+#ifdef _WIN32
+        check(content.find("\"exit_code\":\"7\"") != std::string::npos &&
+                  content.find("WORKER_EXIT_NONZERO") != std::string::npos,
+              "Windows watchdog did not retain exact nonzero worker exit");
+#endif
     } else {
         check(content.find("worker_exited") != std::string::npos, "watchdog log lacks clean worker-exit event");
     }
@@ -92,9 +104,10 @@ int main(int argc, char** argv) {
         std::filesystem::create_directories(directory);
         exercise(argv[1], argv[2], directory, "graceful");
         exercise(argv[1], argv[2], directory, "hang");
+        exercise(argv[1], argv[2], directory, "exit7");
         std::filesystem::remove_all(directory);
         std::cout << "primeforge-watchdog-process-tests: PASS\n";
-        std::cout << "covered=independent cooperative stop, hung-worker forced stop, durable events\n";
+        std::cout << "covered=independent cooperative stop, hung-worker forced stop, nonzero worker exit, durable events\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "primeforge-watchdog-process-tests: FAIL: " << error.what() << '\n';

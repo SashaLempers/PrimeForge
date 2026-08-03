@@ -17,8 +17,8 @@ Three consecutive Release samples reported CPU temperatures from 63.0 to
 above 13.0 GiB and NVIDIA reported no throttling reason. These are short
 readiness observations, not benchmark or energy claims.
 
-The final Debug and Release builds each passed 34/34 tests in 50.11 s and
-16.77 s. The optional CUDA build passed 37/37 tests in 17.45 s; all three CUDA
+The final Debug and Release builds each passed 34/34 tests in 50.65 s and
+17.31 s. The optional CUDA build passed 37/37 tests in 17.98 s; all three CUDA
 Compute Sanitizer runs reported zero errors. The runtime fault
 suite covers valid, missing, stale and invalid local data, the required-sensor
 loss paths and the 92 °C stop decision. The canonical hardware-profile gate also
@@ -31,10 +31,16 @@ provider is restricted to this private target-machine workflow; public product
 redistribution would require a separate component review. No driver was installed,
 no privilege was elevated and no BIOS, voltage, power limit or fan curve changed.
 
+The watchdog now also stops on WHEA presence, loss of the WHEA query, configurable
+minimum available RAM/VRAM and nonzero worker exit; Windows retains the process
+handle so the exit code is logged after termination. A propagated CUDA failure
+therefore invalidates the campaign; the real-process gate retained exact exit
+code 7 and `WORKER_EXIT_NONZERO`. The provisional conservative memory floors
+are 8 GiB RAM and 2 GiB VRAM; they are safety floors, not performance settings.
+
 One mandatory condition still prevents PIVOT-12 launch: the owner has not yet
 given the separate explicit authorization required immediately before a real
-campaign of 24 hours or more. WHEA/CUDA exit checks and low-memory gates must be
-enabled in the final campaign wrapper before that launch.
+campaign of 24 hours or more.
 
 ## Contribution directe au logiciel final
 
@@ -43,5 +49,5 @@ de journaliser la puissance CPU mesurée et de s'arrêter si la source disparaî
 Il ferme le blocage matériel sans ajouter de moteur externe ni détourner le
 projet vers l'infrastructure. La télémétrie cible est terminée pour les essais
 courts ; il faudra seulement la revalider si L-Connect est mis à jour. La campagne
-prolongée reste en attente de l'autorisation explicite du propriétaire et de
-l'activation de ses dernières portes WHEA/CUDA/mémoire.
+prolongée reste en attente de l'autorisation explicite du propriétaire. Il faudra
+revalider cette source si L-Connect est mis à jour.

@@ -18,7 +18,7 @@
 int main(int argc, char** argv) {
     try {
         if (argc != 4) {
-            throw std::invalid_argument("usage: watchdog-fixture graceful|hang PID_FILE STOP_FILE");
+            throw std::invalid_argument("usage: watchdog-fixture graceful|hang|exit7 PID_FILE STOP_FILE");
         }
         const std::string mode = argv[1];
         const std::filesystem::path pid_file = argv[2];
@@ -32,6 +32,10 @@ int main(int argc, char** argv) {
             std::ofstream output(pid_file, std::ios::binary | std::ios::trunc);
             output << process_id << '\n' << std::flush;
             if (!output) { throw std::runtime_error("cannot publish fixture pid"); }
+        }
+        if (mode == "exit7") {
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            return 7;
         }
         while (true) {
             if (mode == "graceful" && std::filesystem::exists(stop_file)) {

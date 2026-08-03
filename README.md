@@ -35,8 +35,9 @@ Target-local campaign safety now reads fresh CPU package temperature, power and
 clock from the already-installed L-Connect service over loopback, alongside the
 existing NVIDIA, RAM and VRAM telemetry. Missing, stale or invalid CPU data stays
 `UNKNOWN`, and the independent watchdog can require both sensors and stop above
-92 °C. No L-Connect or HWiNFO binary is linked, copied or redistributed. This
-does not itself authorize the pending 24-hour PIVOT-12 campaign.
+92 °C. It also gates recent WHEA events, available RAM/VRAM and nonzero worker
+exit codes. No L-Connect or HWiNFO binary is linked, copied or redistributed.
+This does not itself authorize the pending 24-hour PIVOT-12 campaign.
 
 Post-release PIVOT-03 work now keeps proper-factor evidence in the original
 sieve traversal and lets aligned k-major segments write disjoint canonical

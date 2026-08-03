@@ -18,7 +18,10 @@ or out-of-range data remains `UNKNOWN`.
 
 On the target, the available fields are CPU package temperature/power/clock,
 GPU core temperature, board power and limit, SM/memory clocks, GPU/memory
-utilization, VRAM used/free and RAM used/free. NVIDIA software power cap,
+utilization, VRAM used/free, RAM used/free and WHEA event presence in the
+preceding 120 seconds. The fixed `wevtutil` query returns `UNKNOWN` on failure;
+a required WHEA source becoming unavailable stops the worker. Any detected WHEA
+event stops the worker. NVIDIA software power cap,
 software thermal slowdown, hardware thermal slowdown and hardware power-brake
 reasons are checked explicitly. GPU memory temperature remains `UNKNOWN`; no TDP
 or inferred value replaces a measurement. PrimeForge neither loads nor copies
@@ -42,8 +45,10 @@ reported throttling. A required sensor becoming unavailable is a stop condition.
 It first atomically creates the worker stop file, then force-terminates a worker
 that remains alive beyond `--grace-ms`. Ctrl+C or the watchdog control file uses
 the same graceful path. Optional `--checkpoint` must validate before monitoring
-starts. State and elapsed time are fixed-size and use a 64-bit steady clock; the
-test suite advances it by seven days without sleeping.
+starts. The Windows controller retains a process handle, records the exact worker
+exit code and invalidates a nonzero exit (including a propagated CUDA failure).
+State and elapsed time are fixed-size and use a 64-bit steady clock; the test
+suite advances it by seven days without sleeping.
 
 ## Exact commands
 
@@ -90,6 +95,9 @@ Guard an already-running worker whose PID is `$worker.Id`:
   --require-cpu-temperature --require-cpu-power `
   --max-cpu-temp-c 92 `
   --require-gpu-temperature --require-gpu-power `
+  --require-ram-available --min-ram-available-bytes 8589934592 `
+  --require-vram-free --min-vram-free-mib 2048 `
+  --require-whea-status `
   --max-gpu-temp-c DOCUMENTED_LIMIT `
   --max-gpu-power-w DOCUMENTED_LIMIT
 ```
@@ -103,7 +111,8 @@ enforces the grace timeout.
 
 `primeforge.runtime` tests available/missing/stale local telemetry, accepted
 value ranges, CPU and GPU threshold stops, all exposed metric families, throttle
-invalidation, required-sensor loss, durable logger reopen,
+invalidation, RAM/VRAM exhaustion, WHEA presence/loss, nonzero worker exit,
+required-sensor loss, durable logger reopen,
 truncated log rejection, checkpoint round trip/corruption, operator stop,
 threshold stop, forced stop and simulated multi-day elapsed time.
 
@@ -119,6 +128,7 @@ enforceable stop when the two `--require-cpu-*` flags are used. This closes the
 former CPU-sensor blocker for a target-local campaign. It does not authorize
 redistribution of L-Connect/HWiNFO and does not authorize the 24-hour campaign.
 GPU memory temperature remains unavailable from the current driver query. No
-automatic process closure exists. Concrete engine campaigns still need their
-WHEA/CUDA exit checks and workload-specific interference policy, but PIVOT-02 is
-otherwise finished and should not become an infrastructure project.
+automatic process closure exists. Concrete engine campaigns still need a
+workload-specific interference policy, but their WHEA, memory and worker/CUDA
+exit gates are now enforceable. PIVOT-02 is otherwise finished and should not
+become an infrastructure project.

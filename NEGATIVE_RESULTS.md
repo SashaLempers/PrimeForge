@@ -489,3 +489,12 @@ Each future entry must include:
 - **Failure criterion:** every distribution-manifest classification must belong to its tested closed vocabulary, even for a component that PrimeForge neither calls nor redistributes.
 - **Conclusion:** the component now uses allowed classification `EXTERNAL`, while `TRANSITIVE_NOT_CALLED_OR_LOADED` preserves the more precise integration decision. No license scope or redistribution status changed.
 - **Retry condition:** the complete CUDA gate must pass before commit.
+
+## NR-0053 - The first 8 GiB test threshold overflowed its 32-bit literals
+
+- **Date:** 2026-08-03
+- **Change tested:** first direct Debug runtime test of the new low-memory watchdog gate.
+- **Evidence:** the test expression `8U * 1024U * 1024U * 1024U` wrapped to zero before assignment; the production watchdog rejected that value with `minimum available RAM must be positive`.
+- **Failure criterion:** a test threshold must represent the intended exact byte count and must not fail before exercising the low-memory decision.
+- **Conclusion:** the test now uses 64-bit literals (`8ULL`); production rejection of zero is retained as a safety property.
+- **Retry condition:** the direct runtime test and complete Debug/Release/CUDA gates must pass.

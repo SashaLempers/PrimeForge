@@ -389,6 +389,24 @@ void collect_nvidia(HardwareSnapshot& snapshot, const CommandRunner& runner) {
                                       : (reason_available ? "NONE" : "UNKNOWN");
 }
 
+void collect_whea(HardwareSnapshot& snapshot, const CommandRunner& runner) {
+#ifdef _WIN32
+    constexpr std::string_view command =
+        "wevtutil.exe qe System "
+        "/q:\"*[System[Provider[@Name='Microsoft-Windows-WHEA-Logger'] and "
+        "TimeCreated[timediff(@SystemTime) <= 120000]]]\" /c:1 /rd:true /f:xml";
+    const auto output = runner(command);
+    if (output) {
+        snapshot.whea_errors_recent = detected_metric(
+            "wevtutil.System.WHEA-Logger.last_120_seconds",
+            internal::trim(*output).empty() ? "0" : "1");
+    }
+#else
+    static_cast<void>(snapshot);
+    static_cast<void>(runner);
+#endif
+}
+
 } // namespace
 
 std::string HardwareSnapshot::canonical_json() const {
@@ -410,7 +428,8 @@ std::string HardwareSnapshot::canonical_json() const {
            ",\"throttling_reasons\":" + internal::json_escape(throttling_reasons) +
            ",\"utc\":" + internal::json_escape(utc) +
            ",\"vram_free_mib\":" + metric_json(vram_free_mib) +
-           ",\"vram_used_mib\":" + metric_json(vram_used_mib) + "}";
+           ",\"vram_used_mib\":" + metric_json(vram_used_mib) +
+           ",\"whea_errors_recent\":" + metric_json(whea_errors_recent) + "}";
 }
 
 HardwareMonitor::HardwareMonitor(
@@ -442,8 +461,10 @@ HardwareSnapshot HardwareMonitor::sample() const {
     snapshot.gpu_memory_utilization_percent = unknown_metric("nvidia-smi.utilization.memory");
     snapshot.vram_used_mib = unknown_metric("nvidia-smi.memory.used");
     snapshot.vram_free_mib = unknown_metric("nvidia-smi.memory.free");
+    snapshot.whea_errors_recent = unknown_metric("Windows WHEA event log");
     collect_cpu_and_ram(snapshot);
     collect_lconnect(snapshot, local_telemetry_reader_);
+    collect_whea(snapshot, runner_);
     collect_nvidia(snapshot, runner_);
     return snapshot;
 }

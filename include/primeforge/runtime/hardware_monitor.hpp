@@ -35,6 +35,7 @@ struct HardwareSnapshot {
     Metric gpu_memory_utilization_percent;
     Metric vram_used_mib;
     Metric vram_free_mib;
+    Metric whea_errors_recent;
     bool throttling_detected{};
     std::string throttling_reasons{"UNKNOWN"};
 

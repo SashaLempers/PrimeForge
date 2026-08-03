@@ -669,3 +669,19 @@ PrimeForge does not install, launch, load, link, copy or redistribute L-Connect
 or its transitive HWiNFO DLL. This private target-machine use does not establish
 permission for public redistribution. Process separation is not a license
 conclusion, and any public provider decision requires a new review.
+
+## D-0080 - Prolonged workers fail closed on WHEA, memory and exit status
+
+**Status:** Accepted - 2026-08-03
+
+The watchdog samples a fixed Windows WHEA query covering the preceding 120
+seconds. Any matching event stops the worker; when the campaign requires this
+source, query failure also stops it. Configurable minimum available-RAM and
+free-VRAM floors behave the same way on loss or breach. The provisional target
+floors are 8 GiB RAM and 2 GiB VRAM, selected as conservative safety margins,
+not as performance optima.
+
+On Windows the process controller retains its handle from construction through
+exit, logs the exact exit code and invalidates any nonzero result. CUDA failures
+must propagate to the worker exit code and stderr; the watchdog does not infer a
+successful CUDA computation from process disappearance.

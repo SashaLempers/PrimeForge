@@ -34,8 +34,10 @@ public:
     bool running{true};
     unsigned graceful_requests{};
     unsigned forced_stops{};
+    std::optional<int> exit_code_value{0};
 
     [[nodiscard]] bool alive() const override { return running; }
+    [[nodiscard]] std::optional<int> exit_code() const override { return exit_code_value; }
     void request_graceful_stop() override { ++graceful_requests; }
     void force_stop() override { ++forced_stops; running = false; }
 };
@@ -45,24 +47,33 @@ public:
     snapshot.utc = "2026-08-02T00:00:00.000Z";
     snapshot.cpu_temperature_celsius = {"fake.cpu.temperature", "60"};
     snapshot.cpu_power_watts = {"fake.cpu.power", "100"};
+    snapshot.ram_available_bytes = {"fake.ram.available", "42949672960"};
     snapshot.gpu_temperature_celsius = {"fake.temperature", "60"};
     snapshot.gpu_power_watts = {"fake.power", "100"};
+    snapshot.vram_free_mib = {"fake.vram.free", "12000"};
+    snapshot.whea_errors_recent = {"fake.whea", "0"};
     snapshot.throttling_reasons = "NONE";
     return snapshot;
 }
 
 void test_hardware_monitor() {
-    bool invoked = false;
+    bool nvidia_invoked = false;
+    bool whea_invoked = false;
     const auto lconnect = std::string{"{\"LastTime\":\""} + primeforge::runtime::utc_now() +
         "\",\"CPUTemperature\":63.25,\"CPUPower\":107.5,\"CPUClockRate\":5550}";
     primeforge::runtime::HardwareMonitor monitor(
-        [&invoked](const std::string_view command) -> std::optional<std::string> {
-            invoked = command.find("clocks_event_reasons") != std::string_view::npos;
+        [&nvidia_invoked, &whea_invoked](const std::string_view command) -> std::optional<std::string> {
+            if (command.find("wevtutil") != std::string_view::npos) {
+                whea_invoked = true;
+                return "";
+            }
+            nvidia_invoked = command.find("clocks_event_reasons") != std::string_view::npos;
             return "71, N/A, 250.50, 360.00, 2700, 15001, 99, 20, 4096, 12207, Active, Not Active, Not Active, Not Active\n";
         },
         [&lconnect]() -> std::optional<std::string> { return lconnect; });
     const auto snapshot = monitor.sample();
-    check(invoked, "hardware monitor uses the fixed NVIDIA query");
+    check(nvidia_invoked, "hardware monitor uses the fixed NVIDIA query");
+    check(whea_invoked && snapshot.whea_errors_recent.value == "0", "hardware monitor checks recent WHEA events");
     check(snapshot.gpu_temperature_celsius.value == "71", "GPU temperature parsed");
     check(snapshot.gpu_memory_temperature_celsius.value == "UNKNOWN", "N/A remains UNKNOWN");
     check(snapshot.gpu_sm_clock_mhz.value == "2700", "GPU frequency parsed");
@@ -144,6 +155,88 @@ void test_checkpoints(const std::filesystem::path& directory) {
 }
 
 void test_watchdog(const std::filesystem::path& directory) {
+    {
+        MockWorker worker;
+        worker.running = false;
+        worker.exit_code_value = 7;
+        primeforge::runtime::BenchmarkLogger logger(directory / "worker-exit.jsonl", "worker-exit");
+        primeforge::runtime::WatchdogPolicy policy;
+        primeforge::runtime::BenchmarkWatchdog watchdog(policy, worker, logger);
+        const auto exited = watchdog.tick(1U, safe_snapshot());
+        check(exited.decision == primeforge::runtime::WatchdogDecision::worker_exited &&
+                  exited.reason == "WORKER_EXIT_NONZERO" && !exited.performance_valid,
+              "nonzero worker exit invalidates the campaign");
+    }
+    {
+        MockWorker worker;
+        primeforge::runtime::BenchmarkLogger logger(directory / "memory-threshold.jsonl", "memory-threshold");
+        primeforge::runtime::WatchdogPolicy policy;
+        policy.minimum_ram_available_bytes = 8ULL * 1024ULL * 1024ULL * 1024ULL;
+        policy.minimum_vram_free_mib = 4096.0;
+        policy.require_ram_available = true;
+        policy.require_vram_free = true;
+        primeforge::runtime::BenchmarkWatchdog watchdog(policy, worker, logger);
+        auto snapshot = safe_snapshot();
+        snapshot.ram_available_bytes.value = "1073741824";
+        const auto memory = watchdog.tick(1U, snapshot);
+        check(memory.reason == "RAM_AVAILABLE_THRESHOLD", "low available RAM stops safely");
+    }
+    {
+        MockWorker worker;
+        primeforge::runtime::BenchmarkLogger logger(directory / "memory-lost.jsonl", "memory-lost");
+        primeforge::runtime::WatchdogPolicy policy;
+        policy.require_ram_available = true;
+        primeforge::runtime::BenchmarkWatchdog watchdog(policy, worker, logger);
+        auto snapshot = safe_snapshot();
+        snapshot.ram_available_bytes.value = "UNKNOWN";
+        const auto memory = watchdog.tick(1U, snapshot);
+        check(memory.reason == "RAM_AVAILABLE_SENSOR_LOST", "lost available-RAM provider stops safely");
+    }
+    {
+        MockWorker worker;
+        primeforge::runtime::BenchmarkLogger logger(directory / "vram-threshold.jsonl", "vram-threshold");
+        primeforge::runtime::WatchdogPolicy policy;
+        policy.minimum_vram_free_mib = 4096.0;
+        policy.require_vram_free = true;
+        primeforge::runtime::BenchmarkWatchdog watchdog(policy, worker, logger);
+        auto snapshot = safe_snapshot();
+        snapshot.vram_free_mib.value = "2048";
+        const auto memory = watchdog.tick(1U, snapshot);
+        check(memory.reason == "VRAM_FREE_THRESHOLD", "low free VRAM stops safely");
+    }
+    {
+        MockWorker worker;
+        primeforge::runtime::BenchmarkLogger logger(directory / "vram-lost.jsonl", "vram-lost");
+        primeforge::runtime::WatchdogPolicy policy;
+        policy.require_vram_free = true;
+        primeforge::runtime::BenchmarkWatchdog watchdog(policy, worker, logger);
+        auto snapshot = safe_snapshot();
+        snapshot.vram_free_mib.value = "UNKNOWN";
+        const auto memory = watchdog.tick(1U, snapshot);
+        check(memory.reason == "VRAM_FREE_SENSOR_LOST", "lost free-VRAM provider stops safely");
+    }
+    {
+        MockWorker worker;
+        primeforge::runtime::BenchmarkLogger logger(directory / "whea-error.jsonl", "whea-error");
+        primeforge::runtime::WatchdogPolicy policy;
+        policy.require_whea_status = true;
+        primeforge::runtime::BenchmarkWatchdog watchdog(policy, worker, logger);
+        auto snapshot = safe_snapshot();
+        snapshot.whea_errors_recent.value = "1";
+        const auto hardware = watchdog.tick(1U, snapshot);
+        check(hardware.reason == "WHEA_ERROR_DETECTED", "recent WHEA event stops safely");
+    }
+    {
+        MockWorker worker;
+        primeforge::runtime::BenchmarkLogger logger(directory / "whea-lost.jsonl", "whea-lost");
+        primeforge::runtime::WatchdogPolicy policy;
+        policy.require_whea_status = true;
+        primeforge::runtime::BenchmarkWatchdog watchdog(policy, worker, logger);
+        auto snapshot = safe_snapshot();
+        snapshot.whea_errors_recent.value = "UNKNOWN";
+        const auto hardware = watchdog.tick(1U, snapshot);
+        check(hardware.reason == "WHEA_STATUS_LOST", "lost WHEA provider stops safely");
+    }
     {
         MockWorker worker;
         primeforge::runtime::BenchmarkLogger logger(directory / "invalid-policy.jsonl", "invalid-policy");
@@ -290,9 +383,9 @@ int main() {
         test_watchdog(directory);
         std::filesystem::remove_all(directory);
         std::cout << "primeforge-runtime-tests: PASS\n";
-        std::cout << "covered=local/GPU monitor availability/loss/staleness, CPU/GPU temperature/frequency/power, throttling, "
+        std::cout << "covered=local/GPU/WHEA monitor availability/loss/staleness, CPU/GPU temperature/frequency/power, RAM/VRAM thresholds, throttling, "
                      "durable logs, log resume/truncation, checkpoint resume/corruption, graceful/forced stop, "
-                     "multi-day monotonic time\n";
+                     "worker exit status, multi-day monotonic time\n";
         return 0;
     } catch (const std::exception& error) {
         std::filesystem::remove_all(directory);

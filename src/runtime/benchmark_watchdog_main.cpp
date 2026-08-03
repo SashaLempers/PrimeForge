@@ -44,10 +44,15 @@ int main(int argc, char** argv) {
             else if (argument == "--max-cpu-power-w" && index + 1 < argc) { policy.maximum_cpu_power_watts = std::stod(argv[++index]); }
             else if (argument == "--max-gpu-temp-c" && index + 1 < argc) { policy.maximum_gpu_temperature_celsius = std::stod(argv[++index]); }
             else if (argument == "--max-gpu-power-w" && index + 1 < argc) { policy.maximum_gpu_power_watts = std::stod(argv[++index]); }
+            else if (argument == "--min-ram-available-bytes" && index + 1 < argc) { policy.minimum_ram_available_bytes = std::stoull(argv[++index]); }
+            else if (argument == "--min-vram-free-mib" && index + 1 < argc) { policy.minimum_vram_free_mib = std::stod(argv[++index]); }
             else if (argument == "--require-cpu-temperature") { policy.require_cpu_temperature = true; }
             else if (argument == "--require-cpu-power") { policy.require_cpu_power = true; }
             else if (argument == "--require-gpu-temperature") { policy.require_gpu_temperature = true; }
             else if (argument == "--require-gpu-power") { policy.require_gpu_power = true; }
+            else if (argument == "--require-ram-available") { policy.require_ram_available = true; }
+            else if (argument == "--require-vram-free") { policy.require_vram_free = true; }
+            else if (argument == "--require-whea-status") { policy.require_whea_status = true; }
             else { throw std::invalid_argument("invalid benchmark_watchdog argument"); }
         }
         if (pid == 0U || interval_ms == 0U || stop_file.empty() || log_path.empty() || campaign.empty()) {

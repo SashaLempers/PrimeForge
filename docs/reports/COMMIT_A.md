@@ -1,7 +1,9 @@
 # Commit A — baseline mesurable du moteur `u64`
 
-Date de mesure : 2026-08-03  
-Code mesuré : `1ea12fadc0f64ccf5540fff7639832480379dd06`  
+Date de mesure : 2026-08-03
+
+Code mesuré : `1ea12fadc0f64ccf5540fff7639832480379dd06`
+
 Référence antérieure : tag `baseline-u64-b0a3b96`
 
 ## Portée
@@ -88,4 +90,3 @@ déplacer le coût ou de modifier silencieusement les résultats. L'instrumentat
 `u64` et son format sont terminés pour cette phase ; il faudra étendre les mêmes
 métriques au moteur multiprécision lorsqu'il sera implémenté. Aucun autre travail
 d'infrastructure n'est prévu avant qu'un besoin direct du moteur ne l'exige.
-

@@ -1,6 +1,6 @@
 # Prolonged campaign readiness
 
-**Status:** BLOCKED SAFELY — CAMPAIGN NOT STARTED  
+**Status:** BLOCKED SAFELY — CAMPAIGN NOT STARTED
 **Date:** 2026-08-03
 
 PIVOT-00 through PIVOT-11 have passed their scoped correctness gates. The next

@@ -10,14 +10,14 @@
                      "repetitions":  7,
                      "minimum_ns":  361579000,
                      "maximum_ns":  382306100,
-                     "median_ns":  371374600,
-                     "mad_ns":  7012800,
+                     "median_ns":  365729000,
+                     "mad_ns":  4150000,
                      "p5_ns":  361579000,
                      "p95_ns":  382306100,
                      "mean_ns":  368942857.143,
                      "coefficient_of_variation":  0.017412,
-                     "bootstrap_median_low_ns":  365572200,
-                     "bootstrap_median_high_ns":  382306100
+                     "bootstrap_median_low_ns":  364361800,
+                     "bootstrap_median_high_ns":  371677300
                  },
                  {
                      "profile_id":  "FULL_U64_KNOWN_160",
@@ -28,14 +28,14 @@
                      "repetitions":  7,
                      "minimum_ns":  360176400,
                      "maximum_ns":  438325900,
-                     "median_ns":  370290600,
-                     "mad_ns":  6456300,
+                     "median_ns":  366340100,
+                     "mad_ns":  3950500,
                      "p5_ns":  360176400,
                      "p95_ns":  438325900,
                      "mean_ns":  376689142.857,
                      "coefficient_of_variation":  0.067727,
-                     "bootstrap_median_low_ns":  363900600,
-                     "bootstrap_median_high_ns":  438325900
+                     "bootstrap_median_low_ns":  363834300,
+                     "bootstrap_median_high_ns":  373956100
                  },
                  {
                      "profile_id":  "FULL_U64_KNOWN_160",
@@ -46,14 +46,14 @@
                      "repetitions":  7,
                      "minimum_ns":  359229800,
                      "maximum_ns":  369545800,
-                     "median_ns":  366150000,
-                     "mad_ns":  3395800,
+                     "median_ns":  364994000,
+                     "mad_ns":  2288300,
                      "p5_ns":  359229800,
                      "p95_ns":  369545800,
                      "mean_ns":  364937114.286,
                      "coefficient_of_variation":  0.008445,
-                     "bootstrap_median_low_ns":  364535700,
-                     "bootstrap_median_high_ns":  369545800
+                     "bootstrap_median_low_ns":  362705700,
+                     "bootstrap_median_high_ns":  367398800
                  },
                  {
                      "profile_id":  "S64_PRP_65536",
@@ -64,14 +64,14 @@
                      "repetitions":  7,
                      "minimum_ns":  159300,
                      "maximum_ns":  258200,
-                     "median_ns":  181300,
-                     "mad_ns":  2900,
+                     "median_ns":  180900,
+                     "mad_ns":  2500,
                      "p5_ns":  159300,
                      "p95_ns":  258200,
                      "mean_ns":  188671.429,
                      "coefficient_of_variation":  0.155644,
-                     "bootstrap_median_low_ns":  179000,
-                     "bootstrap_median_high_ns":  258200
+                     "bootstrap_median_low_ns":  178400,
+                     "bootstrap_median_high_ns":  183600
                  },
                  {
                      "profile_id":  "S64_PRP_65536",
@@ -82,14 +82,14 @@
                      "repetitions":  7,
                      "minimum_ns":  1453100,
                      "maximum_ns":  2168700,
-                     "median_ns":  1790900,
-                     "mad_ns":  149300,
+                     "median_ns":  1765800,
+                     "mad_ns":  124200,
                      "p5_ns":  1453100,
                      "p95_ns":  2168700,
                      "mean_ns":  1776985.714,
                      "coefficient_of_variation":  0.115088,
-                     "bootstrap_median_low_ns":  1726700,
-                     "bootstrap_median_high_ns":  2168700
+                     "bootstrap_median_low_ns":  1641600,
+                     "bootstrap_median_high_ns":  1892100
                  },
                  {
                      "profile_id":  "S64_PRP_65536",
@@ -100,14 +100,14 @@
                      "repetitions":  7,
                      "minimum_ns":  160300,
                      "maximum_ns":  294500,
-                     "median_ns":  198100,
-                     "mad_ns":  37800,
+                     "median_ns":  183600,
+                     "mad_ns":  17300,
                      "p5_ns":  160300,
                      "p95_ns":  294500,
                      "mean_ns":  210600,
                      "coefficient_of_variation":  0.249708,
                      "bootstrap_median_low_ns":  166300,
-                     "bootstrap_median_high_ns":  294500
+                     "bootstrap_median_high_ns":  289000
                  }
              ]
 }

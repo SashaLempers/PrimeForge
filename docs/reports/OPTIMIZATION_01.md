@@ -32,16 +32,16 @@ isolée, conserve ses sorties brutes, vérifie leur présence et échoue en
 
 | Backend | Médiane avant | Médiane après | Différence absolue | Amélioration |
 |---|---:|---:|---:|---:|
-| CPU | 6 304 454 700 ns | 897 725 200 ns | -5 406 729 500 ns | 85,760 % |
-| CUDA | 6 282 740 600 ns | 887 138 100 ns | -5 395 602 500 ns | 85,880 % |
-| auto → CPU | 6 310 496 900 ns | 889 527 900 ns | -5 420 969 000 ns | 85,904 % |
+| CPU | 6 298 717 800 ns | 895 259 600 ns | -5 403 458 200 ns | 85,787 % |
+| CUDA | 6 269 633 200 ns | 884 712 500 ns | -5 384 920 700 ns | 85,889 % |
+| auto → CPU | 6 303 053 000 ns | 887 272 200 ns | -5 415 780 800 ns | 85,923 % |
 
-Les MAD après optimisation sont respectivement 8 406 400 ns, 8 623 000 ns et
-3 928 700 ns. Le hash de résultat reste exactement :
+Les MAD après optimisation sont respectivement 5 940 800 ns, 3 510 600 ns et
+2 255 700 ns. Le hash de résultat reste exactement :
 `f2286a3ee8de22ad750eb8d6dc1d845c457658fc23340327854ea6f98a683fd6`.
 
 La vérification indépendante reste le premier poste, avec une médiane de
-646 610 300 ns sur CPU, 644 613 500 ns sur CUDA et 642 828 100 ns sur auto.
+644 936 300 ns sur CPU, 641 253 300 ns sur CUDA et 642 521 400 ns sur auto.
 Elle représente désormais environ 72 % du temps complet. Le prochain essai
 doit donc mesurer le coût de lancement, le calcul FLINT et les I/O, puis tester
 le regroupement ou un processus persistant sans affaiblir la vérification.

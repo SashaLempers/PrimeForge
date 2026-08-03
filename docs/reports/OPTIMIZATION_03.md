@@ -22,17 +22,17 @@ les artefacts suffixes comme auparavant.
 
 | Backend | Médiane avant | Médiane après | Différence absolue | Amélioration |
 |---|---:|---:|---:|---:|
-| CPU | 452 597 800 ns | 370 290 600 ns | -82 307 200 ns | 18,186 % |
-| CUDA | 478 568 700 ns | 366 150 000 ns | -112 418 700 ns | 23,491 % |
-| auto → CPU | 446 626 200 ns | 371 374 600 ns | -75 251 600 ns | 16,849 % |
+| CPU | 450 264 400 ns | 366 340 100 ns | -83 924 300 ns | 18,639 % |
+| CUDA | 472 203 200 ns | 364 994 000 ns | -107 209 200 ns | 22,704 % |
+| auto → CPU | 445 388 700 ns | 365 729 000 ns | -79 659 700 ns | 17,885 % |
 
-Les MAD après optimisation sont 6 456 300 ns, 3 395 800 ns et 7 012 800 ns.
+Les MAD après optimisation sont 3 950 500 ns, 2 288 300 ns et 4 150 000 ns.
 Le temps d'I/O médian passe d'environ 75–78 ms à environ 14–15 ms. Le hash
 logique reste
 `f2286a3ee8de22ad750eb8d6dc1d845c457658fc23340327854ea6f98a683fd6`.
 
-Le gain cumulé depuis le Commit A atteint 94,127 % sur CPU, 94,172 % sur CUDA
-et 94,115 % en routage automatique.
+Le gain cumulé depuis le Commit A atteint 94,184 % sur CPU, 94,178 % sur CUDA
+et 94,197 % en routage automatique.
 
 ## Validation
 

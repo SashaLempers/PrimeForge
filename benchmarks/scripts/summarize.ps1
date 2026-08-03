@@ -20,7 +20,10 @@ function Get-NearestRank {
 function Get-Median {
     param([uint64[]]$Values)
     $ordered = @($Values | Sort-Object)
-    if (($ordered.Count % 2) -eq 1) { return [uint64]$ordered[[int]($ordered.Count / 2)] }
+    if (($ordered.Count % 2) -eq 1) {
+        $middle = [int][Math]::Floor($ordered.Count / 2.0)
+        return [uint64]$ordered[$middle]
+    }
     return [uint64](([decimal]$ordered[$ordered.Count / 2 - 1] +
                      [decimal]$ordered[$ordered.Count / 2]) / 2)
 }
@@ -87,11 +90,16 @@ foreach ($group in $groups | Sort-Object Name) {
 }
 
 New-Item -ItemType Directory -Path $OutputPath -Force | Out-Null
-$summaries | Export-Csv -LiteralPath (Join-Path $OutputPath 'summary.csv') -NoTypeInformation -Encoding UTF8
+$csv = @($summaries | ConvertTo-Csv -NoTypeInformation) -join "`n"
+[System.IO.File]::WriteAllText(
+    (Join-Path $OutputPath 'summary.csv'), $csv + "`n",
+    [System.Text.UTF8Encoding]::new($false)
+)
 $document = [ordered]@{ schema = 'primeforge.benchmark.summary.v1'; rows = $summaries }
+$json = (($document | ConvertTo-Json -Depth 5) -replace "`r`n", "`n") + "`n"
 [System.IO.File]::WriteAllText(
     (Join-Path $OutputPath 'summary.json'),
-    ($document | ConvertTo-Json -Depth 5) + "`n",
+    $json,
     [System.Text.UTF8Encoding]::new($false)
 )
 Write-Host "PrimeForge benchmark summary: PASS ($($rows.Count) rows, $(@($groups).Count) groups)"

@@ -697,8 +697,8 @@ stdout and stderr remain mandatory. A resumed campaign constructs fresh
 adapters and repeats the complete installation check.
 
 This replaces two complete installation hash passes per candidate. On the
-retained 160-candidate profile it reduces median end-to-end time by 85.760 % to
-85.904 % across the three requested backends while preserving exact result and
+retained 160-candidate profile it reduces median end-to-end time by 85.787 % to
+85.923 % across the three requested backends while preserving exact result and
 recovery hashes. PrimeForge does not mutate an external installation during an
 adapter lifetime; supporting hot replacement would require explicit cache
 invalidation before it could be enabled.
@@ -714,7 +714,7 @@ races with the ledger and keeps record order, checkpoints and certificates
 unchanged. Adapters that do not explicitly recommend parallelism remain serial.
 
 Compared with the retained hash-cache baseline, complete-pipeline medians fall
-by 46.055 % to 49.791 %. A variant that overlapped process creation with durable
+by 46.626 % to 49.802 %. A variant that overlapped process creation with durable
 writes is rejected in `NR-0055`; it is not part of this decision.
 
 ## D-0083 - Result durability is committed at authenticated boundaries
@@ -728,5 +728,29 @@ resume therefore retains the same exact durable prefix guarantee while avoiding
 one filesystem synchronization per candidate.
 
 The retained 160-candidate measurement improves complete-pipeline medians by
-16.849 % to 23.491 % relative to the preceding baseline, with byte-identical
+17.885 % to 22.704 % relative to the preceding baseline, with byte-identical
 uninterrupted and resumed results.
+
+## D-0084 - FLINT classifications use bounded ordered process batches
+
+**Status:** Accepted - 2026-08-03
+
+The FLINT oracle accepts multiple canonical decimal inputs and emits one exact
+classification line per input. The adapter verifies output cardinality, maps
+lines back in request order and retains deterministic per-request stdout and
+stderr. Other adapters retain the default serial `run_batch` behavior.
+
+Arguments are split before 24,000 estimated characters so large survivor sets
+remain below the Windows process command-line limit. On the retained profile,
+one FLINT process replaces 34 process launches and improves complete-pipeline
+medians by 21.164 % to 22.533 % without changing classifications or recovery.
+
+## D-0085 - Benchmark medians use the mathematical middle index
+
+**Status:** Accepted - 2026-08-03
+
+For an odd sample count, the PowerShell summarizer selects
+`floor(count / 2)` from the zero-based sorted values. A direct cast from 3.5 to
+`int` is forbidden because PowerShell rounds it to 4. The raw benchmark rows
+were never affected; retained summaries and their manifests were regenerated
+from those rows after correcting the formula.

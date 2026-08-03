@@ -42,12 +42,12 @@ backends :
 
 | Expérience | Backend demandé/routé | Médiane | MAD | CV |
 |---|---:|---:|---:|---:|
-| PRP `u64`, 65 536 valeurs | CPU | 1 738 800 ns | 81 000 ns | 0,056710 |
-| PRP `u64`, 65 536 valeurs | CUDA | 265 000 ns | 58 800 ns | 0,153113 |
-| PRP `u64`, 65 536 valeurs | auto → CUDA | 188 200 ns | 14 600 ns | 0,297355 |
-| Pipeline complète, 160 candidats | CPU | 6 304 454 700 ns | 22 225 700 ns | 0,007501 |
-| Pipeline complète, 160 candidats | CUDA | 6 282 740 600 ns | 38 790 300 ns | 0,004870 |
-| Pipeline complète, 160 candidats | auto → CPU | 6 310 496 900 ns | 19 640 200 ns | 0,003075 |
+| PRP `u64`, 65 536 valeurs | CPU | 1 717 200 ns | 59 400 ns | 0,056710 |
+| PRP `u64`, 65 536 valeurs | CUDA | 247 900 ns | 23 000 ns | 0,153113 |
+| PRP `u64`, 65 536 valeurs | auto → CUDA | 181 900 ns | 6 300 ns | 0,297355 |
+| Pipeline complète, 160 candidats | CPU | 6 298 717 800 ns | 16 488 800 ns | 0,007501 |
+| Pipeline complète, 160 candidats | CUDA | 6 269 633 200 ns | 15 974 600 ns | 0,004870 |
+| Pipeline complète, 160 candidats | auto → CPU | 6 303 053 000 ns | 13 115 700 ns | 0,003075 |
 
 Le benchmark PRP isolé montre un écart local favorable au GPU pour ce lot et
 ce profil précis. Il ne constitue pas une revendication de performance globale.
@@ -56,9 +56,9 @@ CPU/CUDA n'est revendiquée.
 
 ## Goulot mesuré
 
-La médiane de la vérification indépendante vaut 6 032 844 700 ns sur le chemin
-CPU, soit 95,692 % de la médiane totale. Les médianes correspondantes sont
-6 002 905 000 ns (95,546 %) pour CUDA et 6 029 770 600 ns (95,551 %) pour
+La médiane de la vérification indépendante vaut 6 025 002 400 ns sur le chemin
+CPU, soit 95,654 % de la médiane totale. Les médianes correspondantes sont
+5 999 156 900 ns (95,686 %) pour CUDA et 6 026 744 400 ns (95,616 %) pour
 auto. Le PRP complet ne représente que 4 700 ns sur CPU et 273 024 ns sur CUDA
 dans ce petit profil après criblage.
 

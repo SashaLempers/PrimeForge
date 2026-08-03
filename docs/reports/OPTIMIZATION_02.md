@@ -37,18 +37,18 @@ supprimée. `NR-0055` conserve le diagnostic et la condition de nouvel essai.
 
 | Backend | Médiane avant | Médiane après | Différence absolue | Amélioration |
 |---|---:|---:|---:|---:|
-| CPU | 897 725 200 ns | 452 597 800 ns | -445 127 400 ns | 49,584 % |
-| CUDA | 887 138 100 ns | 478 568 700 ns | -408 569 400 ns | 46,055 % |
-| auto → CPU | 889 527 900 ns | 446 626 200 ns | -442 901 700 ns | 49,791 % |
+| CPU | 895 259 600 ns | 450 264 400 ns | -444 995 200 ns | 49,706 % |
+| CUDA | 884 712 500 ns | 472 203 200 ns | -412 509 300 ns | 46,626 % |
+| auto → CPU | 887 272 200 ns | 445 388 700 ns | -441 883 500 ns | 49,802 % |
 
-Les MAD après optimisation sont respectivement 5 987 500 ns, 27 416 400 ns et
-4 593 200 ns. La dispersion CUDA est plus élevée, mais même son échantillon le
+Les MAD après optimisation sont respectivement 2 704 000 ns, 14 348 100 ns et
+2 651 600 ns. La dispersion CUDA est plus élevée, mais même son échantillon le
 plus conservateur reste très séparé de la baseline précédente. Le résultat
 logique reste
 `f2286a3ee8de22ad750eb8d6dc1d845c457658fc23340327854ea6f98a683fd6`.
 
-Le gain cumulé par rapport au Commit A est de 92,821 % sur CPU, 92,383 % sur
-CUDA et 92,922 % en routage automatique.
+Le gain cumulé par rapport au Commit A est de 92,851 % sur CPU, 92,468 % sur
+CUDA et 92,934 % en routage automatique.
 
 La vérification FLINT reste le premier poste à environ 207–210 ms. Les autres
 postes importants sont désormais les checkpoints (~93–104 ms), les I/O de

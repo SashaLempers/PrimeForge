@@ -228,6 +228,11 @@ checkpoint boundaries. See
 [`docs/reports/OPTIMIZATION_03.md`](docs/reports/OPTIMIZATION_03.md) and
 [`benchmarks/baselines/optimization-03/`](benchmarks/baselines/optimization-03/).
 
+The fourth retained optimization classifies ordered FLINT survivors in bounded
+single-process batches. See
+[`docs/reports/OPTIMIZATION_04.md`](docs/reports/OPTIMIZATION_04.md) and
+[`benchmarks/baselines/optimization-04/`](benchmarks/baselines/optimization-04/).
+
 Run a focused CPU PRP sample:
 
 ```powershell

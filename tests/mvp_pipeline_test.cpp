@@ -95,6 +95,10 @@ public:
         return request.family_id == "primeforge.proth.uint64.v1";
     }
 
+    [[nodiscard]] std::size_t recommended_parallelism() const noexcept override {
+        return proof_ ? 1U : 4U;
+    }
+
     [[nodiscard]] primeforge::EngineResult run(
         const primeforge::EngineRequest& request) override {
         const auto value = std::stoull(request.canonical_input);
@@ -354,6 +358,7 @@ int main(const int argc, char** argv) {
                   << "native_proth_certificates=" << native_certificates << '\n'
                   << "deterministic_results=YES\n"
                   << "interruption_resume_identical=YES\n"
+                  << "parallel_independent_verification=YES\n"
                   << "manifest_mutation_rejected=YES\n"
                   << "independent_disagreement_rejected=YES\n"
                   << "PrimeForge MVP pipeline tests: PASS\n";

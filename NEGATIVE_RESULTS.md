@@ -507,3 +507,12 @@ Each future entry must include:
 - **Failure criterion:** Windows WHEA must be detected on Windows, while a non-Windows build must remain portable and report that provider as `UNKNOWN` without invoking a Windows command.
 - **Conclusion:** the platform-specific test now asserts detected zero on Windows and untouched `UNKNOWN` on Linux. Production behavior is unchanged.
 - **Retry condition:** push the focused test correction and require both private Linux/GCC and Windows/MSVC jobs to pass.
+
+## NR-0055 - Process launch overlap broke durable result appends
+
+- **Date:** 2026-08-03
+- **Change tested:** eight bounded FLINT verification processes launched while the main pipeline continued proof and durable result writes.
+- **Evidence:** two consecutive benchmark attempts stopped immediately with `cannot append search result`; neither run produced valid benchmark evidence.
+- **Failure criterion:** an optimization may not weaken or intermittently fail the ordered durable ledger.
+- **Conclusion:** the overlap-with-write variant is rejected. The retained candidate executes the same bounded parallel verification wave but joins every process before proof/result serialization begins, preventing inherited-handle/process-launch races with the ledger.
+- **Retry condition:** do not overlap Windows external-process creation with a durable append unless process handle inheritance is restricted explicitly and the complete recovery gate proves the change.

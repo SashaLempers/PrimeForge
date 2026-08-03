@@ -22,6 +22,7 @@
 #include <fstream>
 #include <future>
 #include <memory>
+#include <semaphore>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -341,6 +342,12 @@ struct PreparedPrpBatch {
     std::vector<prp::Base2StrongPrpVerdict> verdicts;
     std::uint64_t packing_ns{};
     std::future<prp::Base2StrongPrpBatchMetrics> completion;
+    std::vector<std::future<EngineResult>> independent_completions;
+    std::vector<EngineResult> independent_results;
+    std::unique_ptr<std::counting_semaphore<>> independent_limiter;
+    Clock::time_point independent_started{};
+    bool independent_submitted{};
+    bool independent_completed{};
 };
 
 [[nodiscard]] std::unique_ptr<PreparedPrpBatch>
@@ -385,6 +392,57 @@ void await_prp_batch(PreparedPrpBatch &batch, SearchSummary &summary) {
     summary.metrics.host_to_device_ns += metrics.host_to_device_ns;
     summary.metrics.kernel_ns += metrics.kernel_ns;
     summary.metrics.device_to_host_ns += metrics.device_to_host_ns;
+}
+
+void submit_independent_batch(PreparedPrpBatch &batch, const SearchConfig &config,
+                              EngineAdapter &independent_engine,
+                              const std::filesystem::path &output_directory) {
+    const auto parallelism = independent_engine.recommended_parallelism();
+    if (parallelism <= 1U || batch.survivor_values.empty()) return;
+    batch.independent_completions.resize(batch.verdicts.size());
+    batch.independent_results.resize(batch.verdicts.size());
+    batch.independent_limiter =
+        std::make_unique<std::counting_semaphore<>>(static_cast<std::ptrdiff_t>(parallelism));
+    batch.independent_started = Clock::now();
+    batch.independent_submitted = true;
+    for (std::size_t survivor = 0U; survivor < batch.verdicts.size(); ++survivor) {
+        if (batch.verdicts[survivor] != prp::Base2StrongPrpVerdict::probable_prime) continue;
+        const auto index = batch.begin + batch.survivor_offsets[survivor];
+        EngineRequest request{"flint-" + std::to_string(index),
+                              "primeforge.proth.uint64.v1",
+                              std::to_string(candidate_at(config, index).value),
+                              output_directory / "external" / "flint"};
+        if (!independent_engine.supports(request)) {
+            throw std::runtime_error(
+                "configured independent engine does not support the MVP family");
+        }
+        auto *const limiter = batch.independent_limiter.get();
+        auto *const engine = &independent_engine;
+        batch.independent_completions[survivor] =
+            std::async(std::launch::async, [limiter, engine, request = std::move(request)]() mutable {
+                limiter->acquire();
+                try {
+                    const ScopedTrace trace{"verification"};
+                    auto result = engine->run(request);
+                    limiter->release();
+                    return result;
+                } catch (...) {
+                    limiter->release();
+                    throw;
+                }
+            });
+    }
+}
+
+void await_independent_batch(PreparedPrpBatch &batch, SearchSummary &summary) {
+    if (!batch.independent_submitted) return;
+    for (std::size_t index = 0U; index < batch.independent_completions.size(); ++index) {
+        auto &completion = batch.independent_completions[index];
+        if (completion.valid()) batch.independent_results[index] = completion.get();
+    }
+    summary.metrics.verification_ns += elapsed_ns(batch.independent_started);
+    batch.independent_submitted = false;
+    batch.independent_completed = true;
 }
 
 [[nodiscard]] std::uint64_t restore_progress(SearchSummary &summary, const Sha256Provider &sha256) {
@@ -605,6 +663,9 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
 
     while (current_batch != nullptr) {
         await_prp_batch(*current_batch, summary);
+        submit_independent_batch(*current_batch, config, independent_engine,
+                                 summary.output_directory);
+        await_independent_batch(*current_batch, summary);
         if (next_batch != nullptr) {
             submit_prp_batch(*next_batch, prp_backend, summary);
         }
@@ -696,7 +757,17 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
                         summary.metrics.proof_ns += elapsed_ns(proof_started);
                     }
 
-                    {
+                    if (current_batch->independent_completed) {
+                        const auto &independent =
+                            current_batch->independent_results[survivor_index - 1U];
+                        if (independent.status.primality != record.status.primality) {
+                            throw std::runtime_error("independent engine disagrees at candidate " +
+                                                     std::to_string(index));
+                        }
+                        record.independent_engine =
+                            collect_evidence(independent_engine, independent, sha256, false);
+                        record.status.verification = VerificationStatus::independently_verified;
+                    } else {
                         const ScopedTrace trace{"verification"};
                         const auto verification_started = Clock::now();
                         const EngineRequest independent_request{

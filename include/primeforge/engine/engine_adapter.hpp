@@ -5,6 +5,7 @@
 #include "primeforge/core/status.hpp"
 
 #include <filesystem>
+#include <cstddef>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -42,6 +43,7 @@ public:
     [[nodiscard]] virtual EngineCapabilities capabilities() const = 0;
     [[nodiscard]] virtual bool supports(const EngineRequest& request) const noexcept = 0;
     [[nodiscard]] virtual EngineResult run(const EngineRequest& request) = 0;
+    [[nodiscard]] virtual std::size_t recommended_parallelism() const noexcept { return 1U; }
 };
 
 } // namespace primeforge

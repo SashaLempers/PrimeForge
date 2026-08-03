@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -89,6 +90,7 @@ public:
     [[nodiscard]] EngineCapabilities capabilities() const override;
     [[nodiscard]] bool supports(const EngineRequest& request) const noexcept override;
     [[nodiscard]] EngineResult run(const EngineRequest& request) override;
+    [[nodiscard]] std::size_t recommended_parallelism() const noexcept override;
 
     [[nodiscard]] bool supports(
         std::string_view family, std::uint64_t bit_length, std::string_view proof_policy) const noexcept;
@@ -104,6 +106,7 @@ private:
     const Sha256Provider* sha256_{};
     bool installation_checked_{};
     ArtifactVerification installation_verification_;
+    std::mutex installation_mutex_;
 };
 
 [[nodiscard]] std::string to_string(ExternalEngineKind kind);

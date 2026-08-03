@@ -437,18 +437,24 @@ ArtifactVerification ExternalEngineAdapter::verify_artifacts(
 }
 
 EngineResult ExternalEngineAdapter::run(const EngineRequest& request) {
-    if (!installation_checked_) {
-        installation_verification_ = verify_installation(config_, *sha256_);
-        installation_checked_ = true;
-    }
-    if (!installation_verification_.valid) {
-        const auto executable_error = std::ranges::any_of(
-            installation_verification_.errors, [](const std::string& error) {
-                return error.starts_with("EXECUTABLE_") || error.starts_with("ARTIFACT_ERROR:");
-            });
-        return parsed(PrimalityStatus::untested,
-                      executable_error ? "EXECUTABLE_PREFLIGHT_FAILED"
-                                       : "RUNTIME_FILE_PREFLIGHT_FAILED");
+    std::string verified_executable_sha256;
+    {
+        const std::scoped_lock lock{installation_mutex_};
+        if (!installation_checked_) {
+            installation_verification_ = verify_installation(config_, *sha256_);
+            installation_checked_ = true;
+        }
+        if (!installation_verification_.valid) {
+            const auto executable_error = std::ranges::any_of(
+                installation_verification_.errors, [](const std::string& error) {
+                    return error.starts_with("EXECUTABLE_") ||
+                           error.starts_with("ARTIFACT_ERROR:");
+                });
+            return parsed(PrimalityStatus::untested,
+                          executable_error ? "EXECUTABLE_PREFLIGHT_FAILED"
+                                           : "RUNTIME_FILE_PREFLIGHT_FAILED");
+        }
+        verified_executable_sha256 = installation_verification_.executable_sha256;
     }
     const auto prepared = prepare(request);
     const auto process = run_process(prepared);
@@ -460,7 +466,7 @@ EngineResult ExternalEngineAdapter::run(const EngineRequest& request) {
         return result;
     }
     auto result = parse(process);
-    result.engine_executable_sha256 = installation_verification_.executable_sha256;
+    result.engine_executable_sha256 = std::move(verified_executable_sha256);
     if (config_.can_produce_proof &&
         result.status.primality == PrimalityStatus::proven_prime) {
         const auto certificate = prepared.working_directory / "certificate.txt";
@@ -470,6 +476,10 @@ EngineResult ExternalEngineAdapter::run(const EngineRequest& request) {
         result.proof_artifact_paths.push_back(certificate);
     }
     return result;
+}
+
+std::size_t ExternalEngineAdapter::recommended_parallelism() const noexcept {
+    return config_.kind == ExternalEngineKind::flint ? 8U : 1U;
 }
 
 std::string ExternalEngineAdapter::report_capabilities() const {

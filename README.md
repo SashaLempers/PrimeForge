@@ -128,6 +128,9 @@ implemented. See `docs/pivot/PERFORMANCE_PROTOCOL.md`.
 - `primeforge-cpu-topology`: Ryzen CPU-set, physical-core and L3-domain placement diagnostic.
 - `primeforge_cuda`: optional local RTX 5080 modular-batch backend with persistent buffers and an internal CUDA stream;
 - `primeforge-cuda-modular-tests`: 101,000-vector CPU/GPU differential and contract gate.
+- `primeforge_pipeline`: bounded multi-backend submission, CPU verification, ordered durable ledger and authenticated resume;
+- `primeforge-modular-pipeline-tests`: portable 1/2/3-buffer, stop/recovery and corruption gate;
+- `primeforge-cuda-pipeline-tests`: real RTX 5080 multi-stream interruption/resume differential gate.
 
 No external numerical, JSON, cryptographic, CUDA or GPU library is linked at this
 milestone. Stage 8 uses a small original arbitrary-precision integer solely for

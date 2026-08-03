@@ -19,7 +19,8 @@ configuration is claimed. PIVOT-04 has validated the optional local CUDA 13.3
 toolchain, exact target device, transfers, deterministic kernel, sanitizer and
 non-redistribution boundary. PIVOT-05 has added the exact bounded modular CUDA
 backend with persistent buffers, a private stream and 101,000 CPU/GPU differential
-vectors. PIVOT-06 is next.
+vectors. PIVOT-06 has added bounded 1/2/3-stream execution, ordered CPU-verified
+durability and exact interruption/resume. PIVOT-07 is next.
 
 ## PIVOT-00 — Audit and reorientation
 
@@ -80,6 +81,12 @@ No timing is retained as a performance claim.
 Add bounded queues, double/triple buffering experiments, transfer/compute overlap,
 back-pressure, cancellation, append-only events and resumable checkpoints. Gate:
 no lost/duplicated work under injected interruption and exact end-to-end outputs.
+
+Gate: `COMPLETE`. Portable and target CUDA tests exercise one, two and three
+in-flight slots. The target run stopped after draining exactly 771 tasks, resumed
+from 771 and matched the uninterrupted 4,097-task ledger byte for byte. Fault,
+checkpoint, task-identity, ledger-mutation and suffix-rollback gates pass. No
+throughput conclusion is drawn from test duration.
 
 ## PIVOT-07 — Global autotuner
 

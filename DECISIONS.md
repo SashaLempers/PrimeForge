@@ -560,3 +560,17 @@ returning. The device uses overflow-safe add/double reduction rather than an
 unproven fast reduction. This is intentionally correctness-first and not a
 performance claim. PIVOT-06 may add asynchronous ownership and faster algorithms
 only while retaining the portable CPU reference and exact differential gate.
+
+## D-0072 - Asynchronous batches commit through one ordered durable frontier
+
+**Status:** Accepted - 2026-08-03
+
+PIVOT-06 uses one backend instance, persistent buffer pair and CUDA stream per
+in-flight slot. Submission may run concurrently, but the pipeline accepts a batch
+only at the next contiguous index, after portable CPU verification. It durably
+appends canonical result records and then atomically advances a SHA-256 checkpoint
+over that exact prefix. Stop requests prevent new submission and drain already
+submitted slots before checkpointed exit. Resume verifies task identity,
+checkpoint hash, ledger hash, every durable residue and index; a suffix written
+after the last checkpoint is truncated and replayed. This ordered frontier is
+chosen over out-of-order durability to make omissions and duplicates fail closed.

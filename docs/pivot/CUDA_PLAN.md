@@ -41,6 +41,13 @@ kernel uses overflow-safe add/double modular multiplication for every nonzero
 vectors agree with both CPU references and pass Compute Sanitizer. This closes
 the bounded arithmetic foundation; it deliberately makes no throughput claim.
 
+PIVOT-06 composes multiple v1 backends without exposing CUDA handles. Each slot
+owns its persistent buffers and nonblocking stream. The portable scheduler bounds
+in-flight work, verifies GPU residues on CPU and commits only a contiguous durable
+prefix. RTX 5080 tests cover one, two and three streams plus stop after three
+submitted batches, authenticated suffix rollback and exact resume. All CUDA
+pipeline runs are repeated under Compute Sanitizer.
+
 Streams, pinned memory, cooperative groups, block dimensions, limb widths and
 resident batch sizes are autotuned only after correctness. CGBN and other sources
 remain audited references unless an individual license/integration decision

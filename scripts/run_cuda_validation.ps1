@@ -93,6 +93,15 @@ try {
     Invoke-Checked -Executable $sanitizer -Arguments @(
         '--tool', 'memcheck', '--error-exitcode', '99', $modularTests
     )
+
+    $pipelineTests = Join-Path $buildDirectory 'primeforge-cuda-pipeline-tests.exe'
+    if (-not (Test-Path -LiteralPath $pipelineTests -PathType Leaf)) {
+        throw "CUDA pipeline test executable was not produced: $pipelineTests"
+    }
+    Invoke-Checked -Executable $pipelineTests
+    Invoke-Checked -Executable $sanitizer -Arguments @(
+        '--tool', 'memcheck', '--error-exitcode', '99', $pipelineTests
+    )
 } finally {
     Pop-Location
 }

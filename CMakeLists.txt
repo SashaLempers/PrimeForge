@@ -150,6 +150,17 @@ target_compile_features(primeforge_runtime PUBLIC cxx_std_23)
 primeforge_enable_strict_warnings(primeforge_runtime)
 target_link_libraries(primeforge_mvp PUBLIC PrimeForge::runtime)
 
+add_library(primeforge_pipeline STATIC src/pipeline/modular_pipeline.cpp)
+add_library(PrimeForge::pipeline ALIAS primeforge_pipeline)
+target_include_directories(primeforge_pipeline
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(primeforge_pipeline PUBLIC PrimeForge::runtime PrimeForge::core)
+target_compile_features(primeforge_pipeline PUBLIC cxx_std_23)
+primeforge_enable_strict_warnings(primeforge_pipeline)
+
 if(WIN32)
     target_compile_definitions(primeforge_core PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
     target_link_libraries(primeforge_core PRIVATE user32)
@@ -181,6 +192,11 @@ add_executable(primeforge-tests tests/test_main.cpp)
 target_link_libraries(primeforge-tests PRIVATE PrimeForge::core)
 target_compile_features(primeforge-tests PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge-tests)
+
+add_executable(primeforge-modular-pipeline-tests tests/modular_pipeline_test.cpp)
+target_link_libraries(primeforge-modular-pipeline-tests PRIVATE PrimeForge::pipeline)
+target_compile_features(primeforge-modular-pipeline-tests PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-modular-pipeline-tests)
 
 add_executable(primeforge-corpus-tests tests/corpus_test.cpp)
 target_compile_features(primeforge-corpus-tests PRIVATE cxx_std_23)
@@ -382,10 +398,19 @@ if(PRIMEFORGE_ENABLE_CUDA)
     )
     target_compile_features(primeforge-cuda-modular-tests PRIVATE cxx_std_23)
     primeforge_enable_strict_warnings(primeforge-cuda-modular-tests)
+
+    add_executable(primeforge-cuda-pipeline-tests tests/cuda_pipeline_test.cpp)
+    target_link_libraries(
+        primeforge-cuda-pipeline-tests
+        PRIVATE PrimeForge::cuda PrimeForge::pipeline PrimeForge::core
+    )
+    target_compile_features(primeforge-cuda-pipeline-tests PRIVATE cxx_std_23)
+    primeforge_enable_strict_warnings(primeforge-cuda-pipeline-tests)
 endif()
 
 if(BUILD_TESTING)
     add_test(NAME primeforge.unit COMMAND primeforge-tests)
+    add_test(NAME primeforge.modular_pipeline COMMAND primeforge-modular-pipeline-tests)
     add_test(NAME primeforge.selftest COMMAND primeforge-selftest)
     add_test(NAME primeforge.mvp_planning COMMAND primeforge-mvp-tests)
     add_test(
@@ -446,6 +471,7 @@ if(BUILD_TESTING)
     if(PRIMEFORGE_ENABLE_CUDA)
         add_test(NAME primeforge.cuda_validation COMMAND primeforge-cuda-validation)
         add_test(NAME primeforge.cuda_modular_batch COMMAND primeforge-cuda-modular-tests)
+        add_test(NAME primeforge.cuda_pipeline COMMAND primeforge-cuda-pipeline-tests)
     endif()
     add_test(
         NAME primeforge.watchdog_process

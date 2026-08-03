@@ -47,10 +47,17 @@ transfer bytes, kernel ids, checkpoint ids and telemetry assessments. Utilizatio
 is diagnostic: 100% CPU or GPU usage is neither required nor evidence of optimal
 end-to-end performance.
 
-## Implemented substrate
+## Implemented pipeline
 
-PIVOT-05 implements the first bounded GPU arithmetic adapter, persistent device
-buffers and one internal stream. Its public call remains synchronous, so it cannot
-lose or duplicate an in-flight item. PIVOT-06 will build the sequence-id, bounded
-queue, cancellation and checkpoint state machine around this proven primitive;
-the synchronous operation remains the reference fallback.
+PIVOT-05 implements the bounded arithmetic adapter and PIVOT-06 composes one
+adapter/stream per slot. One, two and three slots have exact portable and RTX 5080
+tests. Submission is concurrent and bounded by the slot count; completion is
+committed at one ordered frontier only after CPU verification. Canonical JSONL
+results are appended durably before an atomic checkpoint authenticates their byte
+length, SHA-256 and task-set identity.
+
+A cooperative stop disables new submissions and drains already submitted slots.
+Resume verifies the complete checkpointed prefix and rolls back only a later
+unauthenticated suffix. Divergence, backend error, task mutation, checkpoint
+mutation and ledger mutation all fail closed. The portable synchronous adapter
+and one-slot pipeline remain reference fallbacks.

@@ -46,16 +46,25 @@ int main() {
             primeforge::cuda_backend::make_auto_cuda_base2_strong_prp_batch_backend(
                 vector_count, 512U);
         std::vector<primeforge::prp::Base2StrongPrpVerdict> automatic_observed(values.size());
-        automatic->test(std::span<const std::uint64_t>{values}.first(256U),
-                        std::span<primeforge::prp::Base2StrongPrpVerdict>{automatic_observed}
-                            .first(256U));
+        const auto automatic_cpu_metrics = automatic->test(
+            std::span<const std::uint64_t>{values}.first(256U),
+            std::span<primeforge::prp::Base2StrongPrpVerdict>{automatic_observed}.first(256U));
         const auto cuda_start = std::chrono::steady_clock::now();
-        cuda->test(values, observed);
+        const auto cuda_metrics = cuda->test(values, observed);
         const auto cuda_end = std::chrono::steady_clock::now();
         const auto cpu_batch_start = std::chrono::steady_clock::now();
-        cpu->test(values, cpu_observed);
+        const auto cpu_metrics = cpu->test(values, cpu_observed);
         const auto cpu_batch_end = std::chrono::steady_clock::now();
-        automatic->test(values, automatic_observed);
+        const auto automatic_cuda_metrics = automatic->test(values, automatic_observed);
+        check(!automatic_cpu_metrics.used_accelerator && automatic_cpu_metrics.cpu_ns > 0U,
+              "automatic backend reports its CPU route");
+        check(cuda_metrics.used_accelerator && cuda_metrics.total_ns > 0U &&
+                  cuda_metrics.kernel_ns > 0U && cuda_metrics.cpu_ns == 0U,
+              "CUDA backend reports measured accelerator phases");
+        check(!cpu_metrics.used_accelerator && cpu_metrics.cpu_ns == cpu_metrics.total_ns,
+              "CPU backend reports measured CPU time");
+        check(automatic_cuda_metrics.used_accelerator,
+              "automatic backend reports its CUDA route");
         std::size_t probable_count = 0U;
         const auto cpu_start = std::chrono::steady_clock::now();
         for (std::size_t index = 0U; index < values.size(); ++index) {
@@ -95,10 +104,10 @@ int main() {
             const auto cpu_output =
                 std::span<primeforge::prp::Base2StrongPrpVerdict>{cpu_observed}.first(count);
             const auto gpu_begin = std::chrono::steady_clock::now();
-            cuda->test(input, cuda_output);
+            static_cast<void>(cuda->test(input, cuda_output));
             const auto gpu_end = std::chrono::steady_clock::now();
             const auto host_begin = std::chrono::steady_clock::now();
-            cpu->test(input, cpu_output);
+            static_cast<void>(cpu->test(input, cpu_output));
             const auto host_end = std::chrono::steady_clock::now();
             const auto gpu_us = std::chrono::duration_cast<std::chrono::microseconds>(
                                     gpu_end - gpu_begin)

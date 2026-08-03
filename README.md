@@ -134,6 +134,8 @@ implemented. See `docs/pivot/PERFORMANCE_PROTOCOL.md`.
 - `primeforge-corpus-tests`: versioned correctness corpus, oracle-evidence, and exhaustive-reference regression.
 - `primeforge-benchmark`: pre-engine measurement harness with raw CSV/JSON and conservative statistics;
 - `primeforge-benchmark-tests`: protocol, scheduling, compatibility, and throttling-invalidation tests.
+- `primeforge-bench`: product-path PRP benchmark with versioned profiles, integer stage metrics,
+  stable CSV/JSONL output, and exact verdict hashes;
 - `primeforge-sieve`: deterministic half-open interval prime generation/count CLI;
 - `primeforge-sieve-tests`: exhaustive option-matrix, corpus, and 128-bit differential tests.
 - `primeforge-work-units`: deterministic partition and coverage-report CLI;
@@ -198,6 +200,37 @@ Complete clean verification from any PowerShell prompt:
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/run_all.ps1 -Clean
 ```
+
+## Product baseline benchmark
+
+The frozen 64-bit reference is tag `baseline-u64-b0a3b96`. The measured product
+path reports generation, congruence compilation, sieve, packing, H2D, CUDA
+kernel, D2H, CPU PRP, proof, independent verification, result I/O, checkpoint,
+and total time as integer nanoseconds. Raw rows follow
+`benchmarks/schemas/raw-v1.md`.
+
+Run a focused CPU PRP sample:
+
+```powershell
+& .\out\build\msvc-release\primeforge-bench.exe run `
+  --profile benchmarks\profiles\s64_prp_65536.json `
+  --backend cpu `
+  --output out\benchmarks\manual-cpu `
+  --warmup 3 `
+  --repetitions 7
+```
+
+Run the complete short CPU/CUDA/automatic baseline and generate summaries and
+PNG/SVG reports without installing Python:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File scripts\run_commit_a_baseline.ps1
+```
+
+The 256–4096-bit profiles are deliberately marked `implemented=false` until
+the multiprecision commits provide real backends. `primeforge-bench` fails
+closed if one of those profiles is requested today.
 
 Optional target-machine CUDA 13.3 validation (not part of the product package):
 

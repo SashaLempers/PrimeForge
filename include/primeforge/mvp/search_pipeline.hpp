@@ -46,6 +46,23 @@ struct SearchRecord {
     std::optional<EngineEvidence> independent_engine;
 };
 
+struct SearchStageMetrics {
+    std::uint32_t schema_version{1U};
+    std::uint64_t generation_ns{};
+    std::uint64_t congruence_ns{};
+    std::uint64_t sieve_ns{};
+    std::uint64_t packing_ns{};
+    std::uint64_t host_to_device_ns{};
+    std::uint64_t kernel_ns{};
+    std::uint64_t device_to_host_ns{};
+    std::uint64_t prp_cpu_ns{};
+    std::uint64_t proof_ns{};
+    std::uint64_t verification_ns{};
+    std::uint64_t io_ns{};
+    std::uint64_t checkpoint_ns{};
+    std::uint64_t total_ns{};
+};
+
 struct SearchSummary {
     CampaignPlan plan;
     std::string compiled_table_sha256;
@@ -65,6 +82,7 @@ struct SearchSummary {
     std::filesystem::path coverage_report_path;
     std::filesystem::path manifest_path;
     bool completed{};
+    SearchStageMetrics metrics;
     std::vector<SearchRecord> records;
 };
 

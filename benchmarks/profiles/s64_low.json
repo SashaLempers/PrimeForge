@@ -1,0 +1,1 @@
+{"bit_width":64,"candidate_count":"10000000","family":"interval","implemented":false,"input_kind":"sieve_interval","profile_id":"S64_LOW","schema":"primeforge.benchmark.profile.v1","seed":"20260804"}

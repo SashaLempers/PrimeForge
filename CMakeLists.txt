@@ -9,6 +9,19 @@ project(
     LANGUAGES CXX
 )
 
+execute_process(
+    COMMAND git rev-parse HEAD
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    OUTPUT_VARIABLE PRIMEFORGE_BUILD_COMMIT
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+string(LENGTH "${PRIMEFORGE_BUILD_COMMIT}" PRIMEFORGE_BUILD_COMMIT_LENGTH)
+if(NOT PRIMEFORGE_BUILD_COMMIT_LENGTH EQUAL 40 OR
+   NOT PRIMEFORGE_BUILD_COMMIT MATCHES "^[0-9a-f]+$")
+    set(PRIMEFORGE_BUILD_COMMIT "UNKNOWN")
+endif()
+
 include(CTest)
 
 option(PRIMEFORGE_ENABLE_CUDA "Build the local CUDA validation target" OFF)
@@ -219,6 +232,14 @@ target_link_libraries(primeforge-benchmark PRIVATE PrimeForge::benchmark)
 target_compile_features(primeforge-benchmark PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge-benchmark)
 
+add_executable(primeforge-bench src/benchmark/pipeline_main.cpp)
+target_link_libraries(primeforge-bench PRIVATE PrimeForge::core PrimeForge::prp)
+target_compile_features(primeforge-bench PRIVATE cxx_std_23)
+target_compile_definitions(
+    primeforge-bench PRIVATE PRIMEFORGE_BUILD_COMMIT="${PRIMEFORGE_BUILD_COMMIT}"
+)
+primeforge_enable_strict_warnings(primeforge-bench)
+
 add_executable(primeforge-benchmark-tests tests/benchmark_test.cpp)
 target_link_libraries(primeforge-benchmark-tests PRIVATE PrimeForge::benchmark)
 target_compile_features(primeforge-benchmark-tests PRIVATE cxx_std_23)
@@ -423,6 +444,15 @@ if(PRIMEFORGE_ENABLE_CUDA)
 
     target_link_libraries(primeforge PRIVATE PrimeForge::cuda)
     target_compile_definitions(primeforge PRIVATE PRIMEFORGE_HAS_CUDA_PRP=1)
+    target_link_libraries(primeforge_mvp PRIVATE CUDA::nvtx3)
+    target_compile_definitions(primeforge_mvp PRIVATE PRIMEFORGE_ENABLE_NVTX=1)
+    target_link_libraries(primeforge-bench PRIVATE PrimeForge::cuda)
+    target_compile_definitions(
+        primeforge-bench
+        PRIVATE
+            PRIMEFORGE_HAS_CUDA_PRP=1
+            PRIMEFORGE_CUDA_VERSION="${CUDAToolkit_VERSION}"
+    )
 
     add_executable(primeforge-cuda-modular-tests tests/cuda_modular_batch_test.cpp)
     target_link_libraries(
@@ -599,6 +629,27 @@ if(BUILD_TESTING)
             --environment-metadata-file NOT_APPLICABLE
             --repetitions 7
             --seed 20260802
+    )
+    add_test(
+        NAME primeforge.product_benchmark_smoke
+        COMMAND primeforge-bench run
+            --profile ${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/profiles/s64_prp_65536.json
+            --backend cpu
+            --output ${CMAKE_CURRENT_BINARY_DIR}/product-benchmark-smoke
+            --warmup 1
+            --repetitions 7
+    )
+    add_test(
+        NAME primeforge.product_benchmark_multiprecision_deferred
+        COMMAND primeforge-bench run
+            --profile ${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/profiles/proth_256_n65536.json
+            --backend cpu
+            --output ${CMAKE_CURRENT_BINARY_DIR}/product-benchmark-mp-negative
+            --warmup 0
+            --repetitions 1
+    )
+    set_tests_properties(
+        primeforge.product_benchmark_multiprecision_deferred PROPERTIES WILL_FAIL TRUE
     )
 
     add_test(

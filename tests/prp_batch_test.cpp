@@ -28,7 +28,11 @@ template <typename Function> void expect_failure(Function &&function, const std:
 void verify_exact(primeforge::prp::Base2StrongPrpBatchBackend &backend,
                   const std::vector<std::uint64_t> &values) {
     std::vector<primeforge::prp::Base2StrongPrpVerdict> verdicts(values.size());
-    backend.test(values, verdicts);
+    const auto metrics = backend.test(values, verdicts);
+    check(metrics.total_ns > 0U && metrics.cpu_ns == metrics.total_ns &&
+              metrics.host_to_device_ns == 0U && metrics.kernel_ns == 0U &&
+              metrics.device_to_host_ns == 0U && !metrics.used_accelerator,
+          "CPU backend reports an exact CPU-only timing classification");
     for (std::size_t index = 0U; index < values.size(); ++index) {
         const bool observed =
             verdicts[index] == primeforge::prp::Base2StrongPrpVerdict::probable_prime;
@@ -59,7 +63,7 @@ int main() {
         verify_exact(*cpu, values);
 
         std::vector<primeforge::prp::Base2StrongPrpVerdict> wrong_size(1U);
-        expect_failure([&] { cpu->test(values, wrong_size); },
+        expect_failure([&] { static_cast<void>(cpu->test(values, wrong_size)); },
                        "CPU backend rejects mismatched output size");
         expect_failure(
             [] { static_cast<void>(primeforge::prp::make_cpu_base2_strong_prp_batch_backend(0U)); },

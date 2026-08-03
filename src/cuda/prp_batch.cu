@@ -5,6 +5,7 @@
 #include <cuda_runtime_api.h>
 
 #include <cstddef>
+#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <stdexcept>
@@ -21,6 +22,12 @@ void require_cuda(const cudaError_t status, const char *const operation) {
     if (status != cudaSuccess) {
         throw std::runtime_error(std::string{operation} + ": " + cudaGetErrorString(status));
     }
+}
+
+[[nodiscard]] std::uint64_t elapsed_ns(cudaEvent_t begin, cudaEvent_t end) {
+    float milliseconds = 0.0F;
+    require_cuda(cudaEventElapsedTime(&milliseconds, begin, end), "cudaEventElapsedTime PRP");
+    return static_cast<std::uint64_t>(milliseconds * 1'000'000.0F);
 }
 
 [[nodiscard]] __device__ std::uint64_t add_mod(const std::uint64_t left, const std::uint64_t right,
@@ -156,6 +163,10 @@ public:
             }
             require_cuda(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking),
                          "cudaStreamCreateWithFlags");
+            require_cuda(cudaEventCreate(&start_event_), "cudaEventCreate PRP start");
+            require_cuda(cudaEventCreate(&h2d_event_), "cudaEventCreate PRP H2D");
+            require_cuda(cudaEventCreate(&kernel_event_), "cudaEventCreate PRP kernel");
+            require_cuda(cudaEventCreate(&d2h_event_), "cudaEventCreate PRP D2H");
             require_cuda(cudaMalloc(reinterpret_cast<void **>(&device_values_),
                                     capacity_ * sizeof(std::uint64_t)),
                          "cudaMalloc PRP values");
@@ -177,33 +188,63 @@ public:
     }
     [[nodiscard]] std::size_t capacity() const noexcept override { return capacity_; }
 
-    void test(const std::span<const std::uint64_t> values,
-              const std::span<prp::Base2StrongPrpVerdict> verdicts) override {
+    [[nodiscard]] prp::Base2StrongPrpBatchMetrics test(
+        const std::span<const std::uint64_t> values,
+        const std::span<prp::Base2StrongPrpVerdict> verdicts) override {
         if (values.size() != verdicts.size()) {
             throw std::invalid_argument("CUDA PRP input/output sizes differ");
         }
         if (values.size() > capacity_) {
             throw std::length_error("CUDA PRP batch exceeds backend capacity");
         }
-        if (values.empty()) return;
+        if (values.empty()) return {};
 
+        const auto started = std::chrono::steady_clock::now();
         require_cuda(cudaSetDevice(device_index_), "cudaSetDevice PRP execute");
+        require_cuda(cudaEventRecord(start_event_, stream_), "cudaEventRecord PRP start");
         require_cuda(cudaMemcpyAsync(device_values_, values.data(), values.size_bytes(),
                                      cudaMemcpyHostToDevice, stream_),
                      "cudaMemcpyAsync PRP values host-to-device");
+        require_cuda(cudaEventRecord(h2d_event_, stream_), "cudaEventRecord PRP H2D");
         const auto blocks =
             static_cast<unsigned int>((values.size() + threads_per_block - 1U) / threads_per_block);
         base2_strong_prp_kernel<<<blocks, threads_per_block, 0U, stream_>>>(
             device_values_, device_verdicts_, values.size());
         require_cuda(cudaGetLastError(), "base2_strong_prp_kernel launch");
+        require_cuda(cudaEventRecord(kernel_event_, stream_), "cudaEventRecord PRP kernel");
         require_cuda(cudaMemcpyAsync(verdicts.data(), device_verdicts_, verdicts.size_bytes(),
                                      cudaMemcpyDeviceToHost, stream_),
                      "cudaMemcpyAsync PRP verdicts device-to-host");
-        require_cuda(cudaStreamSynchronize(stream_), "cudaStreamSynchronize PRP");
+        require_cuda(cudaEventRecord(d2h_event_, stream_), "cudaEventRecord PRP D2H");
+        require_cuda(cudaEventSynchronize(d2h_event_), "cudaEventSynchronize PRP D2H");
+        const auto total = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now() - started);
+        return {static_cast<std::uint64_t>(total.count()),
+                0U,
+                elapsed_ns(start_event_, h2d_event_),
+                elapsed_ns(h2d_event_, kernel_event_),
+                elapsed_ns(kernel_event_, d2h_event_),
+                true};
     }
 
 private:
     void release() noexcept {
+        if (d2h_event_ != nullptr) {
+            static_cast<void>(cudaEventDestroy(d2h_event_));
+            d2h_event_ = nullptr;
+        }
+        if (kernel_event_ != nullptr) {
+            static_cast<void>(cudaEventDestroy(kernel_event_));
+            kernel_event_ = nullptr;
+        }
+        if (h2d_event_ != nullptr) {
+            static_cast<void>(cudaEventDestroy(h2d_event_));
+            h2d_event_ = nullptr;
+        }
+        if (start_event_ != nullptr) {
+            static_cast<void>(cudaEventDestroy(start_event_));
+            start_event_ = nullptr;
+        }
         if (device_verdicts_ != nullptr) {
             static_cast<void>(cudaFree(device_verdicts_));
             device_verdicts_ = nullptr;
@@ -221,6 +262,10 @@ private:
     std::size_t capacity_{};
     int device_index_{};
     cudaStream_t stream_{};
+    cudaEvent_t start_event_{};
+    cudaEvent_t h2d_event_{};
+    cudaEvent_t kernel_event_{};
+    cudaEvent_t d2h_event_{};
     std::uint64_t *device_values_{};
     prp::Base2StrongPrpVerdict *device_verdicts_{};
 };
@@ -245,8 +290,9 @@ public:
     [[nodiscard]] std::string_view id() const noexcept override { return id_; }
     [[nodiscard]] std::size_t capacity() const noexcept override { return capacity_; }
 
-    void test(const std::span<const std::uint64_t> values,
-              const std::span<prp::Base2StrongPrpVerdict> verdicts) override {
+    [[nodiscard]] prp::Base2StrongPrpBatchMetrics test(
+        const std::span<const std::uint64_t> values,
+        const std::span<prp::Base2StrongPrpVerdict> verdicts) override {
         if (values.size() != verdicts.size()) {
             throw std::invalid_argument("automatic CUDA PRP input/output sizes differ");
         }
@@ -254,14 +300,13 @@ public:
             throw std::length_error("automatic CUDA PRP batch exceeds backend capacity");
         }
         if (values.size() < accelerator_minimum_values_) {
-            fallback_->test(values, verdicts);
-            return;
+            return fallback_->test(values, verdicts);
         }
         if (accelerator_ == nullptr) {
             accelerator_ =
                 std::make_unique<CudaBase2StrongPrpBatchBackend>(capacity_, device_index_);
         }
-        accelerator_->test(values, verdicts);
+        return accelerator_->test(values, verdicts);
     }
 
 private:

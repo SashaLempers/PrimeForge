@@ -15,6 +15,15 @@ enum class Base2StrongPrpVerdict : std::uint8_t {
     probable_prime = 1U,
 };
 
+struct Base2StrongPrpBatchMetrics {
+    std::uint64_t total_ns{};
+    std::uint64_t cpu_ns{};
+    std::uint64_t host_to_device_ns{};
+    std::uint64_t kernel_ns{};
+    std::uint64_t device_to_host_ns{};
+    bool used_accelerator{};
+};
+
 class Base2StrongPrpBatchBackend {
 public:
     virtual ~Base2StrongPrpBatchBackend() = default;
@@ -22,8 +31,9 @@ public:
     [[nodiscard]] virtual std::string_view id() const noexcept = 0;
     [[nodiscard]] virtual std::size_t capacity() const noexcept = 0;
 
-    virtual void test(std::span<const std::uint64_t> values,
-                      std::span<Base2StrongPrpVerdict> verdicts) = 0;
+    [[nodiscard]] virtual Base2StrongPrpBatchMetrics test(
+        std::span<const std::uint64_t> values,
+        std::span<Base2StrongPrpVerdict> verdicts) = 0;
 };
 
 [[nodiscard]] std::unique_ptr<Base2StrongPrpBatchBackend>

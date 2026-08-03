@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
+#if defined(_WIN32) && !defined(NOMINMAX)
+#define NOMINMAX
+#endif
+
 #include "primeforge/mvp/search_pipeline.hpp"
 
 #include "primeforge/congruence/compiler.hpp"
@@ -11,6 +15,7 @@
 
 #include <algorithm>
 #include <charconv>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -22,7 +27,12 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
+
+#if defined(PRIMEFORGE_ENABLE_NVTX)
+#include <nvtx3/nvToolsExt.h>
+#endif
 
 #if defined(_WIN32)
 #include <io.h>
@@ -32,6 +42,45 @@
 
 namespace primeforge::mvp {
 namespace {
+
+using Clock = std::chrono::steady_clock;
+
+class ScopedTrace {
+public:
+    explicit ScopedTrace(const char *name) noexcept {
+#if defined(PRIMEFORGE_ENABLE_NVTX)
+        nvtxRangePushA(name);
+#else
+        static_cast<void>(name);
+#endif
+    }
+    ~ScopedTrace() {
+#if defined(PRIMEFORGE_ENABLE_NVTX)
+        nvtxRangePop();
+#endif
+    }
+    ScopedTrace(const ScopedTrace &) = delete;
+    ScopedTrace &operator=(const ScopedTrace &) = delete;
+};
+
+[[nodiscard]] std::uint64_t elapsed_ns(const Clock::time_point started) noexcept {
+    return static_cast<std::uint64_t>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now() - started).count());
+}
+
+template <typename Callable>
+[[nodiscard]] auto timed_value(Callable &&callable) {
+    const auto started = Clock::now();
+    auto value = std::forward<Callable>(callable)();
+    return std::pair{elapsed_ns(started), std::move(value)};
+}
+
+template <typename Callable>
+[[nodiscard]] std::uint64_t timed_action(Callable &&callable) {
+    const auto started = Clock::now();
+    std::forward<Callable>(callable)();
+    return elapsed_ns(started);
+}
 
 [[nodiscard]] std::string quote_json(const std::string_view value) {
     std::string result{"\""};
@@ -290,12 +339,15 @@ struct PreparedPrpBatch {
     std::vector<std::uint64_t> survivor_values;
     std::vector<std::uint64_t> survivor_offsets;
     std::vector<prp::Base2StrongPrpVerdict> verdicts;
-    std::future<void> completion;
+    std::uint64_t packing_ns{};
+    std::future<prp::Base2StrongPrpBatchMetrics> completion;
 };
 
 [[nodiscard]] std::unique_ptr<PreparedPrpBatch>
 prepare_prp_batch(const SearchConfig &config, const family_sieve::Result &sieve_result,
                   const std::uint64_t begin, const std::uint64_t batch_candidates) {
+    const auto packing_started = Clock::now();
+    const ScopedTrace trace{"candidate_pack"};
     auto batch = std::make_unique<PreparedPrpBatch>();
     batch->begin = begin;
     const auto total = candidate_count(config);
@@ -309,6 +361,7 @@ prepare_prp_batch(const SearchConfig &config, const family_sieve::Result &sieve_
         }
     }
     batch->verdicts.resize(batch->survivor_values.size());
+    batch->packing_ns = elapsed_ns(packing_started);
     return batch;
 }
 
@@ -320,12 +373,18 @@ void submit_prp_batch(PreparedPrpBatch &batch, prp::Base2StrongPrpBatchBackend &
     auto *const verdicts = &batch.verdicts;
     auto *const selected_backend = &backend;
     batch.completion = std::async(std::launch::async, [values, verdicts, selected_backend] {
-        selected_backend->test(*values, *verdicts);
+        const ScopedTrace trace{"prp_batch"};
+        return selected_backend->test(*values, *verdicts);
     });
 }
 
-void await_prp_batch(PreparedPrpBatch &batch) {
-    if (batch.completion.valid()) batch.completion.get();
+void await_prp_batch(PreparedPrpBatch &batch, SearchSummary &summary) {
+    if (!batch.completion.valid()) return;
+    const auto metrics = batch.completion.get();
+    summary.metrics.prp_cpu_ns += metrics.cpu_ns;
+    summary.metrics.host_to_device_ns += metrics.host_to_device_ns;
+    summary.metrics.kernel_ns += metrics.kernel_ns;
+    summary.metrics.device_to_host_ns += metrics.device_to_host_ns;
 }
 
 [[nodiscard]] std::uint64_t restore_progress(SearchSummary &summary, const Sha256Provider &sha256) {
@@ -407,6 +466,7 @@ void finalize_campaign(SearchSummary &summary, const Sha256Provider &sha256) {
 SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &sha256,
                              EngineAdapter &proof_engine, EngineAdapter &independent_engine,
                              const SearchExecutionOptions &execution_options) {
+    const auto total_started = Clock::now();
     if (execution_options.prp_batch_candidates == 0U) {
         throw std::invalid_argument("PRP batch candidate count must be nonzero");
     }
@@ -423,7 +483,12 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
         std::min(execution_options.prp_batch_candidates, prp_backend.capacity()));
     SearchSummary summary;
     summary.prp_backend_id = std::string{prp_backend.id()};
-    summary.plan = build_campaign_plan(config, sha256);
+    {
+        const ScopedTrace trace{"candidate_generation"};
+        auto [duration, plan] = timed_value([&] { return build_campaign_plan(config, sha256); });
+        summary.metrics.generation_ns += duration;
+        summary.plan = std::move(plan);
+    }
     summary.output_directory = std::filesystem::absolute(config.output_directory);
     summary.results_path = summary.output_directory / "results.jsonl";
     summary.checkpoint_path = summary.output_directory / "campaign.checkpoint.json";
@@ -438,26 +503,49 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
         if (canonical_search_config(recovery_config) != canonical_search_config(config)) {
             throw std::runtime_error("recovery configuration does not match requested campaign");
         }
-        first_index = restore_progress(summary, sha256);
+        {
+            const ScopedTrace trace{"checkpoint"};
+            const auto [duration, restored] =
+                timed_value([&] { return restore_progress(summary, sha256); });
+            summary.metrics.checkpoint_ns += duration;
+            first_index = restored;
+        }
     } else {
         if (std::filesystem::exists(summary.output_directory)) {
             throw std::invalid_argument("campaign output directory already exists; use resume");
         }
         std::filesystem::create_directories(summary.output_directory);
-        write_atomic(summary.output_directory / "search.yaml", render_search_config_yaml(config));
         {
-            std::ofstream empty_results{summary.results_path, std::ios::binary | std::ios::trunc};
-            if (!empty_results) {
-                throw std::runtime_error("cannot create empty results ledger");
-            }
+            const ScopedTrace trace{"result_io"};
+            summary.metrics.io_ns += timed_action([&] {
+                write_atomic(summary.output_directory / "search.yaml",
+                             render_search_config_yaml(config));
+                std::ofstream empty_results{summary.results_path,
+                                            std::ios::binary | std::ios::trunc};
+                if (!empty_results) {
+                    throw std::runtime_error("cannot create empty results ledger");
+                }
+            });
         }
-        save_progress(summary, 0U, sha256);
+        {
+            const ScopedTrace trace{"checkpoint"};
+            summary.metrics.checkpoint_ns +=
+                timed_action([&] { save_progress(summary, 0U, sha256); });
+        }
     }
 
-    const auto primes =
-        sieve::generate_primes_reference(2U, config.sieve_maximum_prime + 1U).primes;
-    const auto table =
-        congruence::compile_congruences(make_affine_family(config), primes, {}, sha256);
+    congruence::CompiledTable table;
+    {
+        const ScopedTrace trace{"congruence_compile"};
+        auto [duration, compiled] = timed_value([&] {
+            const auto primes =
+                sieve::generate_primes_reference(2U, config.sieve_maximum_prime + 1U).primes;
+            return congruence::compile_congruences(
+                make_affine_family(config), primes, {}, sha256);
+        });
+        summary.metrics.congruence_ns += duration;
+        table = std::move(compiled);
+    }
     summary.compiled_table_sha256 = table.table_sha256;
 
     family_sieve::Options options;
@@ -472,7 +560,14 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
     summary.sieve_threads = options.threads;
     options.thread_placement = family_sieve::ThreadPlacement::scheduler_managed;
     options.retain_factor_witnesses = true;
-    const auto sieve_result = family_sieve::run(table, sha256, options);
+    family_sieve::Result sieve_result;
+    {
+        const ScopedTrace trace{"sieve"};
+        auto [duration, result] =
+            timed_value([&] { return family_sieve::run(table, sha256, options); });
+        summary.metrics.sieve_ns += duration;
+        sieve_result = std::move(result);
+    }
     summary.sieve_result_sha256 = family_sieve::result_sha256(sieve_result, sha256);
     if (sieve_result.factor_witnesses.size() != summary.plan.candidate_count) {
         throw std::logic_error("sieve did not retain the complete factor-witness vector");
@@ -490,19 +585,26 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
     };
     if (stop_now() || (execution_options.clean_stop_after_candidates.has_value() &&
                        first_index >= *execution_options.clean_stop_after_candidates)) {
-        save_progress(summary, first_index, sha256);
+        {
+            const ScopedTrace trace{"checkpoint"};
+            summary.metrics.checkpoint_ns +=
+                timed_action([&] { save_progress(summary, first_index, sha256); });
+        }
+        summary.metrics.total_ns = elapsed_ns(total_started);
         return summary;
     }
     auto current_batch =
         prepare_prp_batch(config, sieve_result, first_index, bounded_batch_candidates);
+    summary.metrics.packing_ns += current_batch->packing_ns;
     submit_prp_batch(*current_batch, prp_backend, summary);
     auto next_batch =
         current_batch->end < summary.plan.candidate_count
             ? prepare_prp_batch(config, sieve_result, current_batch->end, bounded_batch_candidates)
             : nullptr;
+    if (next_batch != nullptr) summary.metrics.packing_ns += next_batch->packing_ns;
 
     while (current_batch != nullptr) {
-        await_prp_batch(*current_batch);
+        await_prp_batch(*current_batch, summary);
         if (next_batch != nullptr) {
             submit_prp_batch(*next_batch, prp_backend, summary);
         }
@@ -546,64 +648,74 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
                     record.prp_status = "PASSED";
                     const auto decimal = std::to_string(record.candidate.value);
                     constexpr std::uint64_t native_witness_limit = 65'535U;
-                    const auto native = proth::try_prove_u64(
-                        record.candidate.k, static_cast<std::uint32_t>(record.candidate.n),
-                        native_witness_limit);
                     bool prime = false;
-                    if (native.certificate.has_value()) {
-                        const auto certificate_bytes =
-                            proth::canonical_certificate(*native.certificate);
-                        const auto certificate_path = summary.output_directory / "proofs" /
-                                                      "proth" /
-                                                      ("proth-" + std::to_string(index) + ".json");
-                        std::filesystem::create_directories(certificate_path.parent_path());
-                        write_atomic(certificate_path, certificate_bytes);
-                        record.native_proth_certificate =
-                            NativeProofEvidence{proth::certificate_format, certificate_path,
-                                                hash_file(certificate_path, sha256)};
-                        record.status.primality = PrimalityStatus::proven_prime;
-                        record.status.verification = VerificationStatus::self_verified;
-                        record.classification_method = "PROTH_CERTIFICATE_VALIDATED";
-                        prime = true;
-                    } else {
-                        const EngineRequest primary_request{
-                            "pari-" + std::to_string(index), "primeforge.proth.uint64.v1", decimal,
-                            summary.output_directory / "external" / "pari"};
-                        if (!proof_engine.supports(primary_request)) {
-                            throw std::runtime_error(
-                                "configured proof engine does not support the MVP family");
+                    {
+                        const ScopedTrace trace{"proof"};
+                        const auto proof_started = Clock::now();
+                        const auto native = proth::try_prove_u64(
+                            record.candidate.k, static_cast<std::uint32_t>(record.candidate.n),
+                            native_witness_limit);
+                        if (native.certificate.has_value()) {
+                            const auto certificate_bytes =
+                                proth::canonical_certificate(*native.certificate);
+                            const auto certificate_path = summary.output_directory / "proofs" /
+                                                          "proth" /
+                                                          ("proth-" + std::to_string(index) + ".json");
+                            std::filesystem::create_directories(certificate_path.parent_path());
+                            write_atomic(certificate_path, certificate_bytes);
+                            record.native_proth_certificate =
+                                NativeProofEvidence{proth::certificate_format, certificate_path,
+                                                    hash_file(certificate_path, sha256)};
+                            record.status.primality = PrimalityStatus::proven_prime;
+                            record.status.verification = VerificationStatus::self_verified;
+                            record.classification_method = "PROTH_CERTIFICATE_VALIDATED";
+                            prime = true;
+                        } else {
+                            const EngineRequest primary_request{
+                                "pari-" + std::to_string(index), "primeforge.proth.uint64.v1", decimal,
+                                summary.output_directory / "external" / "pari"};
+                            if (!proof_engine.supports(primary_request)) {
+                                throw std::runtime_error(
+                                    "configured proof engine does not support the MVP family");
+                            }
+                            const auto primary = proof_engine.run(primary_request);
+                            if (primary.status.primality != PrimalityStatus::proven_prime &&
+                                primary.status.primality != PrimalityStatus::composite) {
+                                throw std::runtime_error("proof engine failed closed: " +
+                                                         primary.diagnostics);
+                            }
+                            prime = primary.status.primality == PrimalityStatus::proven_prime;
+                            record.primary_engine =
+                                collect_evidence(proof_engine, primary, sha256, prime);
+                            record.status.primality = primary.status.primality;
+                            record.status.verification = prime ? VerificationStatus::self_verified
+                                                               : VerificationStatus::unverified;
+                            record.classification_method =
+                                prime ? "PARI_PRIMECERT_VALIDATED" : "PARI_COMPOSITE";
                         }
-                        const auto primary = proof_engine.run(primary_request);
-                        if (primary.status.primality != PrimalityStatus::proven_prime &&
-                            primary.status.primality != PrimalityStatus::composite) {
-                            throw std::runtime_error("proof engine failed closed: " +
-                                                     primary.diagnostics);
-                        }
-                        prime = primary.status.primality == PrimalityStatus::proven_prime;
-                        record.primary_engine =
-                            collect_evidence(proof_engine, primary, sha256, prime);
-                        record.status.primality = primary.status.primality;
-                        record.status.verification = prime ? VerificationStatus::self_verified
-                                                           : VerificationStatus::unverified;
-                        record.classification_method =
-                            prime ? "PARI_PRIMECERT_VALIDATED" : "PARI_COMPOSITE";
+                        summary.metrics.proof_ns += elapsed_ns(proof_started);
                     }
 
-                    const EngineRequest independent_request{
-                        "flint-" + std::to_string(index), "primeforge.proth.uint64.v1", decimal,
-                        summary.output_directory / "external" / "flint"};
-                    if (!independent_engine.supports(independent_request)) {
-                        throw std::runtime_error("configured independent engine does not "
-                                                 "support the MVP family");
+                    {
+                        const ScopedTrace trace{"verification"};
+                        const auto verification_started = Clock::now();
+                        const EngineRequest independent_request{
+                            "flint-" + std::to_string(index), "primeforge.proth.uint64.v1", decimal,
+                            summary.output_directory / "external" / "flint"};
+                        if (!independent_engine.supports(independent_request)) {
+                            throw std::runtime_error("configured independent engine does not "
+                                                     "support the MVP family");
+                        }
+                        const auto independent = independent_engine.run(independent_request);
+                        if (independent.status.primality != record.status.primality) {
+                            throw std::runtime_error("independent engine disagrees at candidate " +
+                                                     std::to_string(index));
+                        }
+                        record.independent_engine =
+                            collect_evidence(independent_engine, independent, sha256, false);
+                        record.status.verification = VerificationStatus::independently_verified;
+                        summary.metrics.verification_ns += elapsed_ns(verification_started);
                     }
-                    const auto independent = independent_engine.run(independent_request);
-                    if (independent.status.primality != record.status.primality) {
-                        throw std::runtime_error("independent engine disagrees at candidate " +
-                                                 std::to_string(index));
-                    }
-                    record.independent_engine =
-                        collect_evidence(independent_engine, independent, sha256, false);
-                    record.status.verification = VerificationStatus::independently_verified;
                     ++summary.externally_classified_count;
                     if (prime)
                         ++summary.proven_prime_count;
@@ -615,7 +727,11 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
             }
 
             const auto line = canonical_search_record(record, summary.output_directory) + "\n";
-            append_durably(summary.results_path, line);
+            {
+                const ScopedTrace trace{"result_io"};
+                summary.metrics.io_ns +=
+                    timed_action([&] { append_durably(summary.results_path, line); });
+            }
             summary.records.push_back(std::move(record));
             const auto next_index = index + 1U;
             const bool requested_stop =
@@ -624,9 +740,14 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
             const bool checkpoint_due = requested_stop ||
                                         next_index == summary.plan.candidate_count ||
                                         next_index % config.checkpoint_every_candidates == 0U;
-            if (checkpoint_due) save_progress(summary, next_index, sha256);
+            if (checkpoint_due) {
+                const ScopedTrace trace{"checkpoint"};
+                summary.metrics.checkpoint_ns +=
+                    timed_action([&] { save_progress(summary, next_index, sha256); });
+            }
             if (requested_stop) {
-                if (next_batch != nullptr) await_prp_batch(*next_batch);
+                if (next_batch != nullptr) await_prp_batch(*next_batch, summary);
+                summary.metrics.total_ns = elapsed_ns(total_started);
                 return summary;
             }
         }
@@ -638,12 +759,17 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
                          ? prepare_prp_batch(config, sieve_result, current_batch->end,
                                              bounded_batch_candidates)
                          : nullptr;
+        if (next_batch != nullptr) summary.metrics.packing_ns += next_batch->packing_ns;
     }
 
     if (summary.proven_prime_count + summary.composite_count != summary.plan.candidate_count) {
         throw std::logic_error("search accounting is incomplete");
     }
-    finalize_campaign(summary, sha256);
+    {
+        const ScopedTrace trace{"result_io"};
+        summary.metrics.io_ns += timed_action([&] { finalize_campaign(summary, sha256); });
+    }
+    summary.metrics.total_ns = elapsed_ns(total_started);
     return summary;
 }
 

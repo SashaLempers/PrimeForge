@@ -5,6 +5,7 @@
 #include "primeforge/adaptive_bound/adaptive_bound.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <stdexcept>
 #include <thread>
 #include <vector>
@@ -29,15 +30,18 @@ public:
 
     [[nodiscard]] std::size_t capacity() const noexcept override { return capacity_; }
 
-    void test(const std::span<const std::uint64_t> values,
-              const std::span<Base2StrongPrpVerdict> verdicts) override {
+    [[nodiscard]] Base2StrongPrpBatchMetrics test(
+        const std::span<const std::uint64_t> values,
+        const std::span<Base2StrongPrpVerdict> verdicts) override {
         if (values.size() != verdicts.size()) {
             throw std::invalid_argument("CPU PRP input/output sizes differ");
         }
         if (values.size() > capacity_) {
             throw std::length_error("CPU PRP batch exceeds backend capacity");
         }
-        if (values.empty()) return;
+        if (values.empty()) return {};
+
+        const auto started = std::chrono::steady_clock::now();
 
         const auto classify_range = [&](const std::size_t begin, const std::size_t end) {
             for (std::size_t index = begin; index < end; ++index) {
@@ -53,16 +57,19 @@ public:
         const auto workers = std::min<std::size_t>(worker_count_, useful_workers);
         if (workers == 1U) {
             classify_range(0U, values.size());
-            return;
+        } else {
+            std::vector<std::jthread> threads;
+            threads.reserve(workers);
+            for (std::size_t worker = 0U; worker < workers; ++worker) {
+                const auto begin = values.size() * worker / workers;
+                const auto end = values.size() * (worker + 1U) / workers;
+                threads.emplace_back(classify_range, begin, end);
+            }
         }
-
-        std::vector<std::jthread> threads;
-        threads.reserve(workers);
-        for (std::size_t worker = 0U; worker < workers; ++worker) {
-            const auto begin = values.size() * worker / workers;
-            const auto end = values.size() * (worker + 1U) / workers;
-            threads.emplace_back(classify_range, begin, end);
-        }
+        const auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now() - started);
+        const auto nanoseconds = static_cast<std::uint64_t>(elapsed.count());
+        return {nanoseconds, nanoseconds, 0U, 0U, 0U, false};
     }
 
 private:

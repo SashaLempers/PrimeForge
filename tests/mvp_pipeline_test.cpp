@@ -238,6 +238,14 @@ int main(const int argc, char** argv) {
         check(first.prp_tested_count > 0U && first.prp_submitted_batches > 1U &&
                   first.prp_backend_id == batched_prp->id(),
               "MVP uses the bounded batched PRP backend");
+        check(first.metrics.schema_version == 1U && first.metrics.total_ns > 0U &&
+                  first.metrics.generation_ns > 0U && first.metrics.congruence_ns > 0U &&
+                  first.metrics.sieve_ns > 0U && first.metrics.packing_ns > 0U &&
+                  first.metrics.prp_cpu_ns > 0U && first.metrics.proof_ns > 0U &&
+                  first.metrics.verification_ns > 0U && first.metrics.io_ns > 0U &&
+                  first.metrics.checkpoint_ns > 0U && first.metrics.host_to_device_ns == 0U &&
+                  first.metrics.kernel_ns == 0U && first.metrics.device_to_host_ns == 0U,
+              "MVP reports complete integer stage metrics for the CPU baseline");
         check(first.externally_classified_count >= known_primes.size(),
               "every known prime reaches both external contracts");
         std::uint64_t native_certificates = 0U;

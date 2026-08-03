@@ -120,6 +120,17 @@ target_link_libraries(primeforge_adaptive PUBLIC PrimeForge::core PrimeForge::be
 target_compile_features(primeforge_adaptive PUBLIC cxx_std_23)
 primeforge_enable_strict_warnings(primeforge_adaptive)
 
+add_library(primeforge_prp STATIC src/prp/base2_batch.cpp)
+add_library(PrimeForge::prp ALIAS primeforge_prp)
+target_include_directories(primeforge_prp
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(primeforge_prp PUBLIC PrimeForge::adaptive)
+target_compile_features(primeforge_prp PUBLIC cxx_std_23)
+primeforge_enable_strict_warnings(primeforge_prp)
+
 add_library(primeforge_mvp STATIC
     src/mvp/campaign_verifier.cpp
     src/mvp/search_pipeline.cpp
@@ -130,7 +141,7 @@ target_include_directories(primeforge_mvp
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
 )
-target_link_libraries(primeforge_mvp PUBLIC PrimeForge::core PrimeForge::adaptive)
+target_link_libraries(primeforge_mvp PUBLIC PrimeForge::core PrimeForge::adaptive PrimeForge::prp)
 target_compile_features(primeforge_mvp PUBLIC cxx_std_23)
 primeforge_enable_strict_warnings(primeforge_mvp)
 
@@ -280,6 +291,11 @@ target_link_libraries(primeforge-adaptive-bound-tests PRIVATE PrimeForge::adapti
 target_compile_features(primeforge-adaptive-bound-tests PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge-adaptive-bound-tests)
 
+add_executable(primeforge-prp-batch-tests tests/prp_batch_test.cpp)
+target_link_libraries(primeforge-prp-batch-tests PRIVATE PrimeForge::prp)
+target_compile_features(primeforge-prp-batch-tests PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-prp-batch-tests)
+
 add_executable(primeforge-adaptive-bound-benchmark src/adaptive_bound/main.cpp)
 target_link_libraries(primeforge-adaptive-bound-benchmark PRIVATE PrimeForge::adaptive)
 target_compile_features(primeforge-adaptive-bound-benchmark PRIVATE cxx_std_23)
@@ -391,7 +407,10 @@ if(PRIMEFORGE_ENABLE_CUDA)
     target_link_libraries(primeforge-cuda-validation PRIVATE CUDA::cudart)
     primeforge_configure_cuda_target(primeforge-cuda-validation)
 
-    add_library(primeforge_cuda STATIC src/cuda/modular_batch.cu)
+    add_library(primeforge_cuda STATIC
+        src/cuda/modular_batch.cu
+        src/cuda/prp_batch.cu
+    )
     add_library(PrimeForge::cuda ALIAS primeforge_cuda)
     target_include_directories(
         primeforge_cuda
@@ -399,8 +418,11 @@ if(PRIMEFORGE_ENABLE_CUDA)
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
             $<INSTALL_INTERFACE:include>
     )
-    target_link_libraries(primeforge_cuda PUBLIC CUDA::cudart)
+    target_link_libraries(primeforge_cuda PUBLIC CUDA::cudart PrimeForge::prp)
     primeforge_configure_cuda_target(primeforge_cuda)
+
+    target_link_libraries(primeforge PRIVATE PrimeForge::cuda)
+    target_compile_definitions(primeforge PRIVATE PRIMEFORGE_HAS_CUDA_PRP=1)
 
     add_executable(primeforge-cuda-modular-tests tests/cuda_modular_batch_test.cpp)
     target_link_libraries(
@@ -417,6 +439,14 @@ if(PRIMEFORGE_ENABLE_CUDA)
     )
     target_compile_features(primeforge-cuda-pipeline-tests PRIVATE cxx_std_23)
     primeforge_enable_strict_warnings(primeforge-cuda-pipeline-tests)
+
+    add_executable(primeforge-cuda-prp-tests tests/cuda_prp_batch_test.cpp)
+    target_link_libraries(
+        primeforge-cuda-prp-tests
+        PRIVATE PrimeForge::cuda PrimeForge::prp PrimeForge::adaptive
+    )
+    target_compile_features(primeforge-cuda-prp-tests PRIVATE cxx_std_23)
+    primeforge_enable_strict_warnings(primeforge-cuda-prp-tests)
 endif()
 
 if(BUILD_TESTING)
@@ -480,6 +510,7 @@ if(BUILD_TESTING)
     add_test(NAME primeforge.congruence_compiler COMMAND primeforge-congruence-tests)
     add_test(NAME primeforge.family_sieve COMMAND primeforge-family-sieve-tests)
     add_test(NAME primeforge.adaptive_bound COMMAND primeforge-adaptive-bound-tests)
+    add_test(NAME primeforge.prp_batch COMMAND primeforge-prp-batch-tests)
     add_test(
         NAME primeforge.external_adapters
         COMMAND primeforge-external-adapter-tests
@@ -493,6 +524,7 @@ if(BUILD_TESTING)
         add_test(NAME primeforge.cuda_validation COMMAND primeforge-cuda-validation)
         add_test(NAME primeforge.cuda_modular_batch COMMAND primeforge-cuda-modular-tests)
         add_test(NAME primeforge.cuda_pipeline COMMAND primeforge-cuda-pipeline-tests)
+        add_test(NAME primeforge.cuda_prp_batch COMMAND primeforge-cuda-prp-tests)
     endif()
     add_test(
         NAME primeforge.watchdog_process

@@ -214,8 +214,13 @@ int main(const int argc, char** argv) {
 
         KnownEngine proof{"known-pari-proof", known_primes, true};
         KnownEngine independent{"known-flint-independent", known_primes, false};
+        auto batched_prp = primeforge::prp::make_cpu_base2_strong_prp_batch_backend(
+            17U, 2U);
+        primeforge::mvp::SearchExecutionOptions batched_options;
+        batched_options.prp_backend = batched_prp.get();
+        batched_options.prp_batch_candidates = 17U;
         const auto first = primeforge::mvp::execute_search(
-            config, sha256, proof, independent);
+            config, sha256, proof, independent, batched_options);
         check(first.completed && first.records.size() == 160U &&
                   first.plan.coverage.valid &&
                   std::filesystem::is_regular_file(first.coverage_report_path) &&
@@ -224,6 +229,9 @@ int main(const int argc, char** argv) {
         check(first.proven_prime_count == known_primes.size() &&
                   first.composite_count == 160U - known_primes.size(),
               "known classification totals");
+        check(first.prp_tested_count > 0U && first.prp_submitted_batches > 1U &&
+                  first.prp_backend_id == batched_prp->id(),
+              "MVP uses the bounded batched PRP backend");
         check(first.externally_classified_count >= known_primes.size(),
               "every known prime reaches both external contracts");
         std::uint64_t native_certificates = 0U;

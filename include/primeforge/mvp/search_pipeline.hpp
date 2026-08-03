@@ -6,7 +6,9 @@
 #include "primeforge/core/status.hpp"
 #include "primeforge/engine/engine_adapter.hpp"
 #include "primeforge/mvp/search_config.hpp"
+#include "primeforge/prp/base2_batch.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
@@ -50,6 +52,9 @@ struct SearchSummary {
     std::string sieve_result_sha256;
     std::uint64_t sieve_composite_count{};
     std::uint64_t base2_composite_count{};
+    std::uint64_t prp_tested_count{};
+    std::uint64_t prp_submitted_batches{};
+    std::string prp_backend_id;
     std::uint64_t externally_classified_count{};
     std::uint64_t proven_prime_count{};
     std::uint64_t composite_count{};
@@ -66,6 +71,8 @@ struct SearchExecutionOptions {
     bool resume_existing{};
     std::optional<std::uint64_t> clean_stop_after_candidates;
     std::function<bool()> stop_requested;
+    prp::Base2StrongPrpBatchBackend* prp_backend{};
+    std::size_t prp_batch_candidates{8'192U};
 };
 
 [[nodiscard]] SearchSummary execute_search(

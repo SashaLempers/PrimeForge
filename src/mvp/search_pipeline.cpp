@@ -2,7 +2,6 @@
 
 #include "primeforge/mvp/search_pipeline.hpp"
 
-#include "primeforge/adaptive_bound/adaptive_bound.hpp"
 #include "primeforge/congruence/compiler.hpp"
 #include "primeforge/family_sieve/family_sieve.hpp"
 #include "primeforge/proth/proth.hpp"
@@ -13,9 +12,11 @@
 #include <algorithm>
 #include <charconv>
 #include <cstddef>
-#include <cstdio>
 #include <cstdint>
+#include <cstdio>
 #include <fstream>
+#include <future>
+#include <memory>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -34,8 +35,10 @@ namespace {
 [[nodiscard]] std::string quote_json(const std::string_view value) {
     std::string result{"\""};
     for (const unsigned char byte : value) {
-        if (byte == '"') result += "\\\"";
-        else if (byte == '\\') result += "\\\\";
+        if (byte == '"')
+            result += "\\\"";
+        else if (byte == '\\')
+            result += "\\\\";
         else if (byte < 0x20U || byte >= 0x7fU) {
             throw std::invalid_argument("MVP result strings must use printable ASCII");
         } else {
@@ -46,34 +49,30 @@ namespace {
     return result;
 }
 
-[[nodiscard]] std::string read_file(const std::filesystem::path& path) {
+[[nodiscard]] std::string read_file(const std::filesystem::path &path) {
     std::ifstream input{path, std::ios::binary};
     if (!input) throw std::runtime_error("cannot read search artifact: " + path.string());
-    return {
-        std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
+    return {std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
 }
 
-[[nodiscard]] std::string hash_text(
-    const std::string_view content, const Sha256Provider& sha256) {
-    return sha256_to_hex(
-        sha256.digest(std::as_bytes(std::span{content.data(), content.size()})));
+[[nodiscard]] std::string hash_text(const std::string_view content, const Sha256Provider &sha256) {
+    return sha256_to_hex(sha256.digest(std::as_bytes(std::span{content.data(), content.size()})));
 }
 
-[[nodiscard]] std::string hash_file(
-    const std::filesystem::path& path, const Sha256Provider& sha256) {
+[[nodiscard]] std::string hash_file(const std::filesystem::path &path,
+                                    const Sha256Provider &sha256) {
     const auto content = read_file(path);
     return hash_text(content, sha256);
 }
 
-[[nodiscard]] bool eliminated(
-    const family_sieve::Result& sieve_result, const std::uint64_t flat_index) {
+[[nodiscard]] bool eliminated(const family_sieve::Result &sieve_result,
+                              const std::uint64_t flat_index) {
     return (sieve_result.eliminated_words.at(static_cast<std::size_t>(flat_index / 64U)) &
             (std::uint64_t{1} << (flat_index % 64U))) != 0U;
 }
 
-[[nodiscard]] std::string owner_for(
-    const CampaignPlan& plan, const std::uint64_t flat_index) {
-    for (const auto& unit : plan.work_units) {
+[[nodiscard]] std::string owner_for(const CampaignPlan &plan, const std::uint64_t flat_index) {
+    for (const auto &unit : plan.work_units) {
         if (flat_index >= unit.interval.begin && flat_index < unit.interval.end) {
             return unit.work_unit_id;
         }
@@ -81,9 +80,8 @@ namespace {
     throw std::logic_error("candidate lacks a work-unit owner");
 }
 
-[[nodiscard]] std::string portable_relative(
-    const std::filesystem::path& path,
-    const std::filesystem::path& output_directory) {
+[[nodiscard]] std::string portable_relative(const std::filesystem::path &path,
+                                            const std::filesystem::path &output_directory) {
     if (path.empty()) return {};
     const auto absolute_path = std::filesystem::absolute(path).lexically_normal();
     const auto absolute_output = std::filesystem::absolute(output_directory).lexically_normal();
@@ -94,18 +92,15 @@ namespace {
     return relative.generic_string();
 }
 
-[[nodiscard]] std::string evidence_json(
-    const std::optional<EngineEvidence>& evidence,
-    const std::filesystem::path& output_directory) {
+[[nodiscard]] std::string evidence_json(const std::optional<EngineEvidence> &evidence,
+                                        const std::filesystem::path &output_directory) {
     if (!evidence.has_value()) return "null";
-    const auto artifact_path = portable_relative(
-        evidence->proof_artifact_path, output_directory);
+    const auto artifact_path = portable_relative(evidence->proof_artifact_path, output_directory);
     return "{\"artifact_path\":" +
            (artifact_path.empty() ? std::string{"null"} : quote_json(artifact_path)) +
            ",\"artifact_sha256\":" +
-           (evidence->proof_artifact_sha256.empty()
-                ? std::string{"null"}
-                : quote_json(evidence->proof_artifact_sha256)) +
+           (evidence->proof_artifact_sha256.empty() ? std::string{"null"}
+                                                    : quote_json(evidence->proof_artifact_sha256)) +
            ",\"engine_id\":" + quote_json(evidence->engine_id) +
            ",\"executable_sha256\":" + quote_json(evidence->executable_sha256) +
            ",\"raw_stderr_path\":" +
@@ -114,9 +109,8 @@ namespace {
            quote_json(portable_relative(evidence->raw_stdout_path, output_directory)) + "}";
 }
 
-[[nodiscard]] std::string native_proof_json(
-    const std::optional<NativeProofEvidence>& evidence,
-    const std::filesystem::path& output_directory) {
+[[nodiscard]] std::string native_proof_json(const std::optional<NativeProofEvidence> &evidence,
+                                            const std::filesystem::path &output_directory) {
     if (!evidence.has_value()) return "null";
     return "{\"artifact_path\":" +
            quote_json(portable_relative(evidence->artifact_path, output_directory)) +
@@ -124,11 +118,10 @@ namespace {
            ",\"format_version\":" + quote_json(evidence->format_version) + "}";
 }
 
-[[nodiscard]] EngineEvidence collect_evidence(
-    const EngineAdapter& adapter,
-    const EngineResult& result,
-    const Sha256Provider& sha256,
-    const bool require_proof) {
+[[nodiscard]] EngineEvidence collect_evidence(const EngineAdapter &adapter,
+                                              const EngineResult &result,
+                                              const Sha256Provider &sha256,
+                                              const bool require_proof) {
     if (!std::filesystem::is_regular_file(result.raw_stdout_path) ||
         !std::filesystem::is_regular_file(result.raw_stderr_path)) {
         throw std::runtime_error(std::string{adapter.id()} + " omitted raw process output");
@@ -136,8 +129,7 @@ namespace {
     EngineEvidence evidence;
     evidence.engine_id = adapter.id();
     if (!sha256_from_hex(result.engine_executable_sha256).has_value()) {
-        throw std::runtime_error(std::string{adapter.id()} +
-                                 " omitted the executable SHA-256");
+        throw std::runtime_error(std::string{adapter.id()} + " omitted the executable SHA-256");
     }
     evidence.executable_sha256 = result.engine_executable_sha256;
     evidence.raw_stdout_path = result.raw_stdout_path;
@@ -154,18 +146,18 @@ namespace {
     return evidence;
 }
 
-void write_atomic(const std::filesystem::path& path, const std::string_view content) {
+void write_atomic(const std::filesystem::path &path, const std::string_view content) {
     work::write_checkpoint_atomically(path, std::string{content});
 }
 
-void append_durably(const std::filesystem::path& path, const std::string_view content) {
+void append_durably(const std::filesystem::path &path, const std::string_view content) {
 #if defined(_WIN32)
-    std::FILE* file{};
+    std::FILE *file{};
     if (_wfopen_s(&file, path.c_str(), L"ab") != 0 || file == nullptr) {
         throw std::runtime_error("cannot append search result");
     }
 #else
-    std::FILE* file = std::fopen(path.c_str(), "ab");
+    std::FILE *file = std::fopen(path.c_str(), "ab");
     if (file == nullptr) throw std::runtime_error("cannot append search result");
 #endif
     const bool written = std::fwrite(content.data(), 1U, content.size(), file) == content.size();
@@ -187,8 +179,8 @@ struct ProgressPayload {
     std::string results_sha256;
 };
 
-[[nodiscard]] std::uint64_t parse_decimal(
-    const std::string_view text, const std::string_view field) {
+[[nodiscard]] std::uint64_t parse_decimal(const std::string_view text,
+                                          const std::string_view field) {
     if (text.empty() || (text.size() > 1U && text.front() == '0')) {
         throw std::runtime_error(std::string{field} + " is not canonical decimal");
     }
@@ -200,11 +192,10 @@ struct ProgressPayload {
     return value;
 }
 
-[[nodiscard]] std::string progress_payload(const ProgressPayload& payload) {
+[[nodiscard]] std::string progress_payload(const ProgressPayload &payload) {
     return "configuration_sha256=" + payload.configuration_sha256 +
            ";results_bytes=" + std::to_string(payload.results_bytes) +
-           ";results_sha256=" + payload.results_sha256 +
-           ";schema=primeforge.mvp.checkpoint.v1";
+           ";results_sha256=" + payload.results_sha256 + ";schema=primeforge.mvp.checkpoint.v1";
 }
 
 [[nodiscard]] ProgressPayload parse_progress_payload(const std::string_view payload) {
@@ -221,15 +212,15 @@ struct ProgressPayload {
         throw std::runtime_error("checkpoint payload is incomplete");
     }
     ProgressPayload result;
-    result.configuration_sha256 = std::string{payload.substr(
-        configuration_marker.size(), bytes_position - configuration_marker.size())};
-    result.results_bytes = parse_decimal(
-        payload.substr(bytes_position + bytes_marker.size(),
-                       digest_position - bytes_position - bytes_marker.size()),
-        "checkpoint results_bytes");
-    result.results_sha256 = std::string{payload.substr(
-        digest_position + digest_marker.size(),
-        payload.size() - digest_position - digest_marker.size() - suffix.size())};
+    result.configuration_sha256 = std::string{
+        payload.substr(configuration_marker.size(), bytes_position - configuration_marker.size())};
+    result.results_bytes =
+        parse_decimal(payload.substr(bytes_position + bytes_marker.size(),
+                                     digest_position - bytes_position - bytes_marker.size()),
+                      "checkpoint results_bytes");
+    result.results_sha256 = std::string{
+        payload.substr(digest_position + digest_marker.size(),
+                       payload.size() - digest_position - digest_marker.size() - suffix.size())};
     if (!sha256_from_hex(result.configuration_sha256).has_value() ||
         !sha256_from_hex(result.results_sha256).has_value()) {
         throw std::runtime_error("checkpoint payload contains invalid SHA-256");
@@ -237,25 +228,19 @@ struct ProgressPayload {
     return result;
 }
 
-void save_progress(
-    const SearchSummary& summary,
-    const std::uint64_t next_index,
-    const Sha256Provider& sha256) {
+void save_progress(const SearchSummary &summary, const std::uint64_t next_index,
+                   const Sha256Provider &sha256) {
     const auto results = read_file(summary.results_path);
-    const ProgressPayload payload{
-        summary.plan.configuration_sha256,
-        static_cast<std::uint64_t>(results.size()),
-        hash_text(results, sha256)};
+    const ProgressPayload payload{summary.plan.configuration_sha256,
+                                  static_cast<std::uint64_t>(results.size()),
+                                  hash_text(results, sha256)};
     runtime::CheckpointManager manager{sha256};
-    manager.save(summary.checkpoint_path,
-                 {summary.plan.campaign_id, progress_payload(payload),
-                  std::to_string(next_index), next_index});
+    manager.save(summary.checkpoint_path, {summary.plan.campaign_id, progress_payload(payload),
+                                           std::to_string(next_index), next_index});
 }
 
-void validate_result_prefix(
-    const std::string_view prefix,
-    const std::uint64_t expected_records,
-    const std::string_view campaign_id) {
+void validate_result_prefix(const std::string_view prefix, const std::uint64_t expected_records,
+                            const std::string_view campaign_id) {
     std::size_t offset = 0U;
     for (std::uint64_t index = 0U; index < expected_records; ++index) {
         const auto end = prefix.find('\n', offset);
@@ -278,7 +263,7 @@ void validate_result_prefix(
     }
 }
 
-void account_existing_line(SearchSummary& summary, const std::string_view line) {
+void account_existing_line(SearchSummary &summary, const std::string_view line) {
     if (line.find("\"primality_status\":\"PROVEN_PRIME\"") != std::string_view::npos) {
         ++summary.proven_prime_count;
     } else if (line.find("\"primality_status\":\"COMPOSITE\"") != std::string_view::npos) {
@@ -286,19 +271,63 @@ void account_existing_line(SearchSummary& summary, const std::string_view line) 
     } else {
         throw std::runtime_error("checkpoint result has an incomplete primality status");
     }
-    if (line.find("\"classification_method\":\"CONGRUENCE_FACTOR\"") !=
-        std::string_view::npos) {
+    if (line.find("\"classification_method\":\"CONGRUENCE_FACTOR\"") != std::string_view::npos) {
         ++summary.sieve_composite_count;
     } else if (line.find("\"classification_method\":\"BASE2_STRONG_WITNESS\"") !=
                std::string_view::npos) {
         ++summary.base2_composite_count;
+        ++summary.prp_tested_count;
     } else {
         ++summary.externally_classified_count;
+        ++summary.prp_tested_count;
     }
 }
 
-[[nodiscard]] std::uint64_t restore_progress(
-    SearchSummary& summary, const Sha256Provider& sha256) {
+struct PreparedPrpBatch {
+    std::uint64_t begin{};
+    std::uint64_t end{};
+    std::vector<std::uint64_t> survivor_values;
+    std::vector<std::uint64_t> survivor_offsets;
+    std::vector<prp::Base2StrongPrpVerdict> verdicts;
+    std::future<void> completion;
+};
+
+[[nodiscard]] std::unique_ptr<PreparedPrpBatch>
+prepare_prp_batch(const SearchConfig &config, const family_sieve::Result &sieve_result,
+                  const std::uint64_t begin, const std::uint64_t batch_candidates) {
+    auto batch = std::make_unique<PreparedPrpBatch>();
+    batch->begin = begin;
+    const auto total = candidate_count(config);
+    batch->end = begin + std::min(batch_candidates, total - begin);
+    batch->survivor_values.reserve(static_cast<std::size_t>(batch->end - batch->begin));
+    batch->survivor_offsets.reserve(static_cast<std::size_t>(batch->end - batch->begin));
+    for (auto index = batch->begin; index < batch->end; ++index) {
+        if (sieve_result.factor_witnesses[static_cast<std::size_t>(index)] == 0U) {
+            batch->survivor_values.push_back(candidate_at(config, index).value);
+            batch->survivor_offsets.push_back(index - batch->begin);
+        }
+    }
+    batch->verdicts.resize(batch->survivor_values.size());
+    return batch;
+}
+
+void submit_prp_batch(PreparedPrpBatch &batch, prp::Base2StrongPrpBatchBackend &backend,
+                      SearchSummary &summary) {
+    if (batch.survivor_values.empty()) return;
+    ++summary.prp_submitted_batches;
+    auto *const values = &batch.survivor_values;
+    auto *const verdicts = &batch.verdicts;
+    auto *const selected_backend = &backend;
+    batch.completion = std::async(std::launch::async, [values, verdicts, selected_backend] {
+        selected_backend->test(*values, *verdicts);
+    });
+}
+
+void await_prp_batch(PreparedPrpBatch &batch) {
+    if (batch.completion.valid()) batch.completion.get();
+}
+
+[[nodiscard]] std::uint64_t restore_progress(SearchSummary &summary, const Sha256Provider &sha256) {
     runtime::CheckpointManager manager{sha256};
     const auto state = manager.load(summary.checkpoint_path);
     if (state.campaign_id != summary.plan.campaign_id ||
@@ -314,8 +343,8 @@ void account_existing_line(SearchSummary& summary, const std::string_view line) 
     if (payload.results_bytes > results.size()) {
         throw std::runtime_error("results file is shorter than checkpoint");
     }
-    const auto prefix = std::string_view{results}.substr(
-        0U, static_cast<std::size_t>(payload.results_bytes));
+    const auto prefix =
+        std::string_view{results}.substr(0U, static_cast<std::size_t>(payload.results_bytes));
     if (hash_text(prefix, sha256) != payload.results_sha256) {
         throw std::runtime_error("checkpoint results prefix hash mismatch");
     }
@@ -323,17 +352,13 @@ void account_existing_line(SearchSummary& summary, const std::string_view line) 
     if (payload.results_bytes != results.size()) {
         write_atomic(summary.results_path, prefix);
     }
-    for (std::uint64_t index = state.sequence;
-         index < summary.plan.candidate_count; ++index) {
-        std::filesystem::remove_all(
-            summary.output_directory / "external" / "pari" /
-            ("pari-" + std::to_string(index)));
-        std::filesystem::remove_all(
-            summary.output_directory / "external" / "flint" /
-            ("flint-" + std::to_string(index)));
-        std::filesystem::remove(
-            summary.output_directory / "proofs" / "proth" /
-            ("proth-" + std::to_string(index) + ".json"));
+    for (std::uint64_t index = state.sequence; index < summary.plan.candidate_count; ++index) {
+        std::filesystem::remove_all(summary.output_directory / "external" / "pari" /
+                                    ("pari-" + std::to_string(index)));
+        std::filesystem::remove_all(summary.output_directory / "external" / "flint" /
+                                    ("flint-" + std::to_string(index)));
+        std::filesystem::remove(summary.output_directory / "proofs" / "proth" /
+                                ("proth-" + std::to_string(index) + ".json"));
     }
     std::size_t offset = 0U;
     for (std::uint64_t index = 0U; index < state.sequence; ++index) {
@@ -344,7 +369,7 @@ void account_existing_line(SearchSummary& summary, const std::string_view line) 
     return state.sequence;
 }
 
-void finalize_campaign(SearchSummary& summary, const Sha256Provider& sha256) {
+void finalize_campaign(SearchSummary &summary, const Sha256Provider &sha256) {
     const auto record_count = summary.proven_prime_count + summary.composite_count;
     const std::string coverage =
         "{\"campaign_id\":" + quote_json(summary.plan.campaign_id) +
@@ -353,23 +378,22 @@ void finalize_campaign(SearchSummary& summary, const Sha256Provider& sha256) {
         ",\"coverage\":\"EXACT\",\"proven_prime_count\":" +
         quote_json(std::to_string(summary.proven_prime_count)) +
         ",\"record_count\":" + quote_json(std::to_string(record_count)) +
-        ",\"work_unit_count\":" +
-        quote_json(std::to_string(summary.plan.work_units.size())) + "}";
+        ",\"work_unit_count\":" + quote_json(std::to_string(summary.plan.work_units.size())) + "}";
     write_atomic(summary.coverage_report_path, coverage);
 
     std::vector<std::filesystem::path> files;
-    for (const auto& entry : std::filesystem::recursive_directory_iterator(
-             summary.output_directory)) {
+    for (const auto &entry :
+         std::filesystem::recursive_directory_iterator(summary.output_directory)) {
         if (entry.is_regular_file() && entry.path() != summary.manifest_path) {
             files.push_back(entry.path());
         }
     }
-    std::ranges::sort(files, [&](const auto& left, const auto& right) {
+    std::ranges::sort(files, [&](const auto &left, const auto &right) {
         return portable_relative(left, summary.output_directory) <
                portable_relative(right, summary.output_directory);
     });
     std::string manifest;
-    for (const auto& file : files) {
+    for (const auto &file : files) {
         manifest += hash_file(file, sha256) + "  " +
                     portable_relative(file, summary.output_directory) + "\n";
     }
@@ -379,13 +403,25 @@ void finalize_campaign(SearchSummary& summary, const Sha256Provider& sha256) {
 
 }  // namespace
 
-SearchSummary execute_search(
-    const SearchConfig& config,
-    const Sha256Provider& sha256,
-    EngineAdapter& proof_engine,
-    EngineAdapter& independent_engine,
-    const SearchExecutionOptions& execution_options) {
+SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &sha256,
+                             EngineAdapter &proof_engine, EngineAdapter &independent_engine,
+                             const SearchExecutionOptions &execution_options) {
+    if (execution_options.prp_batch_candidates == 0U) {
+        throw std::invalid_argument("PRP batch candidate count must be nonzero");
+    }
+    auto owned_prp_backend =
+        execution_options.prp_backend == nullptr
+            ? prp::make_cpu_base2_strong_prp_batch_backend(execution_options.prp_batch_candidates)
+            : nullptr;
+    auto &prp_backend = execution_options.prp_backend == nullptr ? *owned_prp_backend
+                                                                 : *execution_options.prp_backend;
+    if (prp_backend.capacity() == 0U) {
+        throw std::invalid_argument("PRP backend capacity must be nonzero");
+    }
+    const auto bounded_batch_candidates = static_cast<std::uint64_t>(
+        std::min(execution_options.prp_batch_candidates, prp_backend.capacity()));
     SearchSummary summary;
+    summary.prp_backend_id = std::string{prp_backend.id()};
     summary.plan = build_campaign_plan(config, sha256);
     summary.output_directory = std::filesystem::absolute(config.output_directory);
     summary.results_path = summary.output_directory / "results.jsonl";
@@ -397,23 +433,19 @@ SearchSummary execute_search(
         if (!std::filesystem::is_directory(summary.output_directory)) {
             throw std::invalid_argument("resume campaign directory is absent");
         }
-        const auto recovery_config = load_search_config(
-            summary.output_directory / "search.yaml");
+        const auto recovery_config = load_search_config(summary.output_directory / "search.yaml");
         if (canonical_search_config(recovery_config) != canonical_search_config(config)) {
             throw std::runtime_error("recovery configuration does not match requested campaign");
         }
         first_index = restore_progress(summary, sha256);
     } else {
         if (std::filesystem::exists(summary.output_directory)) {
-            throw std::invalid_argument(
-                "campaign output directory already exists; use resume");
+            throw std::invalid_argument("campaign output directory already exists; use resume");
         }
         std::filesystem::create_directories(summary.output_directory);
-        write_atomic(summary.output_directory / "search.yaml",
-                     render_search_config_yaml(config));
+        write_atomic(summary.output_directory / "search.yaml", render_search_config_yaml(config));
         {
-            std::ofstream empty_results{
-                summary.results_path, std::ios::binary | std::ios::trunc};
+            std::ofstream empty_results{summary.results_path, std::ios::binary | std::ios::trunc};
             if (!empty_results) {
                 throw std::runtime_error("cannot create empty results ledger");
             }
@@ -421,10 +453,10 @@ SearchSummary execute_search(
         save_progress(summary, 0U, sha256);
     }
 
-    const auto primes = sieve::generate_primes_reference(
-        2U, config.sieve_maximum_prime + 1U).primes;
-    const auto table = congruence::compile_congruences(
-        make_affine_family(config), primes, {}, sha256);
+    const auto primes =
+        sieve::generate_primes_reference(2U, config.sieve_maximum_prime + 1U).primes;
+    const auto table =
+        congruence::compile_congruences(make_affine_family(config), primes, {}, sha256);
     summary.compiled_table_sha256 = table.table_sha256;
 
     family_sieve::Options options;
@@ -449,139 +481,171 @@ SearchSummary execute_search(
         }
     }
 
-    summary.records.reserve(static_cast<std::size_t>(
-        summary.plan.candidate_count - first_index));
+    summary.records.reserve(static_cast<std::size_t>(summary.plan.candidate_count - first_index));
     const auto stop_now = [&]() {
         return execution_options.stop_requested && execution_options.stop_requested();
     };
-    if (stop_now() ||
-        (execution_options.clean_stop_after_candidates.has_value() &&
-         first_index >= *execution_options.clean_stop_after_candidates)) {
+    if (stop_now() || (execution_options.clean_stop_after_candidates.has_value() &&
+                       first_index >= *execution_options.clean_stop_after_candidates)) {
         save_progress(summary, first_index, sha256);
         return summary;
     }
-    for (std::uint64_t index = first_index;
-         index < summary.plan.candidate_count; ++index) {
-        SearchRecord record;
-        record.campaign_id = summary.plan.campaign_id;
-        record.candidate = candidate_at(config, index);
-        record.work_unit_id = owner_for(summary.plan, index);
-        record.status.novelty = NoveltyStatus::not_checked;
-        const auto factor =
-            sieve_result.factor_witnesses[static_cast<std::size_t>(index)];
-        if (factor != 0U) {
-            if (record.candidate.value <= factor ||
-                record.candidate.value % factor != 0U) {
-                throw std::logic_error("sieve returned an invalid proper-factor witness");
-            }
-            record.status.primality = PrimalityStatus::composite;
-            record.status.verification = VerificationStatus::self_verified;
-            record.classification_method = "CONGRUENCE_FACTOR";
-            record.prp_status = "NOT_RUN";
-            record.factor = factor;
-            ++summary.sieve_composite_count;
-            ++summary.composite_count;
-        } else if (!adaptive_bound::is_base2_strong_probable_prime_u64(
-                       record.candidate.value)) {
-            record.status.primality = PrimalityStatus::composite;
-            record.status.verification = VerificationStatus::self_verified;
-            record.classification_method = "BASE2_STRONG_WITNESS";
-            record.prp_status = "FAILED";
-            ++summary.base2_composite_count;
-            ++summary.composite_count;
-        } else {
-            record.status.primality = PrimalityStatus::probable_prime;
-            record.status.verification = VerificationStatus::unverified;
-            record.prp_status = "PASSED";
-            const auto decimal = std::to_string(record.candidate.value);
-            constexpr std::uint64_t native_witness_limit = 65'535U;
-            const auto native = proth::try_prove_u64(
-                record.candidate.k, static_cast<std::uint32_t>(record.candidate.n),
-                native_witness_limit);
-            bool prime = false;
-            if (native.certificate.has_value()) {
-                const auto certificate_bytes =
-                    proth::canonical_certificate(*native.certificate);
-                const auto certificate_path =
-                    summary.output_directory / "proofs" / "proth" /
-                    ("proth-" + std::to_string(index) + ".json");
-                std::filesystem::create_directories(certificate_path.parent_path());
-                write_atomic(certificate_path, certificate_bytes);
-                record.native_proth_certificate = NativeProofEvidence{
-                    proth::certificate_format, certificate_path,
-                    hash_file(certificate_path, sha256)};
-                record.status.primality = PrimalityStatus::proven_prime;
-                record.status.verification = VerificationStatus::self_verified;
-                record.classification_method = "PROTH_CERTIFICATE_VALIDATED";
-                prime = true;
-            } else {
-                const EngineRequest primary_request{
-                    "pari-" + std::to_string(index), "primeforge.proth.uint64.v1",
-                    decimal, summary.output_directory / "external" / "pari"};
-                if (!proof_engine.supports(primary_request)) {
-                    throw std::runtime_error(
-                        "configured proof engine does not support the MVP family");
-                }
-                const auto primary = proof_engine.run(primary_request);
-                if (primary.status.primality != PrimalityStatus::proven_prime &&
-                    primary.status.primality != PrimalityStatus::composite) {
-                    throw std::runtime_error("proof engine failed closed: " +
-                                             primary.diagnostics);
-                }
-                prime = primary.status.primality == PrimalityStatus::proven_prime;
-                record.primary_engine = collect_evidence(
-                    proof_engine, primary, sha256, prime);
-                record.status.primality = primary.status.primality;
-                record.status.verification = prime ? VerificationStatus::self_verified
-                                                   : VerificationStatus::unverified;
-                record.classification_method = prime ? "PARI_PRIMECERT_VALIDATED"
-                                                     : "PARI_COMPOSITE";
-            }
+    auto current_batch =
+        prepare_prp_batch(config, sieve_result, first_index, bounded_batch_candidates);
+    submit_prp_batch(*current_batch, prp_backend, summary);
+    auto next_batch =
+        current_batch->end < summary.plan.candidate_count
+            ? prepare_prp_batch(config, sieve_result, current_batch->end, bounded_batch_candidates)
+            : nullptr;
 
-            const EngineRequest independent_request{
-                "flint-" + std::to_string(index), "primeforge.proth.uint64.v1",
-                decimal, summary.output_directory / "external" / "flint"};
-            if (!independent_engine.supports(independent_request)) {
-                throw std::runtime_error(
-                    "configured independent engine does not support the MVP family");
-            }
-            const auto independent = independent_engine.run(independent_request);
-            if (independent.status.primality != record.status.primality) {
-                throw std::runtime_error("independent engine disagrees at candidate " +
-                                         std::to_string(index));
-            }
-            record.independent_engine = collect_evidence(
-                independent_engine, independent, sha256, false);
-            record.status.verification = VerificationStatus::independently_verified;
-            ++summary.externally_classified_count;
-            if (prime) ++summary.proven_prime_count;
-            else ++summary.composite_count;
+    while (current_batch != nullptr) {
+        await_prp_batch(*current_batch);
+        if (next_batch != nullptr) {
+            submit_prp_batch(*next_batch, prp_backend, summary);
         }
+        std::size_t survivor_index = 0U;
+        for (std::uint64_t index = current_batch->begin; index < current_batch->end; ++index) {
+            SearchRecord record;
+            record.campaign_id = summary.plan.campaign_id;
+            record.candidate = candidate_at(config, index);
+            record.work_unit_id = owner_for(summary.plan, index);
+            record.status.novelty = NoveltyStatus::not_checked;
+            const auto factor = sieve_result.factor_witnesses[static_cast<std::size_t>(index)];
+            if (factor != 0U) {
+                if (record.candidate.value <= factor || record.candidate.value % factor != 0U) {
+                    throw std::logic_error("sieve returned an invalid proper-factor witness");
+                }
+                record.status.primality = PrimalityStatus::composite;
+                record.status.verification = VerificationStatus::self_verified;
+                record.classification_method = "CONGRUENCE_FACTOR";
+                record.prp_status = "NOT_RUN";
+                record.factor = factor;
+                ++summary.sieve_composite_count;
+                ++summary.composite_count;
+            } else {
+                if (survivor_index >= current_batch->survivor_offsets.size() ||
+                    current_batch->survivor_offsets[survivor_index] !=
+                        index - current_batch->begin) {
+                    throw std::logic_error("PRP survivor ordering is inconsistent");
+                }
+                const auto prp_verdict = current_batch->verdicts[survivor_index++];
+                ++summary.prp_tested_count;
+                if (prp_verdict == prp::Base2StrongPrpVerdict::composite) {
+                    record.status.primality = PrimalityStatus::composite;
+                    record.status.verification = VerificationStatus::self_verified;
+                    record.classification_method = "BASE2_STRONG_WITNESS";
+                    record.prp_status = "FAILED";
+                    ++summary.base2_composite_count;
+                    ++summary.composite_count;
+                } else if (prp_verdict == prp::Base2StrongPrpVerdict::probable_prime) {
+                    record.status.primality = PrimalityStatus::probable_prime;
+                    record.status.verification = VerificationStatus::unverified;
+                    record.prp_status = "PASSED";
+                    const auto decimal = std::to_string(record.candidate.value);
+                    constexpr std::uint64_t native_witness_limit = 65'535U;
+                    const auto native = proth::try_prove_u64(
+                        record.candidate.k, static_cast<std::uint32_t>(record.candidate.n),
+                        native_witness_limit);
+                    bool prime = false;
+                    if (native.certificate.has_value()) {
+                        const auto certificate_bytes =
+                            proth::canonical_certificate(*native.certificate);
+                        const auto certificate_path = summary.output_directory / "proofs" /
+                                                      "proth" /
+                                                      ("proth-" + std::to_string(index) + ".json");
+                        std::filesystem::create_directories(certificate_path.parent_path());
+                        write_atomic(certificate_path, certificate_bytes);
+                        record.native_proth_certificate =
+                            NativeProofEvidence{proth::certificate_format, certificate_path,
+                                                hash_file(certificate_path, sha256)};
+                        record.status.primality = PrimalityStatus::proven_prime;
+                        record.status.verification = VerificationStatus::self_verified;
+                        record.classification_method = "PROTH_CERTIFICATE_VALIDATED";
+                        prime = true;
+                    } else {
+                        const EngineRequest primary_request{
+                            "pari-" + std::to_string(index), "primeforge.proth.uint64.v1", decimal,
+                            summary.output_directory / "external" / "pari"};
+                        if (!proof_engine.supports(primary_request)) {
+                            throw std::runtime_error(
+                                "configured proof engine does not support the MVP family");
+                        }
+                        const auto primary = proof_engine.run(primary_request);
+                        if (primary.status.primality != PrimalityStatus::proven_prime &&
+                            primary.status.primality != PrimalityStatus::composite) {
+                            throw std::runtime_error("proof engine failed closed: " +
+                                                     primary.diagnostics);
+                        }
+                        prime = primary.status.primality == PrimalityStatus::proven_prime;
+                        record.primary_engine =
+                            collect_evidence(proof_engine, primary, sha256, prime);
+                        record.status.primality = primary.status.primality;
+                        record.status.verification = prime ? VerificationStatus::self_verified
+                                                           : VerificationStatus::unverified;
+                        record.classification_method =
+                            prime ? "PARI_PRIMECERT_VALIDATED" : "PARI_COMPOSITE";
+                    }
 
-        const auto line = canonical_search_record(record, summary.output_directory) + "\n";
-        append_durably(summary.results_path, line);
-        summary.records.push_back(std::move(record));
-        const auto next_index = index + 1U;
-        const bool requested_stop = stop_now() ||
-            (execution_options.clean_stop_after_candidates.has_value() &&
-             next_index >= *execution_options.clean_stop_after_candidates);
-        const bool checkpoint_due = requested_stop ||
-            next_index == summary.plan.candidate_count ||
-            next_index % config.checkpoint_every_candidates == 0U;
-        if (checkpoint_due) save_progress(summary, next_index, sha256);
-        if (requested_stop) return summary;
+                    const EngineRequest independent_request{
+                        "flint-" + std::to_string(index), "primeforge.proth.uint64.v1", decimal,
+                        summary.output_directory / "external" / "flint"};
+                    if (!independent_engine.supports(independent_request)) {
+                        throw std::runtime_error("configured independent engine does not "
+                                                 "support the MVP family");
+                    }
+                    const auto independent = independent_engine.run(independent_request);
+                    if (independent.status.primality != record.status.primality) {
+                        throw std::runtime_error("independent engine disagrees at candidate " +
+                                                 std::to_string(index));
+                    }
+                    record.independent_engine =
+                        collect_evidence(independent_engine, independent, sha256, false);
+                    record.status.verification = VerificationStatus::independently_verified;
+                    ++summary.externally_classified_count;
+                    if (prime)
+                        ++summary.proven_prime_count;
+                    else
+                        ++summary.composite_count;
+                } else {
+                    throw std::logic_error("PRP backend returned an invalid verdict");
+                }
+            }
+
+            const auto line = canonical_search_record(record, summary.output_directory) + "\n";
+            append_durably(summary.results_path, line);
+            summary.records.push_back(std::move(record));
+            const auto next_index = index + 1U;
+            const bool requested_stop =
+                stop_now() || (execution_options.clean_stop_after_candidates.has_value() &&
+                               next_index >= *execution_options.clean_stop_after_candidates);
+            const bool checkpoint_due = requested_stop ||
+                                        next_index == summary.plan.candidate_count ||
+                                        next_index % config.checkpoint_every_candidates == 0U;
+            if (checkpoint_due) save_progress(summary, next_index, sha256);
+            if (requested_stop) {
+                if (next_batch != nullptr) await_prp_batch(*next_batch);
+                return summary;
+            }
+        }
+        if (survivor_index != current_batch->survivor_values.size()) {
+            throw std::logic_error("PRP batch contains unconsumed survivors");
+        }
+        current_batch = std::move(next_batch);
+        next_batch = current_batch != nullptr && current_batch->end < summary.plan.candidate_count
+                         ? prepare_prp_batch(config, sieve_result, current_batch->end,
+                                             bounded_batch_candidates)
+                         : nullptr;
     }
 
-    if (summary.proven_prime_count + summary.composite_count !=
-        summary.plan.candidate_count) {
+    if (summary.proven_prime_count + summary.composite_count != summary.plan.candidate_count) {
         throw std::logic_error("search accounting is incomplete");
     }
     finalize_campaign(summary, sha256);
     return summary;
 }
 
-std::string canonical_search_record(
-    const SearchRecord& record, const std::filesystem::path& output_directory) {
+std::string canonical_search_record(const SearchRecord &record,
+                                    const std::filesystem::path &output_directory) {
     const auto decimal = [](const std::uint64_t value) {
         return quote_json(std::to_string(value));
     };
@@ -590,20 +654,16 @@ std::string canonical_search_record(
            ",\"factor\":" +
            (record.factor.has_value() ? decimal(*record.factor) : std::string{"null"}) +
            ",\"flat_index\":" + decimal(record.candidate.flat_index) +
-           ",\"independent_engine\":" +
-           evidence_json(record.independent_engine, output_directory) +
-           ",\"k\":" + decimal(record.candidate.k) +
-           ",\"n\":" + decimal(record.candidate.n) +
+           ",\"independent_engine\":" + evidence_json(record.independent_engine, output_directory) +
+           ",\"k\":" + decimal(record.candidate.k) + ",\"n\":" + decimal(record.candidate.n) +
            ",\"native_proth_certificate\":" +
            native_proof_json(record.native_proth_certificate, output_directory) +
            ",\"novelty_status\":" + quote_json(to_string(record.status.novelty)) +
            ",\"primality_status\":" + quote_json(to_string(record.status.primality)) +
-           ",\"primary_engine\":" +
-           evidence_json(record.primary_engine, output_directory) +
+           ",\"primary_engine\":" + evidence_json(record.primary_engine, output_directory) +
            ",\"prp_status\":" + quote_json(record.prp_status) +
            ",\"value\":" + decimal(record.candidate.value) +
-           ",\"verification_status\":" +
-           quote_json(to_string(record.status.verification)) +
+           ",\"verification_status\":" + quote_json(to_string(record.status.verification)) +
            ",\"work_unit_id\":" + quote_json(record.work_unit_id) + "}";
 }
 

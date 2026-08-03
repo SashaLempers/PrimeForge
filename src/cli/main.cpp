@@ -6,14 +6,21 @@
 #include "primeforge/mvp/campaign_verifier.hpp"
 #include "primeforge/mvp/search_config.hpp"
 #include "primeforge/mvp/search_pipeline.hpp"
+#include "primeforge/prp/base2_batch.hpp"
 
-#include <chrono>
+#if defined(PRIMEFORGE_HAS_CUDA_PRP)
+#include "primeforge/cuda/prp_batch.hpp"
+#endif
+
 #include <charconv>
+#include <chrono>
 #include <csignal>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <span>
 #include <stdexcept>
@@ -26,20 +33,18 @@ volatile std::sig_atomic_t graceful_stop_requested = 0;
 
 void handle_interrupt(const int) { graceful_stop_requested = 1; }
 
-[[nodiscard]] std::string hash_file(
-    const std::filesystem::path& path, const primeforge::Sha256Provider& sha256) {
+[[nodiscard]] std::string hash_file(const std::filesystem::path &path,
+                                    const primeforge::Sha256Provider &sha256) {
     std::ifstream input{path, std::ios::binary};
     if (!input) throw std::runtime_error("cannot read engine executable: " + path.string());
-    const std::string content{
-        std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
+    const std::string content{std::istreambuf_iterator<char>{input},
+                              std::istreambuf_iterator<char>{}};
     return primeforge::sha256_to_hex(
         sha256.digest(std::as_bytes(std::span{content.data(), content.size()})));
 }
 
-void print_engine(
-    const std::string_view name,
-    const primeforge::mvp::EngineExecutable& engine,
-    const primeforge::Sha256Provider& sha256) {
+void print_engine(const std::string_view name, const primeforge::mvp::EngineExecutable &engine,
+                  const primeforge::Sha256Provider &sha256) {
     const auto path = std::filesystem::absolute(engine.path);
     std::cout << "engine." << name << ".path=" << path.string() << '\n';
     if (!std::filesystem::is_regular_file(path)) {
@@ -55,7 +60,7 @@ void print_engine(
     }
 }
 
-[[nodiscard]] std::filesystem::path config_argument(const int argc, char** argv) {
+[[nodiscard]] std::filesystem::path config_argument(const int argc, char **argv) {
     if (argc != 4 || std::string_view{argv[2]} != "--config") {
         throw std::invalid_argument("usage: primeforge <inspect|search> --config search.yaml");
     }
@@ -65,38 +70,107 @@ void print_engine(
 struct SearchArguments {
     std::filesystem::path config_path;
     std::optional<std::uint64_t> stop_after;
+    std::string prp_backend{"auto"};
+    std::size_t prp_batch_candidates{8'192U};
 };
 
-[[nodiscard]] SearchArguments search_arguments(const int argc, char** argv) {
-    if ((argc != 4 && argc != 6) || std::string_view{argv[2]} != "--config") {
-        throw std::invalid_argument(
-            "usage: primeforge search --config search.yaml [--stop-after count]");
+[[nodiscard]] std::uint64_t parse_positive_decimal(const std::string_view value,
+                                                   const std::string_view option) {
+    std::uint64_t parsed_value{};
+    const auto parsed = std::from_chars(value.data(), value.data() + value.size(), parsed_value);
+    if (value.empty() || (value.size() > 1U && value.front() == '0') || parsed.ec != std::errc{} ||
+        parsed.ptr != value.data() + value.size() || parsed_value == 0U) {
+        throw std::invalid_argument(std::string{option} + " requires a positive canonical integer");
     }
-    SearchArguments result{argv[3], std::nullopt};
-    if (argc == 6) {
-        if (std::string_view{argv[4]} != "--stop-after") {
-            throw std::invalid_argument(
-                "usage: primeforge search --config search.yaml [--stop-after count]");
+    return parsed_value;
+}
+
+[[nodiscard]] SearchArguments search_arguments(const int argc, char **argv) {
+    if (argc < 4 || argc % 2 != 0 || std::string_view{argv[2]} != "--config") {
+        throw std::invalid_argument("usage: primeforge search --config search.yaml "
+                                    "[--stop-after count] [--prp-backend auto|cpu|cuda] "
+                                    "[--prp-batch-candidates count]");
+    }
+    SearchArguments result{argv[3], std::nullopt, "auto", 8'192U};
+    for (int index = 4; index < argc; index += 2) {
+        const std::string_view option{argv[index]};
+        const std::string_view value{argv[index + 1]};
+        if (option == "--stop-after") {
+            result.stop_after = parse_positive_decimal(value, option);
+        } else if (option == "--prp-backend") {
+            if (value != "auto" && value != "cpu" && value != "cuda") {
+                throw std::invalid_argument("--prp-backend requires auto, cpu, or cuda");
+            }
+            result.prp_backend = value;
+        } else if (option == "--prp-batch-candidates") {
+            const auto count = parse_positive_decimal(value, option);
+            if (count > 1'048'576U) {
+                throw std::invalid_argument("--prp-batch-candidates exceeds the bounded maximum");
+            }
+            result.prp_batch_candidates = static_cast<std::size_t>(count);
+        } else {
+            throw std::invalid_argument("unknown search option: " + std::string{option});
         }
-        const std::string_view decimal{argv[5]};
-        std::uint64_t count{};
-        const auto parsed = std::from_chars(
-            decimal.data(), decimal.data() + decimal.size(), count);
-        if (decimal.empty() || (decimal.size() > 1U && decimal.front() == '0') ||
-            parsed.ec != std::errc{} || parsed.ptr != decimal.data() + decimal.size() ||
-            count == 0U) {
-            throw std::invalid_argument("--stop-after requires a positive canonical integer");
-        }
-        result.stop_after = count;
     }
     return result;
 }
 
-[[nodiscard]] std::filesystem::path named_path_argument(
-    const int argc,
-    char** argv,
-    const std::string_view option,
-    const std::string_view usage) {
+struct ResumeArguments {
+    std::filesystem::path checkpoint_path;
+    std::string prp_backend{"auto"};
+    std::size_t prp_batch_candidates{8'192U};
+};
+
+[[nodiscard]] ResumeArguments resume_arguments(const int argc, char **argv) {
+    if (argc < 4 || argc % 2 != 0 || std::string_view{argv[2]} != "--checkpoint") {
+        throw std::invalid_argument("usage: primeforge resume --checkpoint <file> "
+                                    "[--prp-backend auto|cpu|cuda] [--prp-batch-candidates count]");
+    }
+    ResumeArguments result{argv[3], "auto", 8'192U};
+    for (int index = 4; index < argc; index += 2) {
+        const std::string_view option{argv[index]};
+        const std::string_view value{argv[index + 1]};
+        if (option == "--prp-backend") {
+            result.prp_backend = value;
+            if (result.prp_backend != "auto" && result.prp_backend != "cpu" &&
+                result.prp_backend != "cuda") {
+                throw std::invalid_argument("--prp-backend requires auto, cpu, or cuda");
+            }
+        } else if (option == "--prp-batch-candidates") {
+            const auto count = parse_positive_decimal(value, option);
+            if (count > 1'048'576U) {
+                throw std::invalid_argument("--prp-batch-candidates exceeds the bounded maximum");
+            }
+            result.prp_batch_candidates = static_cast<std::size_t>(count);
+        } else {
+            throw std::invalid_argument("unknown resume option: " + std::string{option});
+        }
+    }
+    return result;
+}
+
+[[nodiscard]] std::unique_ptr<primeforge::prp::Base2StrongPrpBatchBackend>
+make_prp_backend(const std::string_view requested) {
+    constexpr std::size_t batch_capacity = 8'192U;
+    if (requested == "cpu") {
+        return primeforge::prp::make_cpu_base2_strong_prp_batch_backend(batch_capacity);
+    }
+#if defined(PRIMEFORGE_HAS_CUDA_PRP)
+    if (requested == "auto" || requested == "cuda") {
+        return primeforge::cuda_backend::make_cuda_base2_strong_prp_batch_backend(batch_capacity);
+    }
+#else
+    if (requested == "cuda") {
+        throw std::runtime_error(
+            "this primeforge executable was built without the CUDA PRP backend");
+    }
+#endif
+    return primeforge::prp::make_cpu_base2_strong_prp_batch_backend(batch_capacity);
+}
+
+[[nodiscard]] std::filesystem::path named_path_argument(const int argc, char **argv,
+                                                        const std::string_view option,
+                                                        const std::string_view usage) {
     if (argc != 4 || std::string_view{argv[2]} != option) {
         throw std::invalid_argument(std::string{usage});
     }
@@ -147,7 +221,7 @@ void run_selftest() {
               << "mvp.status=PASS\n";
 }
 
-void run_inspect(const std::filesystem::path& config_path) {
+void run_inspect(const std::filesystem::path &config_path) {
     const primeforge::PortableSha256Provider sha256;
     const auto config = primeforge::mvp::load_search_config(config_path);
     const auto plan = primeforge::mvp::build_campaign_plan(config, sha256);
@@ -162,8 +236,8 @@ void run_inspect(const std::filesystem::path& config_path) {
               << "inspect.status=PASS\n";
 }
 
-[[nodiscard]] primeforge::engine::ExternalAdapterConfig pari_config(
-    const primeforge::mvp::SearchConfig& config) {
+[[nodiscard]] primeforge::engine::ExternalAdapterConfig
+pari_config(const primeforge::mvp::SearchConfig &config) {
     primeforge::engine::ExternalAdapterConfig pari;
     pari.kind = primeforge::engine::ExternalEngineKind::pari_gp;
     pari.stable_id = "pari-gp-2.17.4-primecert";
@@ -177,8 +251,8 @@ void run_inspect(const std::filesystem::path& config_path) {
     return pari;
 }
 
-[[nodiscard]] primeforge::engine::ExternalAdapterConfig flint_config(
-    const primeforge::mvp::SearchConfig& config) {
+[[nodiscard]] primeforge::engine::ExternalAdapterConfig
+flint_config(const primeforge::mvp::SearchConfig &config) {
     primeforge::engine::ExternalAdapterConfig flint;
     flint.kind = primeforge::engine::ExternalEngineKind::flint;
     flint.stable_id = "flint-3.6.0-independent";
@@ -202,11 +276,14 @@ void run_inspect(const std::filesystem::path& config_path) {
     return flint;
 }
 
-void print_search_summary(const primeforge::mvp::SearchSummary& summary) {
+void print_search_summary(const primeforge::mvp::SearchSummary &summary) {
     std::cout << "search.campaign_id=" << summary.plan.campaign_id << '\n'
               << "search.candidates=" << summary.plan.candidate_count << '\n'
               << "search.sieve_composites=" << summary.sieve_composite_count << '\n'
               << "search.base2_composites=" << summary.base2_composite_count << '\n'
+              << "search.prp_backend=" << summary.prp_backend_id << '\n'
+              << "search.prp_tested=" << summary.prp_tested_count << '\n'
+              << "search.prp_batches=" << summary.prp_submitted_batches << '\n'
               << "search.external_classifications=" << summary.externally_classified_count << '\n'
               << "search.proven_primes=" << summary.proven_prime_count << '\n'
               << "search.composites=" << summary.composite_count << '\n'
@@ -215,23 +292,26 @@ void print_search_summary(const primeforge::mvp::SearchSummary& summary) {
               << "search.status=" << (summary.completed ? "PASS" : "STOPPED") << '\n';
 }
 
-void run_search(
-    const std::filesystem::path& config_path,
-    const std::optional<std::uint64_t> stop_after) {
+void run_search(const std::filesystem::path &config_path,
+                const std::optional<std::uint64_t> stop_after,
+                const std::string_view prp_backend_name, const std::size_t prp_batch_candidates) {
     const primeforge::PortableSha256Provider sha256;
     const auto config = primeforge::mvp::load_search_config(config_path);
     primeforge::engine::ExternalEngineAdapter proof_engine{pari_config(config), sha256};
-    primeforge::engine::ExternalEngineAdapter independent_engine{
-        flint_config(config), sha256};
+    primeforge::engine::ExternalEngineAdapter independent_engine{flint_config(config), sha256};
     primeforge::mvp::SearchExecutionOptions options;
+    auto prp_backend = make_prp_backend(prp_backend_name);
     options.clean_stop_after_candidates = stop_after;
     options.stop_requested = [] { return graceful_stop_requested != 0; };
-    const auto summary = primeforge::mvp::execute_search(
-        config, sha256, proof_engine, independent_engine, options);
+    options.prp_backend = prp_backend.get();
+    options.prp_batch_candidates = prp_batch_candidates;
+    const auto summary =
+        primeforge::mvp::execute_search(config, sha256, proof_engine, independent_engine, options);
     print_search_summary(summary);
 }
 
-void run_resume(const std::filesystem::path& checkpoint_path) {
+void run_resume(const std::filesystem::path &checkpoint_path,
+                const std::string_view prp_backend_name, const std::size_t prp_batch_candidates) {
     const auto absolute_checkpoint = std::filesystem::absolute(checkpoint_path);
     const auto config_path = absolute_checkpoint.parent_path() / "search.yaml";
     const primeforge::PortableSha256Provider sha256;
@@ -241,31 +321,31 @@ void run_resume(const std::filesystem::path& checkpoint_path) {
         throw std::runtime_error("checkpoint directory does not match recovery configuration");
     }
     primeforge::engine::ExternalEngineAdapter proof_engine{pari_config(config), sha256};
-    primeforge::engine::ExternalEngineAdapter independent_engine{
-        flint_config(config), sha256};
+    primeforge::engine::ExternalEngineAdapter independent_engine{flint_config(config), sha256};
     primeforge::mvp::SearchExecutionOptions options;
+    auto prp_backend = make_prp_backend(prp_backend_name);
     options.resume_existing = true;
     options.stop_requested = [] { return graceful_stop_requested != 0; };
-    const auto summary = primeforge::mvp::execute_search(
-        config, sha256, proof_engine, independent_engine, options);
+    options.prp_backend = prp_backend.get();
+    options.prp_batch_candidates = prp_batch_candidates;
+    const auto summary =
+        primeforge::mvp::execute_search(config, sha256, proof_engine, independent_engine, options);
     print_search_summary(summary);
 }
 
-void run_verify(const std::filesystem::path& results_path) {
+void run_verify(const std::filesystem::path &results_path) {
     const auto absolute_results = std::filesystem::absolute(results_path);
-    const auto config = primeforge::mvp::load_search_config(
-        absolute_results.parent_path() / "search.yaml");
+    const auto config =
+        primeforge::mvp::load_search_config(absolute_results.parent_path() / "search.yaml");
     const primeforge::PortableSha256Provider sha256;
     auto certificate = pari_config(config);
     certificate.kind = primeforge::engine::ExternalEngineKind::pari_gp_certificate;
     certificate.stable_id = "pari-gp-2.17.4-primecert-verifier";
     certificate.can_produce_proof = false;
-    primeforge::engine::ExternalEngineAdapter certificate_verifier{
-        certificate, sha256};
-    primeforge::engine::ExternalEngineAdapter independent_engine{
-        flint_config(config), sha256};
-    const auto summary = primeforge::mvp::verify_campaign(
-        absolute_results, sha256, certificate_verifier, independent_engine);
+    primeforge::engine::ExternalEngineAdapter certificate_verifier{certificate, sha256};
+    primeforge::engine::ExternalEngineAdapter independent_engine{flint_config(config), sha256};
+    const auto summary = primeforge::mvp::verify_campaign(absolute_results, sha256,
+                                                          certificate_verifier, independent_engine);
     std::cout << "verify.campaign_id=" << summary.campaign_id << '\n'
               << "verify.records=" << summary.record_count << '\n'
               << "verify.proven_primes=" << summary.proven_prime_count << '\n'
@@ -276,11 +356,11 @@ void run_verify(const std::filesystem::path& results_path) {
 
 }  // namespace
 
-int main(const int argc, char** argv) {
+int main(const int argc, char **argv) {
     try {
         if (argc < 2) {
-            throw std::invalid_argument(
-                "usage: primeforge <selftest|inspect|search|resume|verify> [options]");
+            throw std::invalid_argument("usage: primeforge <selftest|inspect|search|resume|verify> "
+                                        "[options]");
         }
         const std::string_view command{argv[1]};
         if (command == "search" || command == "resume") {
@@ -292,20 +372,20 @@ int main(const int argc, char** argv) {
             run_inspect(config_argument(argc, argv));
         } else if (command == "search") {
             const auto arguments = search_arguments(argc, argv);
-            run_search(arguments.config_path, arguments.stop_after);
+            run_search(arguments.config_path, arguments.stop_after, arguments.prp_backend,
+                       arguments.prp_batch_candidates);
         } else if (command == "resume") {
-            run_resume(named_path_argument(
-                argc, argv, "--checkpoint",
-                "usage: primeforge resume --checkpoint <file>"));
+            const auto arguments = resume_arguments(argc, argv);
+            run_resume(arguments.checkpoint_path, arguments.prp_backend,
+                       arguments.prp_batch_candidates);
         } else if (command == "verify") {
-            run_verify(named_path_argument(
-                argc, argv, "--result",
-                "usage: primeforge verify --result <results.jsonl>"));
+            run_verify(named_path_argument(argc, argv, "--result",
+                                           "usage: primeforge verify --result <results.jsonl>"));
         } else {
             throw std::invalid_argument("unknown or malformed primeforge command");
         }
         return 0;
-    } catch (const std::exception& error) {
+    } catch (const std::exception &error) {
         std::cerr << "primeforge: " << error.what() << '\n';
         return 1;
     }

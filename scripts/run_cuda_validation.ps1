@@ -102,6 +102,15 @@ try {
     Invoke-Checked -Executable $sanitizer -Arguments @(
         '--tool', 'memcheck', '--error-exitcode', '99', $pipelineTests
     )
+
+    $prpTests = Join-Path $buildDirectory 'primeforge-cuda-prp-tests.exe'
+    if (-not (Test-Path -LiteralPath $prpTests -PathType Leaf)) {
+        throw "CUDA PRP test executable was not produced: $prpTests"
+    }
+    Invoke-Checked -Executable $prpTests
+    Invoke-Checked -Executable $sanitizer -Arguments @(
+        '--tool', 'memcheck', '--error-exitcode', '99', $prpTests
+    )
 } finally {
     Pop-Location
 }

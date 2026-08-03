@@ -84,6 +84,7 @@ add_library(primeforge_core STATIC
     src/math/big_integer.cpp
     src/math/mul128.cpp
     src/mvp/search_config.cpp
+    src/proth/proth.cpp
     src/sieve/sieve.cpp
     src/work/work_unit.cpp
     ${primeforge_family_sieve_sources}
@@ -221,6 +222,16 @@ add_executable(primeforge-sieve-tests tests/sieve_test.cpp)
 target_link_libraries(primeforge-sieve-tests PRIVATE PrimeForge::core)
 target_compile_features(primeforge-sieve-tests PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge-sieve-tests)
+
+add_executable(primeforge-proth src/proth/main.cpp)
+target_link_libraries(primeforge-proth PRIVATE PrimeForge::core)
+target_compile_features(primeforge-proth PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-proth)
+
+add_executable(primeforge-proth-tests tests/proth_test.cpp)
+target_link_libraries(primeforge-proth-tests PRIVATE PrimeForge::core)
+target_compile_features(primeforge-proth-tests PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-proth-tests)
 
 add_executable(primeforge-work-unit-tests tests/work_unit_test.cpp)
 target_link_libraries(primeforge-work-unit-tests PRIVATE PrimeForge::core)
@@ -445,6 +456,16 @@ if(BUILD_TESTING)
     add_test(
         NAME primeforge.sieve
         COMMAND primeforge-sieve-tests ${CMAKE_CURRENT_SOURCE_DIR}/corpus/v1/cases.tsv
+    )
+    add_test(
+        NAME primeforge.proth
+        COMMAND primeforge-proth-tests
+            ${CMAKE_CURRENT_SOURCE_DIR}/corpus/mvp/known_proth_small_primes.tsv
+    )
+    add_test(NAME primeforge.proth_cli COMMAND primeforge-proth --k 43 --n 32 --max-witness 255)
+    set_tests_properties(
+        primeforge.proth_cli
+        PROPERTIES PASS_REGULAR_EXPRESSION "proth.primality_status=PROVEN_PRIME"
     )
     add_test(NAME primeforge.work_units COMMAND primeforge-work-unit-tests)
     add_test(NAME primeforge.family_language COMMAND primeforge-family-tests)

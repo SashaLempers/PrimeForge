@@ -1,0 +1,17 @@
+schema	case_id	k	n	expected_primality_status
+primeforge.pivot09.proth-u64.v1	prime-043	43	32	PROVEN_PRIME
+primeforge.pivot09.proth-u64.v1	prime-055	55	32	PROVEN_PRIME
+primeforge.pivot09.proth-u64.v1	prime-073	73	32	PROVEN_PRIME
+primeforge.pivot09.proth-u64.v1	prime-081	81	32	PROVEN_PRIME
+primeforge.pivot09.proth-u64.v1	prime-111	111	32	PROVEN_PRIME
+primeforge.pivot09.proth-u64.v1	prime-123	123	32	PROVEN_PRIME
+primeforge.pivot09.proth-u64.v1	prime-157	157	32	PROVEN_PRIME
+primeforge.pivot09.proth-u64.v1	prime-171	171	32	PROVEN_PRIME
+primeforge.pivot09.proth-u64.v1	composite-003	3	32	COMPOSITE
+primeforge.pivot09.proth-u64.v1	composite-005	5	32	COMPOSITE
+primeforge.pivot09.proth-u64.v1	composite-007	7	32	COMPOSITE
+primeforge.pivot09.proth-u64.v1	composite-009	9	32	COMPOSITE
+primeforge.pivot09.proth-u64.v1	composite-011	11	32	COMPOSITE
+primeforge.pivot09.proth-u64.v1	composite-013	13	32	COMPOSITE
+primeforge.pivot09.proth-u64.v1	composite-015	15	32	COMPOSITE
+primeforge.pivot09.proth-u64.v1	composite-017	17	32	COMPOSITE

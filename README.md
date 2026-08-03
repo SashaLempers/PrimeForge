@@ -233,6 +233,11 @@ single-process batches. See
 [`docs/reports/OPTIMIZATION_04.md`](docs/reports/OPTIMIZATION_04.md) and
 [`benchmarks/baselines/optimization-04/`](benchmarks/baselines/optimization-04/).
 
+The fifth retained optimization overlaps CPU Proth witness search with the
+independent FLINT batch while keeping all durable writes ordered. See
+[`docs/reports/OPTIMIZATION_05.md`](docs/reports/OPTIMIZATION_05.md) and
+[`benchmarks/baselines/optimization-05/`](benchmarks/baselines/optimization-05/).
+
 Run a focused CPU PRP sample:
 
 ```powershell

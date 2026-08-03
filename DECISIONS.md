@@ -754,3 +754,17 @@ For an odd sample count, the PowerShell summarizer selects
 `int` is forbidden because PowerShell rounds it to 4. The raw benchmark rows
 were never affected; retained summaries and their manifests were regenerated
 from those rows after correcting the formula.
+
+## D-0086 - Native Proth witness search overlaps independent classification
+
+**Status:** Accepted - 2026-08-03
+
+After a PRP batch completes, PrimeForge may calculate bounded native Proth
+witness attempts on one CPU task while the independent FLINT batch runs. Both
+tasks are joined before status comparison, certificate creation or durable
+serialization. This keeps record order and failure behavior deterministic while
+avoiding concurrent result-ledger writes during process creation.
+
+Two independent exploratory series reproduced the gain. The retained series
+improves complete-pipeline medians by 3.014 % to 5.081 % with byte-identical
+interrupted/resumed and uninterrupted results.

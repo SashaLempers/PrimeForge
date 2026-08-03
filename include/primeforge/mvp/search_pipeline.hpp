@@ -23,6 +23,9 @@ struct EngineEvidence {
     std::string executable_sha256;
     std::filesystem::path raw_stdout_path;
     std::filesystem::path raw_stderr_path;
+    std::filesystem::path raw_log_path;
+    std::optional<std::uint64_t> raw_log_offset;
+    std::optional<std::uint64_t> raw_log_length;
     std::filesystem::path proof_artifact_path;
     std::string proof_artifact_sha256;
 };
@@ -79,6 +82,7 @@ struct SearchSummary {
     std::uint64_t composite_count{};
     std::filesystem::path output_directory;
     std::filesystem::path results_path;
+    std::filesystem::path flint_evidence_path;
     std::filesystem::path checkpoint_path;
     std::filesystem::path coverage_report_path;
     std::filesystem::path manifest_path;

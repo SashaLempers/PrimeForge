@@ -85,8 +85,11 @@ int main() {
         check(last.k == 31U && last.n == 14U && last.value == 507'905U,
               "last candidate mapping");
         const auto plan = primeforge::mvp::build_campaign_plan(config, sha256);
+        check(std::string_view{primeforge::mvp::pipeline_version} ==
+                  "primeforge.mvp.pipeline.v3",
+              "compact FLINT evidence pipeline version");
         check(plan.configuration_sha256 ==
-                  "2e3391671b95db8bf78ae5769d62cd92ba4f77803ed9c225fbf3c8674af0372b",
+                  "da2060dd7f89c1fbc6edb9b204d4247d54941de64781021701434a0aa0b210c5",
               "known campaign canonical SHA-256");
         const auto rendered = primeforge::mvp::render_search_config_yaml(config);
         const auto rendered_config = primeforge::mvp::parse_search_config(rendered);

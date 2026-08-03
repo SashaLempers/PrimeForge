@@ -3,17 +3,21 @@
 #include "primeforge/core/sha256.hpp"
 #include "primeforge/engine/engine_adapter.hpp"
 #include "primeforge/mvp/campaign_verifier.hpp"
+#include "primeforge/mvp/flint_evidence_log.hpp"
 #include "primeforge/mvp/search_config.hpp"
 #include "primeforge/mvp/search_pipeline.hpp"
 #include "primeforge/proth/proth.hpp"
+#include "primeforge/runtime/checkpoint_manager.hpp"
 
 #include <algorithm>
+#include <charconv>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <map>
 #include <set>
+#include <span>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -75,6 +79,40 @@ struct ExpectedPrime {
     return {std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
 }
 
+void write_file(const std::filesystem::path& path, const std::string_view bytes) {
+    std::ofstream output{path, std::ios::binary | std::ios::trunc};
+    if (!output) throw std::runtime_error("cannot write test output");
+    output.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+    if (!output) throw std::runtime_error("cannot complete test output write");
+}
+
+[[nodiscard]] std::string hash_text(
+    const std::string_view bytes, const primeforge::Sha256Provider& sha256) {
+    return primeforge::sha256_to_hex(
+        sha256.digest(std::as_bytes(std::span{bytes.data(), bytes.size()})));
+}
+
+[[nodiscard]] std::uint64_t checkpoint_decimal(
+    const std::string_view payload, const std::string_view field) {
+    const auto marker = std::string{field} + "=";
+    const auto marker_position = payload.find(marker);
+    if (marker_position == std::string_view::npos) {
+        throw std::runtime_error("checkpoint test field is absent");
+    }
+    const auto begin = marker_position + marker.size();
+    const auto end = payload.find(';', begin);
+    if (end == std::string_view::npos || end == begin) {
+        throw std::runtime_error("checkpoint test field is malformed");
+    }
+    std::uint64_t result{};
+    const auto converted = std::from_chars(
+        payload.data() + begin, payload.data() + end, result);
+    if (converted.ec != std::errc{} || converted.ptr != payload.data() + end) {
+        throw std::runtime_error("checkpoint test field is not decimal");
+    }
+    return result;
+}
+
 [[nodiscard]] std::map<std::string, std::string> snapshot_regular_files(
     const std::filesystem::path& directory) {
     std::map<std::string, std::string> snapshot;
@@ -123,23 +161,43 @@ public:
 
     [[nodiscard]] primeforge::EngineResult run(
         const primeforge::EngineRequest& request) override {
+        ++run_calls_;
+        return make_result(request, false);
+    }
+
+    [[nodiscard]] std::vector<primeforge::EngineResult> run_batch(
+        const std::span<const primeforge::EngineRequest> requests) override {
+        ++run_batch_calls_;
+        last_batch_size_ = requests.size();
+        std::vector<primeforge::EngineResult> results;
+        results.reserve(requests.size());
+        for (const auto& request : requests) {
+            results.push_back(make_result(request, !proof_));
+        }
+        return results;
+    }
+
+    void reset_call_counts() noexcept {
+        run_calls_ = 0U;
+        run_batch_calls_ = 0U;
+        last_batch_size_ = 0U;
+    }
+
+    [[nodiscard]] std::size_t run_calls() const noexcept { return run_calls_; }
+    [[nodiscard]] std::size_t run_batch_calls() const noexcept { return run_batch_calls_; }
+    [[nodiscard]] std::size_t last_batch_size() const noexcept { return last_batch_size_; }
+
+private:
+    [[nodiscard]] primeforge::EngineResult make_result(
+        const primeforge::EngineRequest& request, const bool inline_raw_output) const {
         const auto value = std::stoull(request.canonical_input);
         bool prime = known_primes_->contains(value);
         if (disagree_ && value == *known_primes_->begin()) prime = !prime;
-        const auto directory = request.working_directory / request.job_id;
-        std::filesystem::create_directories(directory);
-        const auto stdout_path = directory / "stdout.txt";
-        const auto stderr_path = directory / "stderr.txt";
-        {
-            std::ofstream output{stdout_path, std::ios::binary};
-            if (proof_) {
-                output << (prime ? "PRIMEFORGE:PROVEN_PRIME\n"
-                                 : "PRIMEFORGE:COMPOSITE\n");
-            } else {
-                output << (prime ? "PROVEN_PRIME\n" : "COMPOSITE\n");
-            }
-        }
-        { std::ofstream output{stderr_path, std::ios::binary}; }
+        const auto stdout_bytes =
+            proof_ ? (prime ? std::string{"PRIMEFORGE:PROVEN_PRIME\n"}
+                            : std::string{"PRIMEFORGE:COMPOSITE\n"})
+                   : (prime ? std::string{"PROVEN_PRIME\n"}
+                            : std::string{"COMPOSITE\n"});
 
         primeforge::EngineResult result;
         result.status.primality = prime ? primeforge::PrimalityStatus::proven_prime
@@ -148,9 +206,19 @@ public:
         result.status.novelty = primeforge::NoveltyStatus::not_checked;
         result.diagnostics = prime ? "KNOWN_PROOF_FIXTURE" : "KNOWN_COMPOSITE_FIXTURE";
         result.engine_executable_sha256 = std::string(64U, proof_ ? 'a' : 'b');
-        result.raw_stdout_path = stdout_path;
-        result.raw_stderr_path = stderr_path;
+        if (inline_raw_output) {
+            result.raw_stdout_bytes = stdout_bytes;
+            result.raw_stderr_bytes = std::string{};
+        } else {
+            const auto directory = request.working_directory / request.job_id;
+            std::filesystem::create_directories(directory);
+            result.raw_stdout_path = directory / "stdout.txt";
+            result.raw_stderr_path = directory / "stderr.txt";
+            write_file(result.raw_stdout_path, stdout_bytes);
+            write_file(result.raw_stderr_path, "");
+        }
         if (proof_ && prime) {
+            const auto directory = request.working_directory / request.job_id;
             const auto certificate = directory / "certificate.txt";
             std::ofstream output{certificate, std::ios::binary};
             output << "KNOWN-CERTIFICATE:" << value << '\n';
@@ -160,11 +228,13 @@ public:
         return result;
     }
 
-private:
     std::string id_;
     const std::set<std::uint64_t>* known_primes_{};
     bool proof_{};
     bool disagree_{};
+    std::size_t run_calls_{};
+    std::size_t run_batch_calls_{};
+    std::size_t last_batch_size_{};
 };
 
 class KnownCertificateVerifier final : public primeforge::EngineAdapter {
@@ -285,6 +355,12 @@ int main(const int argc, char** argv) {
               "MVP reports complete integer stage metrics for the CPU baseline");
         check(first.externally_classified_count >= known_primes.size(),
               "every known prime reaches both external contracts");
+        check(std::filesystem::is_regular_file(first.flint_evidence_path),
+              "campaign owns one FLINT evidence journal");
+        primeforge::mvp::FlintEvidenceLog first_flint_log{
+            first.flint_evidence_path, sha256};
+        std::vector<primeforge::mvp::FlintEvidenceSlice> first_flint_slices;
+        std::uint64_t expected_flint_offset = 0U;
         std::uint64_t native_certificates = 0U;
         for (const auto& record : first.records) {
             const bool expected_prime =
@@ -316,21 +392,89 @@ int main(const int argc, char** argv) {
             }
             check(record.status.primality != primeforge::PrimalityStatus::probable_prime,
                   "completed search never presents a PRP as proven by implication");
+            if (record.independent_engine.has_value()) {
+                const auto& evidence = *record.independent_engine;
+                check(evidence.raw_log_path == first.flint_evidence_path &&
+                          evidence.raw_log_offset.has_value() &&
+                          evidence.raw_log_length.has_value() &&
+                          *evidence.raw_log_offset == expected_flint_offset &&
+                          *evidence.raw_log_length > 0U &&
+                          evidence.raw_stdout_path.empty() &&
+                          evidence.raw_stderr_path.empty(),
+                      "independent evidence uses one exact contiguous FLINT journal slice");
+                const primeforge::mvp::FlintEvidenceSlice slice{
+                    *evidence.raw_log_offset, *evidence.raw_log_length};
+                const auto stored = first_flint_log.read(slice);
+                check(stored.job_id == "flint-" +
+                                           std::to_string(record.candidate.flat_index) &&
+                          stored.input == std::to_string(record.candidate.value),
+                      "FLINT journal slice binds exact candidate coordinates");
+                const auto canonical = primeforge::mvp::canonical_search_record(
+                    record, first.output_directory);
+                const auto exact_reference =
+                    "\"raw_log_length\":\"" + std::to_string(slice.length) +
+                    "\",\"raw_log_offset\":\"" + std::to_string(slice.offset) +
+                    "\",\"raw_log_path\":\"external/flint/evidence.jsonl\","
+                    "\"raw_stderr_path\":null,\"raw_stdout_path\":null";
+                check(canonical.find(exact_reference) != std::string::npos,
+                      "canonical result stores exact flat raw_log reference fields");
+                first_flint_slices.push_back(slice);
+                expected_flint_offset += slice.length;
+            }
         }
         check(native_certificates == known_primes.size(),
               "every known prime uses the native Proth proof boundary");
+        const auto complete_flint_prefix =
+            first_flint_log.validate_complete_log(first_flint_slices);
+        check(first_flint_slices.size() == first.externally_classified_count &&
+                  complete_flint_prefix.size == expected_flint_offset,
+              "FLINT journal has exactly one indexed record per external classification");
+        const auto first_flint_inventory = snapshot_regular_files(
+            first.output_directory / "external" / "flint");
+        check(first_flint_inventory.size() == 1U &&
+                  first_flint_inventory.contains("evidence.jsonl"),
+              "completed campaign leaves no per-candidate FLINT files");
         const auto first_bytes = read_file(first.results_path);
+        const auto first_flint_bytes = read_file(first.flint_evidence_path);
         const auto first_manifest = read_file(first.manifest_path);
         const auto first_certificates =
             snapshot_regular_files(first.output_directory / "proofs" / "proth");
         check(std::ranges::count(first_bytes, '\n') == 160,
               "one canonical JSONL record per candidate");
         KnownCertificateVerifier certificate_verifier;
+        independent.reset_call_counts();
         const auto verified = primeforge::mvp::verify_campaign(
             first.results_path, sha256, certificate_verifier, independent);
         check(verified.valid && verified.record_count == 160U &&
-                  verified.proven_prime_count == known_primes.size(),
+                  verified.proven_prime_count == known_primes.size() &&
+                  independent.run_batch_calls() == 1U &&
+                  independent.run_calls() == 0U &&
+                  independent.last_batch_size() == first.externally_classified_count,
               "final manifest, witnesses, certificates and independent verdicts verify");
+        KnownEngine disagreeing_replay{
+            "known-disagreeing-replay", known_primes, false, true};
+        expect_failure(
+            [&] {
+                static_cast<void>(primeforge::mvp::verify_campaign(
+                    first.results_path, sha256, certificate_verifier,
+                    disagreeing_replay));
+            },
+            "independent batch replay rejects a divergent verdict");
+        check(disagreeing_replay.run_batch_calls() == 1U &&
+                  disagreeing_replay.run_calls() == 0U,
+              "divergent campaign replay still uses exactly one batch call");
+        {
+            std::ofstream mutation{
+                first.flint_evidence_path, std::ios::binary | std::ios::app};
+            mutation << "MUTATION\n";
+        }
+        expect_failure(
+            [&] {
+                static_cast<void>(primeforge::mvp::verify_campaign(
+                    first.results_path, sha256, certificate_verifier, independent));
+            },
+            "manifest detects a mutated FLINT evidence journal");
+        write_file(first.flint_evidence_path, first_flint_bytes);
         {
             std::ofstream mutation{first.results_path, std::ios::binary | std::ios::app};
             mutation << "MUTATION\n";
@@ -348,6 +492,7 @@ int main(const int argc, char** argv) {
         const auto second = primeforge::mvp::execute_search(
             config, sha256, proof, independent, parallel_options);
         check(read_file(second.results_path) == first_bytes &&
+                  read_file(second.flint_evidence_path) == first_flint_bytes &&
                   read_file(second.manifest_path) == first_manifest &&
                   snapshot_regular_files(second.output_directory / "proofs" / "proth") ==
                       first_certificates &&
@@ -369,19 +514,95 @@ int main(const int argc, char** argv) {
                             "proth-37.json";
         std::filesystem::create_directories(orphan.parent_path());
         { std::ofstream output{orphan, std::ios::binary}; output << "ORPHAN"; }
+        const auto interrupted_results_prefix = read_file(interrupted.results_path);
+        const auto interrupted_flint_before_injection =
+            read_file(interrupted.flint_evidence_path);
+        primeforge::mvp::FlintEvidenceLog interrupted_flint_log{
+            interrupted.flint_evidence_path, sha256};
+        static_cast<void>(interrupted_flint_log.append(
+            {"flint-orphan", "1", "COMPOSITE\n", ""}));
+        {
+            std::ofstream result_tail{
+                interrupted.results_path, std::ios::binary | std::ios::app};
+            result_tail << "UNAUTHENTICATED-RESULT-TAIL";
+        }
+        check(read_file(interrupted.results_path) != interrupted_results_prefix &&
+                  read_file(interrupted.flint_evidence_path) !=
+                      interrupted_flint_before_injection,
+              "test injected unauthenticated result and FLINT journal tails");
         primeforge::mvp::SearchExecutionOptions resume_options;
         resume_options.resume_existing = true;
         resume_options.native_proof_workers = 4U;
         const auto resumed = primeforge::mvp::execute_search(
             config, sha256, proof, independent, resume_options);
         check(resumed.completed && read_file(resumed.results_path) == first_bytes &&
+                  read_file(resumed.flint_evidence_path) == first_flint_bytes &&
                   read_file(resumed.manifest_path) == first_manifest &&
                   snapshot_regular_files(resumed.output_directory / "proofs" / "proth") ==
                       first_certificates &&
                   !contains_atomic_temporary_file(resumed.output_directory),
-              "interruption and resume reproduce uninterrupted logical results");
+              "interruption truncates both tails and reproduces uninterrupted ledgers");
         check(!std::filesystem::exists(orphan) || read_file(orphan) != "ORPHAN",
               "resume removes unauthenticated native proof suffix artifacts");
+
+        std::filesystem::remove_all(config.output_directory);
+        const auto short_journal_campaign = primeforge::mvp::execute_search(
+            config, sha256, proof, independent, stop_options);
+        primeforge::runtime::CheckpointManager checkpoint_manager{sha256};
+        const auto short_checkpoint_state =
+            checkpoint_manager.load(short_journal_campaign.checkpoint_path);
+        const auto authenticated_flint_bytes = checkpoint_decimal(
+            short_checkpoint_state.opaque_payload, "flint_evidence_bytes");
+        check(authenticated_flint_bytes > 0U,
+              "interrupted fixture authenticates a nonempty FLINT journal prefix");
+        std::filesystem::resize_file(
+            short_journal_campaign.flint_evidence_path,
+            authenticated_flint_bytes - 1U);
+        const auto short_checkpoint_bytes =
+            read_file(short_journal_campaign.checkpoint_path);
+        const auto short_results_bytes = read_file(short_journal_campaign.results_path);
+        const auto short_flint_bytes =
+            read_file(short_journal_campaign.flint_evidence_path);
+        expect_failure(
+            [&] {
+                static_cast<void>(primeforge::mvp::execute_search(
+                    config, sha256, proof, independent, resume_options));
+            },
+            "resume rejects a FLINT journal shorter than its authenticated prefix");
+        check(read_file(short_journal_campaign.checkpoint_path) == short_checkpoint_bytes &&
+                  read_file(short_journal_campaign.results_path) == short_results_bytes &&
+                  read_file(short_journal_campaign.flint_evidence_path) == short_flint_bytes,
+              "short journal rejection performs no campaign mutation");
+
+        std::filesystem::remove_all(config.output_directory);
+        const auto corrupt_journal_campaign = primeforge::mvp::execute_search(
+            config, sha256, proof, independent, stop_options);
+        const auto corrupt_checkpoint_bytes =
+            read_file(corrupt_journal_campaign.checkpoint_path);
+        const auto corrupt_results_bytes = read_file(corrupt_journal_campaign.results_path);
+        auto corrupt_flint_bytes = read_file(corrupt_journal_campaign.flint_evidence_path);
+        const auto corrupt_checkpoint_state =
+            checkpoint_manager.load(corrupt_journal_campaign.checkpoint_path);
+        const auto corrupt_authenticated_bytes = checkpoint_decimal(
+            corrupt_checkpoint_state.opaque_payload, "flint_evidence_bytes");
+        check(corrupt_authenticated_bytes > 0U &&
+                  corrupt_authenticated_bytes <= corrupt_flint_bytes.size(),
+              "corruption fixture exposes its authenticated FLINT prefix");
+        corrupt_flint_bytes.front() = corrupt_flint_bytes.front() == '{' ? '[' : '{';
+        write_file(corrupt_journal_campaign.flint_evidence_path, corrupt_flint_bytes);
+        expect_failure(
+            [&] {
+                static_cast<void>(primeforge::mvp::execute_search(
+                    config, sha256, proof, independent, resume_options));
+            },
+            "resume rejects corruption inside the authenticated FLINT prefix");
+        check(read_file(corrupt_journal_campaign.checkpoint_path) ==
+                      corrupt_checkpoint_bytes &&
+                  read_file(corrupt_journal_campaign.results_path) ==
+                      corrupt_results_bytes &&
+                  read_file(corrupt_journal_campaign.flint_evidence_path) ==
+                      corrupt_flint_bytes,
+              "corrupt journal rejection performs no campaign mutation");
 
         std::filesystem::remove_all(config.output_directory);
         primeforge::mvp::SearchExecutionOptions empty_prefix_options;
@@ -391,6 +612,27 @@ int main(const int argc, char** argv) {
         check(!empty_prefix.completed && read_file(empty_prefix.results_path).empty(),
               "zero-length prefix creates a resumable checkpoint without processing candidates");
         const auto checkpoint_before_write_failure = read_file(empty_prefix.checkpoint_path);
+        const auto empty_flint_prefix = read_file(empty_prefix.flint_evidence_path);
+        auto legacy_checkpoint = checkpoint_manager.load(empty_prefix.checkpoint_path);
+        legacy_checkpoint.opaque_payload =
+            "configuration_sha256=" + empty_prefix.plan.configuration_sha256 +
+            ";results_bytes=0;results_sha256=" + hash_text("", sha256) +
+            ";schema=primeforge.mvp.checkpoint.v1";
+        checkpoint_manager.save(empty_prefix.checkpoint_path, legacy_checkpoint);
+        const auto legacy_checkpoint_bytes = read_file(empty_prefix.checkpoint_path);
+        primeforge::mvp::SearchExecutionOptions legacy_resume;
+        legacy_resume.resume_existing = true;
+        expect_failure(
+            [&] {
+                static_cast<void>(primeforge::mvp::execute_search(
+                    config, sha256, proof, independent, legacy_resume));
+            },
+            "pipeline v3 explicitly rejects a v1 checkpoint payload");
+        check(read_file(empty_prefix.checkpoint_path) == legacy_checkpoint_bytes &&
+                  read_file(empty_prefix.results_path).empty() &&
+                  read_file(empty_prefix.flint_evidence_path) == empty_flint_prefix,
+              "legacy checkpoint rejection performs no campaign mutation");
+        write_file(empty_prefix.checkpoint_path, checkpoint_before_write_failure);
         const auto obstructed_certificate = config.output_directory / "proofs" / "proth" /
                                             ("proth-" +
                                              std::to_string(expected.front().flat_index) +
@@ -414,12 +656,18 @@ int main(const int argc, char** argv) {
         check(read_file(empty_prefix.checkpoint_path) == checkpoint_before_write_failure &&
                   read_file(empty_prefix.results_path).empty() &&
                   !std::filesystem::exists(empty_prefix.manifest_path),
-              "parallel write failure leaves checkpoint and result prefix uncommitted");
+              "parallel write failure leaves result prefix and checkpoint uncommitted");
+        primeforge::mvp::FlintEvidenceLog failed_write_log{
+            empty_prefix.flint_evidence_path, sha256};
+        check(failed_write_log.authenticate_prefix(0U).sha256 == hash_text("", sha256),
+              "parallel write failure preserves the authenticated empty journal prefix");
         std::filesystem::remove_all(write_obstruction);
         const auto recovered_after_write_failure = primeforge::mvp::execute_search(
             config, sha256, proof, independent, failing_parallel_resume);
         check(recovered_after_write_failure.completed &&
                   read_file(recovered_after_write_failure.results_path) == first_bytes &&
+                  read_file(recovered_after_write_failure.flint_evidence_path) ==
+                      first_flint_bytes &&
                   read_file(recovered_after_write_failure.manifest_path) == first_manifest &&
                   snapshot_regular_files(recovered_after_write_failure.output_directory /
                                          "proofs" / "proth") == first_certificates &&
@@ -444,14 +692,19 @@ int main(const int argc, char** argv) {
                   !std::filesystem::exists(
                       config.output_directory / "coverage_report.json"),
               "failed campaign retains a prefix but no finalized artifacts");
+        std::filesystem::remove_all(config.output_directory);
 
         std::cout << "known_candidates=160\n"
                   << "known_proven_primes=" << known_primes.size() << '\n'
                   << "native_proth_certificates=" << native_certificates << '\n'
                   << "deterministic_results=YES\n"
+                  << "unique_flint_journal=YES\n"
                   << "interruption_resume_identical=YES\n"
+                  << "journal_tail_recovery=YES\n"
+                  << "journal_corruption_rejected=YES\n"
+                  << "legacy_checkpoint_rejected=YES\n"
                   << "parallel_write_failure_recovery=YES\n"
-                  << "parallel_independent_verification=YES\n"
+                  << "batched_independent_replay=YES\n"
                   << "manifest_mutation_rejected=YES\n"
                   << "independent_disagreement_rejected=YES\n"
                   << "PrimeForge MVP pipeline tests: PASS\n";

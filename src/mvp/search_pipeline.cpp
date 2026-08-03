@@ -8,6 +8,7 @@
 
 #include "primeforge/congruence/compiler.hpp"
 #include "primeforge/family_sieve/family_sieve.hpp"
+#include "primeforge/mvp/flint_evidence_log.hpp"
 #include "primeforge/proth/proth.hpp"
 #include "primeforge/runtime/checkpoint_manager.hpp"
 #include "primeforge/sieve/sieve.hpp"
@@ -146,9 +147,14 @@ template <typename Callable>
 }
 
 [[nodiscard]] std::string evidence_json(const std::optional<EngineEvidence> &evidence,
-                                        const std::filesystem::path &output_directory) {
+                                         const std::filesystem::path &output_directory) {
     if (!evidence.has_value()) return "null";
     const auto artifact_path = portable_relative(evidence->proof_artifact_path, output_directory);
+    const auto raw_log_path = portable_relative(evidence->raw_log_path, output_directory);
+    const auto raw_stderr_path =
+        portable_relative(evidence->raw_stderr_path, output_directory);
+    const auto raw_stdout_path =
+        portable_relative(evidence->raw_stdout_path, output_directory);
     return "{\"artifact_path\":" +
            (artifact_path.empty() ? std::string{"null"} : quote_json(artifact_path)) +
            ",\"artifact_sha256\":" +
@@ -156,10 +162,20 @@ template <typename Callable>
                                                     : quote_json(evidence->proof_artifact_sha256)) +
            ",\"engine_id\":" + quote_json(evidence->engine_id) +
            ",\"executable_sha256\":" + quote_json(evidence->executable_sha256) +
+           ",\"raw_log_length\":" +
+           (evidence->raw_log_length.has_value()
+                ? quote_json(std::to_string(*evidence->raw_log_length))
+                : std::string{"null"}) +
+           ",\"raw_log_offset\":" +
+           (evidence->raw_log_offset.has_value()
+                ? quote_json(std::to_string(*evidence->raw_log_offset))
+                : std::string{"null"}) +
+           ",\"raw_log_path\":" +
+           (raw_log_path.empty() ? std::string{"null"} : quote_json(raw_log_path)) +
            ",\"raw_stderr_path\":" +
-           quote_json(portable_relative(evidence->raw_stderr_path, output_directory)) +
+           (raw_stderr_path.empty() ? std::string{"null"} : quote_json(raw_stderr_path)) +
            ",\"raw_stdout_path\":" +
-           quote_json(portable_relative(evidence->raw_stdout_path, output_directory)) + "}";
+           (raw_stdout_path.empty() ? std::string{"null"} : quote_json(raw_stdout_path)) + "}";
 }
 
 [[nodiscard]] std::string native_proof_json(const std::optional<NativeProofEvidence> &evidence,
@@ -199,6 +215,45 @@ template <typename Callable>
     return evidence;
 }
 
+[[nodiscard]] EngineEvidence collect_journal_evidence(
+    const EngineAdapter &adapter, const EngineResult &result,
+    const std::filesystem::path &journal_path, const FlintEvidenceSlice slice) {
+    if (!sha256_from_hex(result.engine_executable_sha256).has_value()) {
+        throw std::runtime_error(std::string{adapter.id()} +
+                                 " omitted the executable SHA-256");
+    }
+    if (slice.length == 0U) {
+        throw std::runtime_error(std::string{adapter.id()} +
+                                 " produced an empty raw-output journal slice");
+    }
+    EngineEvidence evidence;
+    evidence.engine_id = adapter.id();
+    evidence.executable_sha256 = result.engine_executable_sha256;
+    evidence.raw_log_path = journal_path;
+    evidence.raw_log_offset = slice.offset;
+    evidence.raw_log_length = slice.length;
+    return evidence;
+}
+
+[[nodiscard]] FlintEvidenceRecord make_flint_evidence_record(
+    const EngineRequest &request, const EngineResult &result) {
+    const bool has_inline_stdout = result.raw_stdout_bytes.has_value();
+    const bool has_inline_stderr = result.raw_stderr_bytes.has_value();
+    if (has_inline_stdout != has_inline_stderr) {
+        throw std::runtime_error("independent engine returned incomplete inline raw output");
+    }
+    if (has_inline_stdout) {
+        return {request.job_id, request.canonical_input, *result.raw_stdout_bytes,
+                *result.raw_stderr_bytes};
+    }
+    if (!std::filesystem::is_regular_file(result.raw_stdout_path) ||
+        !std::filesystem::is_regular_file(result.raw_stderr_path)) {
+        throw std::runtime_error("independent engine omitted raw process output");
+    }
+    return {request.job_id, request.canonical_input, read_file(result.raw_stdout_path),
+            read_file(result.raw_stderr_path)};
+}
+
 void write_atomic(const std::filesystem::path &path, const std::string_view content) {
     work::write_checkpoint_atomically(path, std::string{content});
 }
@@ -228,6 +283,8 @@ void append_durably(const std::filesystem::path &path, const std::string_view co
 
 struct ProgressPayload {
     std::string configuration_sha256;
+    std::uint64_t flint_evidence_bytes{};
+    std::string flint_evidence_sha256;
     std::uint64_t results_bytes{};
     std::string results_sha256;
 };
@@ -247,26 +304,54 @@ struct ProgressPayload {
 
 [[nodiscard]] std::string progress_payload(const ProgressPayload &payload) {
     return "configuration_sha256=" + payload.configuration_sha256 +
+           ";flint_evidence_bytes=" + std::to_string(payload.flint_evidence_bytes) +
+           ";flint_evidence_sha256=" + payload.flint_evidence_sha256 +
            ";results_bytes=" + std::to_string(payload.results_bytes) +
-           ";results_sha256=" + payload.results_sha256 + ";schema=primeforge.mvp.checkpoint.v1";
+           ";results_sha256=" + payload.results_sha256 +
+           ";schema=primeforge.mvp.checkpoint.v2";
 }
 
 [[nodiscard]] ProgressPayload parse_progress_payload(const std::string_view payload) {
     constexpr std::string_view configuration_marker{"configuration_sha256="};
+    constexpr std::string_view evidence_bytes_marker{";flint_evidence_bytes="};
+    constexpr std::string_view evidence_digest_marker{";flint_evidence_sha256="};
     constexpr std::string_view bytes_marker{";results_bytes="};
     constexpr std::string_view digest_marker{";results_sha256="};
-    constexpr std::string_view suffix{";schema=primeforge.mvp.checkpoint.v1"};
+    constexpr std::string_view suffix{";schema=primeforge.mvp.checkpoint.v2"};
     if (!payload.starts_with(configuration_marker) || !payload.ends_with(suffix)) {
         throw std::runtime_error("checkpoint payload schema mismatch");
     }
-    const auto bytes_position = payload.find(bytes_marker, configuration_marker.size());
+    const auto evidence_bytes_position =
+        payload.find(evidence_bytes_marker, configuration_marker.size());
+    if (evidence_bytes_position == std::string_view::npos) {
+        throw std::runtime_error("checkpoint payload is incomplete");
+    }
+    const auto evidence_digest_position = payload.find(
+        evidence_digest_marker, evidence_bytes_position + evidence_bytes_marker.size());
+    if (evidence_digest_position == std::string_view::npos) {
+        throw std::runtime_error("checkpoint payload is incomplete");
+    }
+    const auto bytes_position =
+        payload.find(bytes_marker, evidence_digest_position + evidence_digest_marker.size());
+    if (bytes_position == std::string_view::npos) {
+        throw std::runtime_error("checkpoint payload is incomplete");
+    }
     const auto digest_position = payload.find(digest_marker, bytes_position + bytes_marker.size());
-    if (bytes_position == std::string_view::npos || digest_position == std::string_view::npos) {
+    if (digest_position == std::string_view::npos) {
         throw std::runtime_error("checkpoint payload is incomplete");
     }
     ProgressPayload result;
     result.configuration_sha256 = std::string{
-        payload.substr(configuration_marker.size(), bytes_position - configuration_marker.size())};
+        payload.substr(configuration_marker.size(),
+                       evidence_bytes_position - configuration_marker.size())};
+    result.flint_evidence_bytes = parse_decimal(
+        payload.substr(evidence_bytes_position + evidence_bytes_marker.size(),
+                       evidence_digest_position - evidence_bytes_position -
+                           evidence_bytes_marker.size()),
+        "checkpoint flint_evidence_bytes");
+    result.flint_evidence_sha256 = std::string{payload.substr(
+        evidence_digest_position + evidence_digest_marker.size(),
+        bytes_position - evidence_digest_position - evidence_digest_marker.size())};
     result.results_bytes =
         parse_decimal(payload.substr(bytes_position + bytes_marker.size(),
                                      digest_position - bytes_position - bytes_marker.size()),
@@ -275,16 +360,24 @@ struct ProgressPayload {
         payload.substr(digest_position + digest_marker.size(),
                        payload.size() - digest_position - digest_marker.size() - suffix.size())};
     if (!sha256_from_hex(result.configuration_sha256).has_value() ||
+        !sha256_from_hex(result.flint_evidence_sha256).has_value() ||
         !sha256_from_hex(result.results_sha256).has_value()) {
         throw std::runtime_error("checkpoint payload contains invalid SHA-256");
+    }
+    if (progress_payload(result) != payload) {
+        throw std::runtime_error("checkpoint payload is not canonical");
     }
     return result;
 }
 
 void save_progress(const SearchSummary &summary, const std::uint64_t next_index,
-                   const Sha256Provider &sha256) {
+                   const Sha256Provider &sha256, const FlintEvidenceLog &flint_log,
+                   const std::uint64_t flint_evidence_bytes) {
     const auto results = read_file(summary.results_path);
+    const auto evidence_prefix = flint_log.authenticate_prefix(flint_evidence_bytes);
     const ProgressPayload payload{summary.plan.configuration_sha256,
+                                  evidence_prefix.size,
+                                  evidence_prefix.sha256,
                                   static_cast<std::uint64_t>(results.size()),
                                   hash_text(results, sha256)};
     runtime::CheckpointManager manager{sha256};
@@ -292,8 +385,51 @@ void save_progress(const SearchSummary &summary, const std::uint64_t next_index,
                                            std::to_string(next_index), next_index});
 }
 
-void validate_result_prefix(const std::string_view prefix, const std::uint64_t expected_records,
-                            const std::string_view campaign_id) {
+struct IndexedFlintEvidenceSlice {
+    std::uint64_t flat_index{};
+    FlintEvidenceSlice slice;
+};
+
+[[nodiscard]] std::uint64_t quoted_decimal_before(
+    const std::string_view line, const std::string_view marker,
+    const std::size_t before, const std::string_view field) {
+    const auto marker_position = line.rfind(marker, before);
+    if (marker_position == std::string_view::npos) {
+        throw std::runtime_error(std::string{field} + " is absent from result evidence");
+    }
+    const auto begin = marker_position + marker.size();
+    const auto end = line.find('"', begin);
+    if (end == std::string_view::npos || end >= before) {
+        throw std::runtime_error(std::string{field} + " is malformed in result evidence");
+    }
+    return parse_decimal(line.substr(begin, end - begin), field);
+}
+
+[[nodiscard]] std::optional<FlintEvidenceSlice> flint_slice_from_result(
+    const std::string_view line) {
+    constexpr std::string_view path_marker{
+        "\"raw_log_path\":\"external/flint/evidence.jsonl\""};
+    constexpr std::string_view length_marker{"\"raw_log_length\":\""};
+    constexpr std::string_view offset_marker{"\"raw_log_offset\":\""};
+    const auto path_position = line.find(path_marker);
+    if (path_position == std::string_view::npos) return std::nullopt;
+    if (line.find(path_marker, path_position + path_marker.size()) != std::string_view::npos) {
+        throw std::runtime_error("result contains duplicate FLINT journal references");
+    }
+    const auto length = quoted_decimal_before(
+        line, length_marker, path_position, "result raw_log_length");
+    const auto offset = quoted_decimal_before(
+        line, offset_marker, path_position, "result raw_log_offset");
+    if (length == 0U) {
+        throw std::runtime_error("result FLINT journal slice is empty");
+    }
+    return FlintEvidenceSlice{offset, length};
+}
+
+[[nodiscard]] std::vector<IndexedFlintEvidenceSlice> validate_result_prefix(
+    const std::string_view prefix, const std::uint64_t expected_records,
+    const std::string_view campaign_id) {
+    std::vector<IndexedFlintEvidenceSlice> flint_slices;
     std::size_t offset = 0U;
     for (std::uint64_t index = 0U; index < expected_records; ++index) {
         const auto end = prefix.find('\n', offset);
@@ -309,11 +445,22 @@ void validate_result_prefix(const std::string_view prefix, const std::uint64_t e
             line.find('\r') != std::string_view::npos) {
             throw std::runtime_error("checkpoint result prefix is not canonical or contiguous");
         }
+        const auto slice = flint_slice_from_result(line);
+        const bool has_independent_evidence =
+            line.find("\"independent_engine\":null") == std::string_view::npos;
+        if (has_independent_evidence != slice.has_value()) {
+            throw std::runtime_error(
+                "checkpoint result and FLINT journal provenance disagree");
+        }
+        if (slice.has_value()) {
+            flint_slices.push_back({index, *slice});
+        }
         offset = end + 1U;
     }
     if (offset != prefix.size()) {
         throw std::runtime_error("checkpoint result prefix has unexpected records");
     }
+    return flint_slices;
 }
 
 void account_existing_line(SearchSummary &summary, const std::string_view line) {
@@ -346,7 +493,9 @@ struct PreparedPrpBatch {
     std::future<prp::Base2StrongPrpBatchMetrics> completion;
     std::future<std::vector<EngineResult>> independent_completion;
     std::vector<std::size_t> independent_survivors;
+    std::vector<EngineRequest> independent_requests;
     std::vector<EngineResult> independent_results;
+    std::vector<std::optional<FlintEvidenceSlice>> independent_evidence_slices;
     struct NativeProofBatch {
         std::vector<proth::ProofAttempt> results;
         std::vector<std::optional<NativeProofEvidence>> evidence;
@@ -410,9 +559,10 @@ void submit_independent_batch(PreparedPrpBatch &batch, const SearchConfig &confi
     const auto parallelism = independent_engine.recommended_parallelism();
     if (parallelism <= 1U || batch.survivor_values.empty()) return;
     batch.independent_results.resize(batch.verdicts.size());
+    batch.independent_evidence_slices.resize(batch.verdicts.size());
     batch.independent_started = Clock::now();
     batch.independent_submitted = true;
-    std::vector<EngineRequest> requests;
+    auto &requests = batch.independent_requests;
     for (std::size_t survivor = 0U; survivor < batch.verdicts.size(); ++survivor) {
         if (batch.verdicts[survivor] != prp::Base2StrongPrpVerdict::probable_prime) continue;
         const auto index = batch.begin + batch.survivor_offsets[survivor];
@@ -429,21 +579,41 @@ void submit_independent_batch(PreparedPrpBatch &batch, const SearchConfig &confi
     }
     auto *const engine = &independent_engine;
     batch.independent_completion = std::async(
-        std::launch::async, [engine, requests = std::move(requests)]() mutable {
+        std::launch::async, [engine, requests = batch.independent_requests]() mutable {
             const ScopedTrace trace{"verification"};
             return engine->run_batch(requests);
         });
 }
 
-void await_independent_batch(PreparedPrpBatch &batch, SearchSummary &summary) {
+void await_independent_batch(PreparedPrpBatch &batch, SearchSummary &summary,
+                             FlintEvidenceLog &flint_log) {
     if (!batch.independent_submitted) return;
     auto results = batch.independent_completion.get();
     if (results.size() != batch.independent_survivors.size()) {
         throw std::logic_error("independent batch returned the wrong result count");
     }
+    if (results.size() != batch.independent_requests.size()) {
+        throw std::logic_error("independent batch lost its request provenance");
+    }
+    std::vector<FlintEvidenceRecord> evidence_records;
+    evidence_records.reserve(results.size());
     for (std::size_t index = 0U; index < results.size(); ++index) {
-        batch.independent_results[batch.independent_survivors[index]] =
-            std::move(results[index]);
+        evidence_records.push_back(
+            make_flint_evidence_record(batch.independent_requests[index], results[index]));
+    }
+    std::vector<FlintEvidenceSlice> slices;
+    {
+        const ScopedTrace trace{"result_io"};
+        summary.metrics.io_ns += timed_action(
+            [&] { slices = flint_log.append_batch(evidence_records); });
+    }
+    if (slices.size() != results.size()) {
+        throw std::logic_error("FLINT journal returned the wrong slice count");
+    }
+    for (std::size_t index = 0U; index < results.size(); ++index) {
+        const auto survivor = batch.independent_survivors[index];
+        batch.independent_results[survivor] = std::move(results[index]);
+        batch.independent_evidence_slices[survivor] = slices[index];
     }
     summary.metrics.verification_ns += elapsed_ns(batch.independent_started);
     batch.independent_submitted = false;
@@ -530,7 +700,14 @@ void await_native_proof_batch(PreparedPrpBatch &batch, SearchSummary &summary) {
     summary.metrics.proof_ns += completed.elapsed_ns;
 }
 
-[[nodiscard]] std::uint64_t restore_progress(SearchSummary &summary, const Sha256Provider &sha256) {
+struct RestoredProgress {
+    std::uint64_t next_index{};
+    std::uint64_t flint_evidence_bytes{};
+};
+
+[[nodiscard]] RestoredProgress restore_progress(
+    SearchSummary &summary, const SearchConfig &config, const Sha256Provider &sha256,
+    FlintEvidenceLog &flint_log) {
     runtime::CheckpointManager manager{sha256};
     const auto state = manager.load(summary.checkpoint_path);
     if (state.campaign_id != summary.plan.campaign_id ||
@@ -551,9 +728,39 @@ void await_native_proof_batch(PreparedPrpBatch &batch, SearchSummary &summary) {
     if (hash_text(prefix, sha256) != payload.results_sha256) {
         throw std::runtime_error("checkpoint results prefix hash mismatch");
     }
-    validate_result_prefix(prefix, state.sequence, summary.plan.campaign_id);
+    const auto indexed_slices =
+        validate_result_prefix(prefix, state.sequence, summary.plan.campaign_id);
+    std::vector<FlintEvidenceSlice> slices;
+    slices.reserve(indexed_slices.size());
+    for (const auto &indexed : indexed_slices) {
+        const auto evidence = flint_log.read(indexed.slice);
+        const auto expected_job = "flint-" + std::to_string(indexed.flat_index);
+        const auto expected_input =
+            std::to_string(candidate_at(config, indexed.flat_index).value);
+        if (evidence.job_id != expected_job || evidence.input != expected_input) {
+            throw std::runtime_error("checkpoint FLINT evidence is bound to the wrong candidate");
+        }
+        slices.push_back(indexed.slice);
+    }
+    const auto evidence_prefix = flint_log.validate_contiguous_prefix(slices);
+    if (evidence_prefix.size != payload.flint_evidence_bytes ||
+        evidence_prefix.sha256 != payload.flint_evidence_sha256) {
+        throw std::runtime_error("checkpoint FLINT evidence prefix mismatch");
+    }
     if (payload.results_bytes != results.size()) {
         write_atomic(summary.results_path, prefix);
+    }
+    flint_log.truncate_authenticated(evidence_prefix);
+    const auto flint_root = summary.output_directory / "external" / "flint";
+    if (std::filesystem::is_directory(flint_root)) {
+        for (const auto &entry : std::filesystem::directory_iterator(flint_root)) {
+            const auto name = entry.path().filename().generic_string();
+            if (entry.is_directory() &&
+                (name.starts_with(".batch-") ||
+                 name.starts_with(".primeforge-flint-batch-"))) {
+                std::filesystem::remove_all(entry.path());
+            }
+        }
     }
     for (std::uint64_t index = state.sequence; index < summary.plan.candidate_count; ++index) {
         std::filesystem::remove_all(summary.output_directory / "external" / "pari" /
@@ -569,7 +776,7 @@ void await_native_proof_batch(PreparedPrpBatch &batch, SearchSummary &summary) {
         account_existing_line(summary, prefix.substr(offset, end - offset));
         offset = end + 1U;
     }
-    return state.sequence;
+    return {state.sequence, evidence_prefix.size};
 }
 
 void finalize_campaign(SearchSummary &summary, const Sha256Provider &sha256) {
@@ -639,10 +846,14 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
     }
     summary.output_directory = std::filesystem::absolute(config.output_directory);
     summary.results_path = summary.output_directory / "results.jsonl";
+    summary.flint_evidence_path =
+        summary.output_directory / "external" / "flint" / "evidence.jsonl";
     summary.checkpoint_path = summary.output_directory / "campaign.checkpoint.json";
     summary.coverage_report_path = summary.output_directory / "coverage_report.json";
     summary.manifest_path = summary.output_directory / "MANIFEST.sha256";
     std::uint64_t first_index = 0U;
+    std::uint64_t committed_flint_evidence_bytes = 0U;
+    std::unique_ptr<FlintEvidenceLog> flint_log;
     if (execution_options.resume_existing) {
         if (!std::filesystem::is_directory(summary.output_directory)) {
             throw std::invalid_argument("resume campaign directory is absent");
@@ -651,12 +862,17 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
         if (canonical_search_config(recovery_config) != canonical_search_config(config)) {
             throw std::runtime_error("recovery configuration does not match requested campaign");
         }
+        if (!std::filesystem::is_regular_file(summary.flint_evidence_path)) {
+            throw std::runtime_error("checkpoint FLINT evidence journal is missing");
+        }
+        flint_log = std::make_unique<FlintEvidenceLog>(summary.flint_evidence_path, sha256);
         {
             const ScopedTrace trace{"checkpoint"};
             const auto [duration, restored] =
-                timed_value([&] { return restore_progress(summary, sha256); });
+                timed_value([&] { return restore_progress(summary, config, sha256, *flint_log); });
             summary.metrics.checkpoint_ns += duration;
-            first_index = restored;
+            first_index = restored.next_index;
+            committed_flint_evidence_bytes = restored.flint_evidence_bytes;
         }
     } else {
         if (std::filesystem::exists(summary.output_directory)) {
@@ -668,6 +884,9 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
             summary.metrics.io_ns += timed_action([&] {
                 write_atomic(summary.output_directory / "search.yaml",
                              render_search_config_yaml(config));
+                std::filesystem::create_directories(summary.flint_evidence_path.parent_path());
+                flint_log =
+                    std::make_unique<FlintEvidenceLog>(summary.flint_evidence_path, sha256);
                 std::ofstream empty_results{summary.results_path,
                                             std::ios::binary | std::ios::trunc};
                 if (!empty_results) {
@@ -678,7 +897,9 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
         {
             const ScopedTrace trace{"checkpoint"};
             summary.metrics.checkpoint_ns +=
-                timed_action([&] { save_progress(summary, 0U, sha256); });
+                timed_action([&] {
+                    save_progress(summary, 0U, sha256, *flint_log, 0U);
+                });
         }
     }
 
@@ -736,7 +957,10 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
         {
             const ScopedTrace trace{"checkpoint"};
             summary.metrics.checkpoint_ns +=
-                timed_action([&] { save_progress(summary, first_index, sha256); });
+                timed_action([&] {
+                    save_progress(summary, first_index, sha256, *flint_log,
+                                  committed_flint_evidence_bytes);
+                });
         }
         summary.metrics.total_ns = elapsed_ns(total_started);
         return summary;
@@ -760,7 +984,7 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
                                  summary.output_directory);
         submit_native_proof_batch(*current_batch, config, summary.output_directory, sha256,
                                   execution_options.native_proof_workers);
-        await_independent_batch(*current_batch, summary);
+        await_independent_batch(*current_batch, summary, *flint_log);
         await_native_proof_batch(*current_batch, summary);
         if (next_batch != nullptr) {
             submit_prp_batch(*next_batch, prp_backend, summary);
@@ -855,8 +1079,16 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
                             throw std::runtime_error("independent engine disagrees at candidate " +
                                                      std::to_string(index));
                         }
-                        record.independent_engine =
-                            collect_evidence(independent_engine, independent, sha256, false);
+                        const auto &slice = current_batch->independent_evidence_slices[
+                            survivor_index - 1U];
+                        if (!slice.has_value()) {
+                            throw std::logic_error(
+                                "independent batch omitted its FLINT journal slice");
+                        }
+                        record.independent_engine = collect_journal_evidence(
+                            independent_engine, independent, summary.flint_evidence_path,
+                            *slice);
+                        committed_flint_evidence_bytes = slice->offset + slice->length;
                         record.status.verification = VerificationStatus::independently_verified;
                     } else {
                         const ScopedTrace trace{"verification"};
@@ -873,8 +1105,25 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
                             throw std::runtime_error("independent engine disagrees at candidate " +
                                                      std::to_string(index));
                         }
-                        record.independent_engine =
-                            collect_evidence(independent_engine, independent, sha256, false);
+                        const auto evidence_record =
+                            make_flint_evidence_record(independent_request, independent);
+                        std::vector<FlintEvidenceSlice> slices;
+                        {
+                            const ScopedTrace io_trace{"result_io"};
+                            summary.metrics.io_ns += timed_action([&] {
+                                slices = flint_log->append_batch(
+                                    std::span{&evidence_record, 1U});
+                            });
+                        }
+                        if (slices.size() != 1U) {
+                            throw std::logic_error(
+                                "FLINT journal omitted a single-run slice");
+                        }
+                        record.independent_engine = collect_journal_evidence(
+                            independent_engine, independent, summary.flint_evidence_path,
+                            slices.front());
+                        committed_flint_evidence_bytes =
+                            slices.front().offset + slices.front().length;
                         record.status.verification = VerificationStatus::independently_verified;
                         summary.metrics.verification_ns += elapsed_ns(verification_started);
                     }
@@ -908,7 +1157,10 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
                 }
                 const ScopedTrace trace{"checkpoint"};
                 summary.metrics.checkpoint_ns +=
-                    timed_action([&] { save_progress(summary, next_index, sha256); });
+                    timed_action([&] {
+                        save_progress(summary, next_index, sha256, *flint_log,
+                                      committed_flint_evidence_bytes);
+                    });
             }
             if (requested_stop) {
                 if (next_batch != nullptr) await_prp_batch(*next_batch, summary);

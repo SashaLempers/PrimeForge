@@ -4,6 +4,7 @@
 
 #include "primeforge/adaptive_bound/adaptive_bound.hpp"
 #include "primeforge/engine/external_adapter.hpp"
+#include "primeforge/mvp/flint_evidence_log.hpp"
 #include "primeforge/mvp/search_config.hpp"
 #include "primeforge/proth/proth.hpp"
 #include "primeforge/runtime/checkpoint_manager.hpp"
@@ -21,6 +22,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace primeforge::mvp {
 namespace {
@@ -128,6 +130,11 @@ void verify_stored_engine_verdict(
     const std::filesystem::path& campaign_directory,
     const engine::ExternalEngineKind kind,
     const PrimalityStatus expected) {
+    if (string_field(evidence, "raw_log_path").has_value() ||
+        string_field(evidence, "raw_log_offset").has_value() ||
+        string_field(evidence, "raw_log_length").has_value()) {
+        throw std::runtime_error("path-backed engine evidence mixes journal fields");
+    }
     const auto stdout_text = string_field(evidence, "raw_stdout_path");
     const auto stderr_text = string_field(evidence, "raw_stderr_path");
     if (!stdout_text.has_value() || !stderr_text.has_value()) {
@@ -141,6 +148,41 @@ void verify_stored_engine_verdict(
     if (parsed.status.primality != expected) {
         throw std::runtime_error("stored engine output does not reproduce its verdict");
     }
+}
+
+[[nodiscard]] FlintEvidenceSlice verify_stored_flint_verdict(
+    const std::string_view evidence,
+    const std::filesystem::path& campaign_directory,
+    const FlintEvidenceLog& journal,
+    const PrimalityStatus expected,
+    const std::uint64_t flat_index,
+    const std::uint64_t value) {
+    const auto log_path_text = string_field(evidence, "raw_log_path");
+    if (!log_path_text.has_value() ||
+        *log_path_text != "external/flint/evidence.jsonl" ||
+        string_field(evidence, "raw_stdout_path").has_value() ||
+        string_field(evidence, "raw_stderr_path").has_value()) {
+        throw std::runtime_error("stored FLINT evidence is not a unique journal slice");
+    }
+    const auto log_path = safe_artifact_path(campaign_directory, *log_path_text);
+    if (std::filesystem::absolute(log_path).lexically_normal() !=
+        std::filesystem::absolute(journal.path()).lexically_normal()) {
+        throw std::runtime_error("stored FLINT evidence references the wrong journal");
+    }
+    const FlintEvidenceSlice slice{decimal_field(evidence, "raw_log_offset"),
+                                   decimal_field(evidence, "raw_log_length")};
+    const auto raw = journal.read(slice);
+    if (raw.job_id != "flint-" + std::to_string(flat_index) ||
+        raw.input != std::to_string(value)) {
+        throw std::runtime_error("stored FLINT evidence is bound to the wrong candidate");
+    }
+    const auto parsed = engine::parse_external_output(
+        engine::ExternalEngineKind::flint, "primeforge-external-parser-v1",
+        raw.stdout_bytes, raw.stderr_bytes);
+    if (parsed.status.primality != expected) {
+        throw std::runtime_error("stored FLINT output does not reproduce its verdict");
+    }
+    return slice;
 }
 
 struct TemporaryDirectory {
@@ -205,6 +247,15 @@ VerificationSummary verify_campaign(
     }
     const auto campaign_directory = absolute_results.parent_path();
     const auto manifest = verify_manifest(campaign_directory, sha256);
+    constexpr std::string_view flint_journal_portable{
+        "external/flint/evidence.jsonl"};
+    const auto flint_journal_path =
+        campaign_directory / std::filesystem::path{flint_journal_portable};
+    if (!manifest.contains(std::string{flint_journal_portable}) ||
+        !std::filesystem::is_regular_file(flint_journal_path)) {
+        throw std::runtime_error("campaign FLINT evidence journal is missing");
+    }
+    FlintEvidenceLog flint_journal{flint_journal_path, sha256};
     const auto config = load_search_config(campaign_directory / "search.yaml");
     const auto plan = build_campaign_plan(config, sha256);
     if (std::filesystem::absolute(config.output_directory).lexically_normal() !=
@@ -223,6 +274,20 @@ VerificationSummary verify_campaign(
     summary.manifest_file_count = manifest.size();
     std::ifstream results{absolute_results, std::ios::binary};
     if (!results) throw std::runtime_error("results ledger is missing");
+    std::vector<FlintEvidenceSlice> flint_slices;
+    std::vector<EngineRequest> independent_requests;
+    std::vector<PrimalityStatus> independent_expected;
+    const auto queue_independent_replay =
+        [&](const std::string_view evidence, const std::uint64_t index,
+            const std::uint64_t value, const PrimalityStatus expected) {
+            flint_slices.push_back(verify_stored_flint_verdict(
+                evidence, campaign_directory, flint_journal, expected, index, value));
+            independent_requests.push_back(
+                {"independent-" + std::to_string(index),
+                 "primeforge.proth.uint64.v1", std::to_string(value),
+                 temporary.path / "flint"});
+            independent_expected.push_back(expected);
+        };
     std::string line;
     while (std::getline(results, line)) {
         if (!line.empty() && line.back() == '\r') {
@@ -274,9 +339,8 @@ VerificationSummary verify_campaign(
                     config.flint.expected_sha256) {
                 throw std::runtime_error("native Proth proof provenance mismatch");
             }
-            verify_stored_engine_verdict(
-                *independent, campaign_directory, engine::ExternalEngineKind::flint,
-                PrimalityStatus::proven_prime);
+            queue_independent_replay(
+                *independent, index, expected.value, PrimalityStatus::proven_prime);
             const auto artifact_text = string_field(*proof, "artifact_path");
             const auto artifact_digest = string_field(*proof, "artifact_sha256");
             if (!artifact_text.has_value() || !artifact_digest.has_value()) {
@@ -291,14 +355,6 @@ VerificationSummary verify_campaign(
             if (!certificate.has_value() || certificate->k != expected.k ||
                 certificate->n != expected.n || certificate->value != expected.value) {
                 throw std::runtime_error("native Proth certificate does not bind the candidate");
-            }
-            const EngineRequest independent_request{
-                "independent-" + std::to_string(index),
-                "primeforge.proth.uint64.v1", std::to_string(expected.value),
-                temporary.path / "flint"};
-            const auto independent_result = independent_engine.run(independent_request);
-            if (independent_result.status.primality != PrimalityStatus::proven_prime) {
-                throw std::runtime_error("independent engine did not reproduce prime verdict");
             }
             ++summary.proven_prime_count;
         } else if (method == "PARI_PRIMECERT_VALIDATED") {
@@ -319,9 +375,8 @@ VerificationSummary verify_campaign(
             verify_stored_engine_verdict(
                 *primary, campaign_directory, engine::ExternalEngineKind::pari_gp,
                 PrimalityStatus::proven_prime);
-            verify_stored_engine_verdict(
-                *independent, campaign_directory, engine::ExternalEngineKind::flint,
-                PrimalityStatus::proven_prime);
+            queue_independent_replay(
+                *independent, index, expected.value, PrimalityStatus::proven_prime);
             const auto artifact_text = string_field(*primary, "artifact_path");
             const auto artifact_digest = string_field(*primary, "artifact_sha256");
             if (!artifact_text.has_value() || !artifact_digest.has_value()) {
@@ -339,14 +394,6 @@ VerificationSummary verify_campaign(
             const auto certificate_result = certificate_verifier.run(certificate_request);
             if (certificate_result.status.primality != PrimalityStatus::proven_prime) {
                 throw std::runtime_error("stored PARI certificate did not validate");
-            }
-            const EngineRequest independent_request{
-                "independent-" + std::to_string(index),
-                "primeforge.proth.uint64.v1", std::to_string(expected.value),
-                temporary.path / "flint"};
-            const auto independent_result = independent_engine.run(independent_request);
-            if (independent_result.status.primality != PrimalityStatus::proven_prime) {
-                throw std::runtime_error("independent engine did not reproduce prime verdict");
             }
             ++summary.proven_prime_count;
         } else if (method == "PARI_COMPOSITE") {
@@ -367,18 +414,8 @@ VerificationSummary verify_campaign(
             verify_stored_engine_verdict(
                 *primary, campaign_directory, engine::ExternalEngineKind::pari_gp,
                 PrimalityStatus::composite);
-            verify_stored_engine_verdict(
-                *independent, campaign_directory, engine::ExternalEngineKind::flint,
-                PrimalityStatus::composite);
-            const EngineRequest independent_request{
-                "independent-" + std::to_string(index),
-                "primeforge.proth.uint64.v1", std::to_string(expected.value),
-                temporary.path / "flint"};
-            const auto independent_result = independent_engine.run(independent_request);
-            if (independent_result.status.primality != PrimalityStatus::composite) {
-                throw std::runtime_error(
-                    "independent engine did not reproduce composite verdict");
-            }
+            queue_independent_replay(
+                *independent, index, expected.value, PrimalityStatus::composite);
             ++summary.composite_count;
         } else {
             throw std::runtime_error("unknown completed classification method");
@@ -389,6 +426,25 @@ VerificationSummary verify_campaign(
         summary.composite_count + summary.proven_prime_count != plan.candidate_count) {
         throw std::runtime_error("verified result coverage is incomplete");
     }
+    const auto flint_prefix = flint_journal.validate_complete_log(flint_slices);
+    if (independent_requests.size() != independent_expected.size() ||
+        independent_requests.size() != flint_slices.size()) {
+        throw std::logic_error("independent replay provenance is incomplete");
+    }
+    for (const auto& request : independent_requests) {
+        if (!independent_engine.supports(request)) {
+            throw std::runtime_error("independent engine does not support campaign replay");
+        }
+    }
+    const auto independent_results = independent_engine.run_batch(independent_requests);
+    if (independent_results.size() != independent_expected.size()) {
+        throw std::runtime_error("independent batch replay returned the wrong result count");
+    }
+    for (std::size_t index = 0U; index < independent_results.size(); ++index) {
+        if (independent_results[index].status.primality != independent_expected[index]) {
+            throw std::runtime_error("independent batch replay disagrees with the campaign");
+        }
+    }
     runtime::CheckpointManager checkpoint_manager{sha256};
     const auto checkpoint = checkpoint_manager.load(
         campaign_directory / "campaign.checkpoint.json");
@@ -396,6 +452,17 @@ VerificationSummary verify_campaign(
         checkpoint.progress_decimal != std::to_string(plan.candidate_count) ||
         checkpoint.sequence != plan.candidate_count) {
         throw std::runtime_error("final checkpoint does not cover the campaign");
+    }
+    const auto results_bytes = read_file(absolute_results);
+    const auto expected_checkpoint_payload =
+        "configuration_sha256=" + plan.configuration_sha256 +
+        ";flint_evidence_bytes=" + std::to_string(flint_prefix.size) +
+        ";flint_evidence_sha256=" + flint_prefix.sha256 +
+        ";results_bytes=" + std::to_string(results_bytes.size()) +
+        ";results_sha256=" + hash_text(results_bytes, sha256) +
+        ";schema=primeforge.mvp.checkpoint.v2";
+    if (checkpoint.opaque_payload != expected_checkpoint_payload) {
+        throw std::runtime_error("final checkpoint does not authenticate campaign ledgers");
     }
     const std::string expected_coverage =
         "{\"campaign_id\":\"" + plan.campaign_id +

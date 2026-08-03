@@ -6,6 +6,7 @@
 
 #include <filesystem>
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <span>
@@ -33,6 +34,12 @@ struct EngineResult {
     std::string engine_executable_sha256;
     std::filesystem::path raw_stdout_path;
     std::filesystem::path raw_stderr_path;
+    // Batch-capable adapters may return raw child-process bytes directly so
+    // the campaign can journal them without creating one file per candidate.
+    // An engaged empty value is distinct from an absent value (empty stderr
+    // is valid). Single-run/proof adapters may continue to use the paths.
+    std::optional<std::string> raw_stdout_bytes;
+    std::optional<std::string> raw_stderr_bytes;
     std::vector<std::filesystem::path> proof_artifact_paths;
 };
 

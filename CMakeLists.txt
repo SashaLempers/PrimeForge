@@ -146,6 +146,7 @@ primeforge_enable_strict_warnings(primeforge_prp)
 
 add_library(primeforge_mvp STATIC
     src/mvp/campaign_verifier.cpp
+    src/mvp/flint_evidence_log.cpp
     src/mvp/launcher.cpp
     src/mvp/search_pipeline.cpp
 )
@@ -224,6 +225,11 @@ add_executable(primeforge-mvp-pipeline-tests tests/mvp_pipeline_test.cpp)
 target_link_libraries(primeforge-mvp-pipeline-tests PRIVATE PrimeForge::mvp)
 target_compile_features(primeforge-mvp-pipeline-tests PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge-mvp-pipeline-tests)
+
+add_executable(primeforge-flint-evidence-log-tests tests/flint_evidence_log_test.cpp)
+target_link_libraries(primeforge-flint-evidence-log-tests PRIVATE PrimeForge::mvp)
+target_compile_features(primeforge-flint-evidence-log-tests PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-flint-evidence-log-tests)
 
 add_executable(primeforge-launcher-tests tests/launcher_test.cpp)
 target_link_libraries(primeforge-launcher-tests PRIVATE PrimeForge::mvp)
@@ -507,6 +513,7 @@ if(BUILD_TESTING)
             ${CMAKE_CURRENT_SOURCE_DIR}/examples/mvp/search.yaml
             ${CMAKE_CURRENT_SOURCE_DIR}/corpus/mvp/known_proth_small_primes.tsv
     )
+    add_test(NAME primeforge.flint_evidence_log COMMAND primeforge-flint-evidence-log-tests)
     add_test(NAME primeforge.mvp_cli_selftest COMMAND primeforge selftest)
     add_test(
         NAME primeforge.launcher_state

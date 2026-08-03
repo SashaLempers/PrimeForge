@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cerrno>
 #include <chrono>
 #include <cstddef>
@@ -57,13 +58,6 @@ namespace {
         throw std::runtime_error("artifact grew while reading: " + path.string());
     }
     return content;
-}
-
-void write_file(const std::filesystem::path& path, const std::string_view content) {
-    std::ofstream output{path, std::ios::binary | std::ios::trunc};
-    if (!output) throw std::runtime_error("cannot write artifact: " + path.string());
-    output.write(content.data(), static_cast<std::streamsize>(content.size()));
-    if (!output) throw std::runtime_error("cannot write artifact: " + path.string());
 }
 
 [[nodiscard]] std::string hash_file(
@@ -124,6 +118,41 @@ void validate_job_id(const std::string_view value) {
         throw std::invalid_argument("unsafe external-engine job id");
     }
 }
+
+class ScopedScratchDirectory {
+public:
+    ScopedScratchDirectory(
+        const std::filesystem::path& parent, const std::size_t chunk_index) {
+        const auto absolute_parent = std::filesystem::absolute(parent).lexically_normal();
+        std::filesystem::create_directories(absolute_parent);
+        for (std::size_t attempt = 0U; attempt < 64U; ++attempt) {
+            const auto serial = next_serial_.fetch_add(1U, std::memory_order_relaxed);
+            path_ = absolute_parent /
+                    (".primeforge-flint-batch-" + std::to_string(chunk_index) + "-" +
+                     std::to_string(serial));
+            std::error_code error;
+            if (std::filesystem::create_directory(path_, error)) return;
+            if (error && error != std::errc::file_exists) {
+                throw std::system_error(error, "create FLINT batch scratch directory");
+            }
+        }
+        throw std::runtime_error("cannot allocate unique FLINT batch scratch directory");
+    }
+
+    ScopedScratchDirectory(const ScopedScratchDirectory&) = delete;
+    ScopedScratchDirectory& operator=(const ScopedScratchDirectory&) = delete;
+
+    ~ScopedScratchDirectory() {
+        std::error_code ignored;
+        std::filesystem::remove_all(path_, ignored);
+    }
+
+    [[nodiscard]] const std::filesystem::path& path() const noexcept { return path_; }
+
+private:
+    inline static std::atomic_uint64_t next_serial_{};
+    std::filesystem::path path_;
+};
 
 [[nodiscard]] std::vector<std::string> arguments_for(
     const ExternalEngineKind kind,
@@ -562,7 +591,7 @@ EngineResult ExternalEngineAdapter::run(const EngineRequest& request) {
 std::vector<EngineResult> ExternalEngineAdapter::run_batch(
     const std::span<const EngineRequest> requests) {
     if (requests.empty()) return {};
-    if (config_.kind != ExternalEngineKind::flint || requests.size() == 1U) {
+    if (config_.kind != ExternalEngineKind::flint) {
         return EngineAdapter::run_batch(requests);
     }
 
@@ -592,17 +621,38 @@ std::vector<EngineResult> ExternalEngineAdapter::run_batch(
         verified_executable_sha256 = installation_verification_.executable_sha256;
     }
 
-    std::vector<PreparedExternalRun> prepared;
     std::vector<std::string> arguments;
-    prepared.reserve(requests.size());
     arguments.reserve(requests.size());
+    std::vector<std::filesystem::path> planned_work_directories;
+    planned_work_directories.reserve(requests.size());
+    std::filesystem::path batch_root;
     for (const auto& request : requests) {
-        prepared.push_back(prepare(request));
+        if (!supports(request)) {
+            throw std::invalid_argument("external engine does not support family");
+        }
+        validate_job_id(request.job_id);
+        const auto request_root =
+            std::filesystem::absolute(request.working_directory).lexically_normal();
+        if (batch_root.empty()) {
+            batch_root = request_root;
+        } else if (request_root != batch_root) {
+            throw std::invalid_argument(
+                "FLINT batch requests must share one working directory");
+        }
+        const auto planned_work = (request_root / request.job_id).lexically_normal();
+        if (std::filesystem::exists(planned_work) ||
+            std::ranges::find(planned_work_directories, planned_work) !=
+                planned_work_directories.end()) {
+            throw std::invalid_argument(
+                "isolated work directory already exists or is duplicated");
+        }
+        planned_work_directories.push_back(planned_work);
         arguments.push_back(request.canonical_input);
     }
     std::vector<EngineResult> results;
     results.reserve(requests.size());
     constexpr std::size_t maximum_argument_characters = 24'000U;
+    std::size_t chunk_index = 0U;
     for (std::size_t begin = 0U; begin < requests.size();) {
         std::vector<std::string> chunk_arguments;
         std::size_t argument_characters = 0U;
@@ -617,9 +667,10 @@ std::vector<EngineResult> ExternalEngineAdapter::run_batch(
             chunk_arguments.push_back(arguments[end]);
             ++end;
         }
+        ScopedScratchDirectory scratch{batch_root, chunk_index};
         const auto process = invoke_process(
             std::filesystem::absolute(config_.executable), chunk_arguments,
-            prepared[begin].working_directory, config_.timeout, config_.memory_limit_bytes);
+            scratch.path(), config_.timeout, config_.memory_limit_bytes);
         const auto combined_stdout = read_file(process.raw_stdout_path);
         const auto combined_stderr = read_file(process.raw_stderr_path);
 
@@ -635,11 +686,7 @@ std::vector<EngineResult> ExternalEngineAdapter::run_batch(
         const bool output_shape_valid = offset == combined_stdout.size() &&
                                         lines.size() == chunk_size;
         for (std::size_t index = begin; index < end; ++index) {
-            const auto stdout_path = prepared[index].working_directory / "stdout.txt";
-            const auto stderr_path = prepared[index].working_directory / "stderr.txt";
             const auto line = output_shape_valid ? lines[index - begin] : combined_stdout;
-            write_file(stdout_path, line);
-            write_file(stderr_path, combined_stderr);
             EngineResult result;
             if (process.timed_out) {
                 result = parsed(PrimalityStatus::untested, "PROCESS_TIMEOUT");
@@ -652,11 +699,12 @@ std::vector<EngineResult> ExternalEngineAdapter::run_batch(
                     config_.kind, config_.parser_version, line, combined_stderr);
             }
             result.engine_executable_sha256 = verified_executable_sha256;
-            result.raw_stdout_path = stdout_path;
-            result.raw_stderr_path = stderr_path;
+            result.raw_stdout_bytes = line;
+            result.raw_stderr_bytes = combined_stderr;
             results.push_back(std::move(result));
         }
         begin = end;
+        ++chunk_index;
     }
     return results;
 }

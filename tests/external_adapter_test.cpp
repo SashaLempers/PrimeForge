@@ -3,6 +3,7 @@
 #include "primeforge/core/sha256.hpp"
 #include "primeforge/engine/external_adapter.hpp"
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cstddef>
@@ -144,8 +145,10 @@ int main(const int argc, char** argv) {
         check(result.status.primality == primeforge::PrimalityStatus::probable_prime,
               "isolated fixture process parsed");
         check(std::filesystem::is_regular_file(result.raw_stdout_path) &&
-                  std::filesystem::is_regular_file(result.raw_stderr_path),
-              "raw process output retained");
+                  std::filesystem::is_regular_file(result.raw_stderr_path) &&
+                  !result.raw_stdout_bytes.has_value() &&
+                  !result.raw_stderr_bytes.has_value(),
+              "single-run raw process output remains path-backed");
 
         CountingSha256Provider counting_sha256;
         engine::ExternalEngineAdapter cached_adapter{config, counting_sha256};
@@ -176,10 +179,60 @@ int main(const int argc, char** argv) {
                   batch_results[1].status.primality == primeforge::PrimalityStatus::composite &&
                   batch_results[2].status.primality == primeforge::PrimalityStatus::proven_prime,
               "FLINT batch output retains request ordering and exact classifications");
-        check(flint_batch.recommended_parallelism() == 8U &&
-                  std::filesystem::is_regular_file(batch_results[0].raw_stdout_path) &&
-                  std::filesystem::is_regular_file(batch_results[1].raw_stdout_path),
-              "FLINT batch retains deterministic per-request raw evidence");
+        check(flint_batch.recommended_parallelism() == 8U,
+              "FLINT batch remains the recommended compact batch path");
+        const std::array expected_markers{
+            std::string{"PROVEN_PRIME"}, std::string{"COMPOSITE"},
+            std::string{"PROVEN_PRIME"}};
+        for (std::size_t index = 0U; index < batch_results.size(); ++index) {
+            const auto& batch_result = batch_results[index];
+            check(batch_result.raw_stdout_path.empty() &&
+                      batch_result.raw_stderr_path.empty() &&
+                      batch_result.raw_stdout_bytes.has_value() &&
+                      batch_result.raw_stderr_bytes.has_value() &&
+                      batch_result.raw_stderr_bytes->empty(),
+                  "FLINT batch returns engaged in-memory raw evidence");
+            const auto& stdout_bytes = *batch_result.raw_stdout_bytes;
+            check(stdout_bytes == expected_markers[index] + "\n" ||
+                      stdout_bytes == expected_markers[index] + "\r\n",
+                  "FLINT batch preserves each exact stdout line");
+            check(!std::filesystem::exists(work_root / batch_requests[index].job_id),
+                  "FLINT batch creates no per-candidate artifact directory");
+        }
+        const auto scratch_remains = std::ranges::any_of(
+            std::filesystem::directory_iterator{work_root}, [](const auto& entry) {
+                return entry.path().filename().string().starts_with(
+                    ".primeforge-flint-batch-");
+            });
+        check(!scratch_remains, "FLINT batch scratch directory removed by RAII");
+
+        const std::array large_inputs{
+            std::string(12'000U, 'A'), std::string(12'000U, 'B'),
+            std::string(12'000U, 'C')};
+        const std::array large_batch_requests{
+            primeforge::EngineRequest{"large-batch-0", "fixture", large_inputs[0], work_root},
+            primeforge::EngineRequest{"large-batch-1", "fixture", large_inputs[1], work_root},
+            primeforge::EngineRequest{"large-batch-2", "fixture", large_inputs[2], work_root}};
+        const auto large_batch_results = flint_batch.run_batch(large_batch_requests);
+        check(large_batch_results.size() == large_batch_requests.size(),
+              "FLINT multi-chunk batch retains its exact result count");
+        for (std::size_t index = 0U; index < large_batch_results.size(); ++index) {
+            const auto& stdout_bytes = large_batch_results[index].raw_stdout_bytes;
+            check(stdout_bytes.has_value() &&
+                      (*stdout_bytes == large_inputs[index] + "\n" ||
+                       *stdout_bytes == large_inputs[index] + "\r\n") &&
+                      large_batch_results[index].raw_stderr_bytes.has_value() &&
+                      large_batch_results[index].raw_stderr_bytes->empty() &&
+                      !std::filesystem::exists(work_root / large_batch_requests[index].job_id),
+                  "FLINT multi-chunk output remains ordered, in-memory, and compact");
+        }
+        const auto multi_chunk_scratch_remains = std::ranges::any_of(
+            std::filesystem::directory_iterator{work_root}, [](const auto& entry) {
+                return entry.path().filename().string().starts_with(
+                    ".primeforge-flint-batch-");
+            });
+        check(!multi_chunk_scratch_remains,
+              "all FLINT multi-chunk scratch directories removed by RAII");
 
         auto timeout_config = config;
         timeout_config.stable_id = "primeforge.fixture.timeout.v1";

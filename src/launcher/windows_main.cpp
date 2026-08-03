@@ -5,6 +5,7 @@
 #include <windows.h>
 #include <shellapi.h>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cstdio>
@@ -51,9 +52,20 @@ struct AppState {
 };
 
 [[nodiscard]] bool is_known_campaign_incompatibility(const ChildCompletion& completion) {
-    return completion.action == primeforge::mvp::LauncherAction::verify &&
-           completion.output.find("result coordinates or campaign identity mismatch") !=
-               std::string::npos;
+    using primeforge::mvp::LauncherAction;
+    if (completion.action != LauncherAction::verify &&
+        completion.action != LauncherAction::resume) {
+        return false;
+    }
+    constexpr std::array<std::string_view, 5U> known_markers{
+        "result coordinates or campaign identity mismatch",
+        "campaign FLINT evidence journal is missing",
+        "checkpoint campaign or progress mismatch",
+        "checkpoint payload schema mismatch",
+        "checkpoint configuration hash mismatch"};
+    return std::ranges::any_of(known_markers, [&](const std::string_view marker) {
+        return completion.output.find(marker) != std::string::npos;
+    });
 }
 
 [[nodiscard]] std::string utc_archive_suffix() {

@@ -716,3 +716,17 @@ unchanged. Adapters that do not explicitly recommend parallelism remain serial.
 Compared with the retained hash-cache baseline, complete-pipeline medians fall
 by 46.055 % to 49.791 %. A variant that overlapped process creation with durable
 writes is rejected in `NR-0055`; it is not part of this decision.
+
+## D-0083 - Result durability is committed at authenticated boundaries
+
+**Status:** Accepted - 2026-08-03
+
+Canonical result lines are buffered only until the next configured checkpoint,
+clean stop or campaign completion. PrimeForge appends and synchronizes the
+complete bounded group before saving the checkpoint that authenticates it. A
+resume therefore retains the same exact durable prefix guarantee while avoiding
+one filesystem synchronization per candidate.
+
+The retained 160-candidate measurement improves complete-pipeline medians by
+16.849 % to 23.491 % relative to the preceding baseline, with byte-identical
+uninterrupted and resumed results.

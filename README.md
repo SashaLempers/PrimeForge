@@ -223,6 +223,11 @@ eight-process wave. See
 [`docs/reports/OPTIMIZATION_02.md`](docs/reports/OPTIMIZATION_02.md) and
 [`benchmarks/baselines/optimization-02/`](benchmarks/baselines/optimization-02/).
 
+The third retained optimization aligns durable ledger flushes with authenticated
+checkpoint boundaries. See
+[`docs/reports/OPTIMIZATION_03.md`](docs/reports/OPTIMIZATION_03.md) and
+[`benchmarks/baselines/optimization-03/`](benchmarks/baselines/optimization-03/).
+
 Run a focused CPU PRP sample:
 
 ```powershell

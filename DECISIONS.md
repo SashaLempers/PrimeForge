@@ -587,3 +587,17 @@ keeps one CPU sieve worker, scheduler placement, 8192-candidate CPU segments, on
 CUDA backend/stream and bounded synchronous 8192-task batches as simple fallback
 values. Double/triple buffering remains proven but unselected. PIVOT-07 closes
 `INCONCLUSIVE`; it adds no tuning framework and returns effort to the engine.
+
+## D-0074 - The first production specialization is the bounded Proth family
+
+**Status:** Accepted - 2026-08-03
+
+PrimeForge selects `N = k*2^n+1` with positive odd `k` and `k<2^n` as its first
+family-specific engine path. This follows the owner-provided MVP priority and
+reuses the validated configuration, congruence, sieve, work-unit, recovery and
+verification code. Proth's theorem supplies the specialized proof target, while
+proth20 and the isolated general oracles provide independent local controls.
+Generalized Fermat, Sierpinski/Riesel and Cullen/Woodall paths remain candidates,
+not simultaneous implementation targets. The decision authorizes development and
+known-range comparison only; it does not select a novelty range, request external
+work, claim discovery or authorize a prolonged campaign.

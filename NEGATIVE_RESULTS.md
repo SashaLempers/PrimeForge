@@ -408,3 +408,12 @@ Each future entry must include:
 - **Failure criterion:** PIVOT-07 requires stable disjoint validation, complete safety telemetry and a workload tied to the final engine path before retaining a profile.
 - **Conclusion:** outcome `INCONCLUSIVE`. No timing rank, utilization result or fastest claim is retained. Simple one-worker/one-stream bounded fallback parameters remain active.
 - **Retry condition:** select the target family, implement its complete candidate-to-proof workload, obtain validated CPU stability telemetry, then preregister calibration and held-out validation before reopening global selection.
+
+## NR-0044 - A Proth novelty interval cannot be justified from the local evidence
+
+- **Date:** 2026-08-03
+- **Change tested:** eligibility of published PrimeGrid/Proth project descriptions and the local source audit for selecting a nonoverlapping discovery interval.
+- **Evidence:** official pages establish active and historical coverage for Proth-form searches, but the repository has no dated, immutable and exhaustive machine-readable map covering every relevant `(k,n)` pair.
+- **Failure criterion:** a novelty campaign must prove its interval does not duplicate known or assigned work before launch; absence of a local record is not evidence of absence.
+- **Conclusion:** PIVOT-08 selects the mathematical family but no novelty interval. Development, PIVOT-09 comparison and PIVOT-10 known/local validation ranges remain permitted with `novelty_status=NOT_CHECKED`.
+- **Retry condition:** archive and hash authoritative coverage snapshots, reconcile their interval semantics, check the proposed range twice and obtain separate authorization before any external assignment or publication.

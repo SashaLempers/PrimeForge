@@ -108,6 +108,13 @@ licensing and CPU/GPU suitability. This is the point for any materially
 incompatible mathematical choice. Gate: bounded family, proof plan, novelty plan
 and no external assignment/contact without separate authorization.
 
+Gate: `COMPLETE`. The owner-prioritized Proth form `k*2^n+1` is selected with
+positive odd `k`, finite intervals and `k<2^n`. The existing MVP supplies a
+reproduced 160-candidate known-range baseline; Proth's theorem, local proth20 and
+isolated general oracles define the proof and independent-verification plan. No
+novelty interval, external assignment, contact, performance claim or prolonged
+campaign is authorized. PIVOT-09 is next.
+
 ## PIVOT-09 — Honest reference comparison
 
 Run equivalent work, proof level, checkpoints and environmental controls against

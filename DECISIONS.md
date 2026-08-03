@@ -768,3 +768,18 @@ avoiding concurrent result-ledger writes during process creation.
 Two independent exploratory series reproduced the gain. The retained series
 improves complete-pipeline medians by 3.014 % to 5.081 % with byte-identical
 interrupted/resumed and uninterrupted results.
+
+## D-0087 - Product SHA-256 uses Windows CNG with a portable fallback
+
+**Status:** Accepted - 2026-08-03
+
+Product commands and product benchmarks use `PlatformSha256Provider`. On
+Windows it delegates SHA-256 compression to the operating-system CNG `bcrypt`
+API; other platforms use the existing original PrimeForge implementation. The
+injectable interface, digest format and portable test provider remain intact.
+Known and multi-block vectors must match bit for bit.
+
+External installation files are read with one sized binary read and fail closed
+if their size changes. Together these changes improve the retained complete
+pipeline medians by 18.782 % to 23.624 %. No OpenSSL or redistributed dependency
+is introduced.

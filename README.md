@@ -238,6 +238,11 @@ independent FLINT batch while keeping all durable writes ordered. See
 [`docs/reports/OPTIMIZATION_05.md`](docs/reports/OPTIMIZATION_05.md) and
 [`benchmarks/baselines/optimization-05/`](benchmarks/baselines/optimization-05/).
 
+The sixth retained optimization uses Windows CNG behind the internal SHA-256
+interface and sized binary reads for product provenance checks. See
+[`docs/reports/OPTIMIZATION_06.md`](docs/reports/OPTIMIZATION_06.md) and
+[`benchmarks/baselines/optimization-06/`](benchmarks/baselines/optimization-06/).
+
 Run a focused CPU PRP sample:
 
 ```powershell

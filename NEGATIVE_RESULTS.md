@@ -498,3 +498,12 @@ Each future entry must include:
 - **Failure criterion:** a test threshold must represent the intended exact byte count and must not fail before exercising the low-memory decision.
 - **Conclusion:** the test now uses 64-bit literals (`8ULL`); production rejection of zero is retained as a safety property.
 - **Retry condition:** the direct runtime test and complete Debug/Release/CUDA gates must pass.
+
+## NR-0054 - The first WHEA test expected a Windows provider on Linux CI
+
+- **Date:** 2026-08-03
+- **Change tested:** private Linux/GCC CI for commit `0f0f280` after adding the fixed Windows WHEA query.
+- **Evidence:** all 102 targets compiled; 32/33 Linux tests passed. `primeforge.runtime` failed only because its assertion required the injected runner to receive `wevtutil` on Linux.
+- **Failure criterion:** Windows WHEA must be detected on Windows, while a non-Windows build must remain portable and report that provider as `UNKNOWN` without invoking a Windows command.
+- **Conclusion:** the platform-specific test now asserts detected zero on Windows and untouched `UNKNOWN` on Linux. Production behavior is unchanged.
+- **Retry condition:** push the focused test correction and require both private Linux/GCC and Windows/MSVC jobs to pass.

@@ -73,7 +73,13 @@ void test_hardware_monitor() {
         [&lconnect]() -> std::optional<std::string> { return lconnect; });
     const auto snapshot = monitor.sample();
     check(nvidia_invoked, "hardware monitor uses the fixed NVIDIA query");
-    check(whea_invoked && snapshot.whea_errors_recent.value == "0", "hardware monitor checks recent WHEA events");
+#ifdef _WIN32
+    check(whea_invoked && snapshot.whea_errors_recent.value == "0",
+          "Windows hardware monitor checks recent WHEA events");
+#else
+    check(!whea_invoked && !snapshot.whea_errors_recent.available(),
+          "non-Windows hardware monitor keeps WHEA unavailable");
+#endif
     check(snapshot.gpu_temperature_celsius.value == "71", "GPU temperature parsed");
     check(snapshot.gpu_memory_temperature_celsius.value == "UNKNOWN", "N/A remains UNKNOWN");
     check(snapshot.gpu_sm_clock_mhz.value == "2700", "GPU frequency parsed");

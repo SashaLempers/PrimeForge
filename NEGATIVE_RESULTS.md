@@ -399,3 +399,12 @@ Each future entry must include:
 - **Failure criterion:** the optional CUDA workflow must be safe from an ordinary PowerShell prompt and must never fall back to another compiler or generator.
 - **Conclusion:** `scripts/run_cuda_validation.ps1` now owns this workflow. It discovers Visual Studio with `vswhere`, loads its developer environment, pins the toolkit root and propagates every command failure. The damaged ignored cache is deleted only through its exact known build path before the clean retry.
 - **Retry condition:** clean script execution must rebuild the CUDA configuration and pass all tests, explicit validation and Compute Sanitizer.
+
+## NR-0043 - Global CPU/GPU profile selection is not yet scientifically valid
+
+- **Date:** 2026-08-03
+- **Change tested:** eligibility of the completed CPU sieve, modular CUDA backend and bounded pipeline evidence for PIVOT-07 selection.
+- **Evidence:** CPU temperature and package power remain `UNKNOWN`; PIVOT-03 rankings were unstable; PIVOT-05/06 ran correctness-sized synthetic modular tasks with an intentionally conservative kernel; no final target family supplies representative end-to-end work.
+- **Failure criterion:** PIVOT-07 requires stable disjoint validation, complete safety telemetry and a workload tied to the final engine path before retaining a profile.
+- **Conclusion:** outcome `INCONCLUSIVE`. No timing rank, utilization result or fastest claim is retained. Simple one-worker/one-stream bounded fallback parameters remain active.
+- **Retry condition:** select the target family, implement its complete candidate-to-proof workload, obtain validated CPU stability telemetry, then preregister calibration and held-out validation before reopening global selection.

@@ -46,3 +46,19 @@ executions. All canonical outputs were exact, but the CPU temperature and packag
 power fields remained `UNKNOWN` and regime rankings were inconsistent. The
 outcome is therefore `INCONCLUSIVE`; no target profile or performance claim was
 retained. See `docs/reports/PIVOT_03.md` and NR-0036.
+
+## PIVOT-07 outcome
+
+The completed CUDA modular and pipeline gates establish correctness, persistent
+buffer ownership, one/two/three-stream bounds and exact recovery. They do not
+establish a tuning workload. The modular kernel is deliberately a conservative
+add/double reference, CPU safety telemetry is incomplete and no final candidate
+family has been selected. Using those test durations for global selection would
+violate this protocol's representative-workload, stability and disjoint-validation
+requirements.
+
+PIVOT-07 therefore closes `INCONCLUSIVE` without running a synthetic tuning sweep.
+The simple one-worker/one-stream bounded fallback stays in effect. Tuning reopens
+only after PIVOT-08 selects a family and the complete family-specific pipeline can
+be calibrated and validated without leakage. See `docs/reports/PIVOT_07.md` and
+NR-0043.

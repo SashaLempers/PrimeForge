@@ -574,3 +574,16 @@ submitted slots before checkpointed exit. Resume verifies task identity,
 checkpoint hash, ledger hash, every durable residue and index; a suffix written
 after the last checkpoint is truncated and replayed. This ordered frontier is
 chosen over out-of-order durability to make omissions and duplicates fail closed.
+
+## D-0073 - PIVOT-07 retains safe parameters without a global timing selection
+
+**Status:** Accepted - 2026-08-03
+
+A global CPU/GPU profile cannot be scientifically selected before a target family
+defines representative work, while CPU temperature and package power remain
+unavailable. PIVOT-05/06 test durations are correctness diagnostics for an
+intentionally conservative kernel, not calibration evidence. PrimeForge therefore
+keeps one CPU sieve worker, scheduler placement, 8192-candidate CPU segments, one
+CUDA backend/stream and bounded synchronous 8192-task batches as simple fallback
+values. Double/triple buffering remains proven but unselected. PIVOT-07 closes
+`INCONCLUSIVE`; it adds no tuning framework and returns effort to the engine.

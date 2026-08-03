@@ -20,7 +20,9 @@ toolchain, exact target device, transfers, deterministic kernel, sanitizer and
 non-redistribution boundary. PIVOT-05 has added the exact bounded modular CUDA
 backend with persistent buffers, a private stream and 101,000 CPU/GPU differential
 vectors. PIVOT-06 has added bounded 1/2/3-stream execution, ordered CPU-verified
-durability and exact interruption/resume. PIVOT-07 is next.
+durability and exact interruption/resume. PIVOT-07 closed `INCONCLUSIVE` because
+CPU stability telemetry and a family-specific end-to-end workload are absent; no
+unsafe timing selection was made. PIVOT-08 is next.
 
 ## PIVOT-00 — Audit and reorientation
 
@@ -93,6 +95,11 @@ throughput conclusion is drawn from test duration.
 Tune CPU, GPU, memory and pipeline parameters jointly without validation leakage.
 The profile is bound to hardware, software and commit hashes. Gate: stable validated
 selection; maximum utilization is not an objective by itself.
+
+Gate: `COMPLETE - INCONCLUSIVE`. Correctness supports one/two/three streams, but
+no final-family workload or complete CPU stability telemetry exists. The safe
+one-worker/one-stream bounded fallback remains selected. No synthetic sweep was
+run and no performance claim was created.
 
 ## PIVOT-08 — Select one target family
 

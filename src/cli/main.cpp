@@ -284,6 +284,7 @@ flint_config(const primeforge::mvp::SearchConfig &config) {
 void print_search_summary(const primeforge::mvp::SearchSummary &summary) {
     std::cout << "search.campaign_id=" << summary.plan.campaign_id << '\n'
               << "search.candidates=" << summary.plan.candidate_count << '\n'
+              << "search.sieve_threads=" << summary.sieve_threads << '\n'
               << "search.sieve_composites=" << summary.sieve_composite_count << '\n'
               << "search.base2_composites=" << summary.base2_composite_count << '\n'
               << "search.prp_backend=" << summary.prp_backend_id << '\n'

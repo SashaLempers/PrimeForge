@@ -51,6 +51,7 @@ struct SearchSummary {
     std::string compiled_table_sha256;
     std::string sieve_result_sha256;
     std::uint64_t sieve_composite_count{};
+    unsigned int sieve_threads{};
     std::uint64_t base2_composite_count{};
     std::uint64_t prp_tested_count{};
     std::uint64_t prp_submitted_batches{};
@@ -84,5 +85,8 @@ struct SearchExecutionOptions {
 
 [[nodiscard]] std::string canonical_search_record(
     const SearchRecord& record, const std::filesystem::path& output_directory);
+
+[[nodiscard]] unsigned int select_sieve_threads(
+    std::uint64_t candidate_count, unsigned int available_threads) noexcept;
 
 }  // namespace primeforge::mvp

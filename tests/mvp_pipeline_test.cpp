@@ -207,6 +207,12 @@ int main(const int argc, char** argv) {
                   "known prime values are unique");
         }
         check(expected.size() == 34U, "known corpus contains 34 primes");
+        check(primeforge::mvp::select_sieve_threads(160U, 32U) == 1U &&
+                  primeforge::mvp::select_sieve_threads(4'096U, 32U) == 4U &&
+                  primeforge::mvp::select_sieve_threads(16'384U, 32U) == 16U &&
+                  primeforge::mvp::select_sieve_threads(262'144U, 8U) == 8U &&
+                  primeforge::mvp::select_sieve_threads(262'144U, 0U) == 1U,
+              "sieve thread selection is bounded by work and available CPU threads");
         config.pari_gp.expected_sha256 = std::string(64U, 'a');
         config.flint.expected_sha256 = std::string(64U, 'b');
         config.output_directory = "mvp-pipeline-test-output";

@@ -21,6 +21,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 #if defined(_WIN32)
@@ -466,7 +467,9 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
     options.metadata_layout = family_sieve::MetadataLayout::array_of_structures;
     options.scheduling = family_sieve::Scheduling::static_partition;
     options.vector_mode = family_sieve::VectorMode::scalar;
-    options.threads = 1U;
+    options.threads = select_sieve_threads(
+        summary.plan.candidate_count, std::thread::hardware_concurrency());
+    summary.sieve_threads = options.threads;
     options.thread_placement = family_sieve::ThreadPlacement::scheduler_managed;
     options.retain_factor_witnesses = true;
     const auto sieve_result = family_sieve::run(table, sha256, options);
@@ -642,6 +645,17 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
     }
     finalize_campaign(summary, sha256);
     return summary;
+}
+
+unsigned int select_sieve_threads(const std::uint64_t candidate_count,
+                                  const unsigned int available_threads) noexcept {
+    constexpr std::uint64_t candidates_per_worker = 1'024U;
+    constexpr unsigned int target_physical_cores = 16U;
+    if (available_threads == 0U || candidate_count < candidates_per_worker) return 1U;
+    const auto work_limited = static_cast<unsigned int>(std::min<std::uint64_t>(
+        target_physical_cores,
+        std::max<std::uint64_t>(1U, candidate_count / candidates_per_worker)));
+    return std::min(available_threads, work_limited);
 }
 
 std::string canonical_search_record(const SearchRecord &record,

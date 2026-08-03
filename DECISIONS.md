@@ -547,3 +547,16 @@ package and is not an accepted redistribution component. C4211 is disabled only
 for this NVCC-host-compiled target because NVCC 13.3 generates that diagnostic in
 its registration stub. All CUDA frontend warnings and every other host warning
 remain errors; every ordinary PrimeForge target retains the unmodified strict gate.
+
+## D-0071 - The first CUDA engine primitive is a synchronous exact u64 batch
+
+**Status:** Accepted - 2026-08-03
+
+PIVOT-05 exposes only `(left * right) mod modulus` over explicit unsigned 64-bit
+tasks. The backend owns a fixed-capacity pair of persistent device buffers and one
+nonblocking CUDA stream; a synchronous adapter boundary validates sizes and
+nonzero moduli, submits ordered async copies and a kernel, then synchronizes before
+returning. The device uses overflow-safe add/double reduction rather than an
+unproven fast reduction. This is intentionally correctness-first and not a
+performance claim. PIVOT-06 may add asynchronous ownership and faster algorithms
+only while retaining the portable CPU reference and exact differential gate.

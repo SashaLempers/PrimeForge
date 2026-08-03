@@ -46,3 +46,11 @@ The pipeline emits queue occupancy, time per stage, blocked time, RAM/VRAM use,
 transfer bytes, kernel ids, checkpoint ids and telemetry assessments. Utilization
 is diagnostic: 100% CPU or GPU usage is neither required nor evidence of optimal
 end-to-end performance.
+
+## Implemented substrate
+
+PIVOT-05 implements the first bounded GPU arithmetic adapter, persistent device
+buffers and one internal stream. Its public call remains synchronous, so it cannot
+lose or duplicate an in-flight item. PIVOT-06 will build the sequence-id, bounded
+queue, cancellation and checkpoint state machine around this proven primitive;
+the synchronous operation remains the reference fallback.

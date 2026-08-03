@@ -126,6 +126,8 @@ implemented. See `docs/pivot/PERFORMANCE_PROTOCOL.md`.
 - `checkpoint_manager`: atomic SHA-256-verified save/load for opaque engine progress;
 - `benchmark_watchdog`: independent worker supervision with graceful and forced stop.
 - `primeforge-cpu-topology`: Ryzen CPU-set, physical-core and L3-domain placement diagnostic.
+- `primeforge_cuda`: optional local RTX 5080 modular-batch backend with persistent buffers and an internal CUDA stream;
+- `primeforge-cuda-modular-tests`: 101,000-vector CPU/GPU differential and contract gate.
 
 No external numerical, JSON, cryptographic, CUDA or GPU library is linked at this
 milestone. Stage 8 uses a small original arbitrary-precision integer solely for

@@ -17,7 +17,9 @@ rule-by-candidate scan. Its disjoint 630-execution CPU study closed
 `INCONCLUSIVE`, so the safe product profile remains selected and no fastest
 configuration is claimed. PIVOT-04 has validated the optional local CUDA 13.3
 toolchain, exact target device, transfers, deterministic kernel, sanitizer and
-non-redistribution boundary. PIVOT-05 is next.
+non-redistribution boundary. PIVOT-05 has added the exact bounded modular CUDA
+backend with persistent buffers, a private stream and 101,000 CPU/GPU differential
+vectors. PIVOT-06 is next.
 
 ## PIVOT-00 — Audit and reorientation
 
@@ -67,6 +69,11 @@ confirmed that no CUDA/NVIDIA binary is shipped.
 Implement bounded fixed-size arithmetic/batches, buffers and streams behind a
 small interface. Keep the scalar CPU reference. Gate: exhaustive boundary vectors
 and large fixed-seed differential suites with zero disagreement.
+
+Gate: `COMPLETE`. The v1 unsigned 64-bit modular batch adapter rejects malformed
+requests, reuses fixed-capacity buffers, and matched both CPU references for 1,000
+boundary plus 100,000 fixed-seed vectors. Compute Sanitizer reported zero errors.
+No timing is retained as a performance claim.
 
 ## PIVOT-06 — Asynchronous CPU/GPU pipeline
 

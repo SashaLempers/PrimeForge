@@ -84,6 +84,15 @@ try {
     Invoke-Checked -Executable $sanitizer -Arguments @(
         '--tool', 'memcheck', '--error-exitcode', '99', $validator
     )
+
+    $modularTests = Join-Path $buildDirectory 'primeforge-cuda-modular-tests.exe'
+    if (-not (Test-Path -LiteralPath $modularTests -PathType Leaf)) {
+        throw "CUDA modular test executable was not produced: $modularTests"
+    }
+    Invoke-Checked -Executable $modularTests
+    Invoke-Checked -Executable $sanitizer -Arguments @(
+        '--tool', 'memcheck', '--error-exitcode', '99', $modularTests
+    )
 } finally {
     Pop-Location
 }

@@ -335,12 +335,11 @@ if(PRIMEFORGE_ENABLE_CUDA)
         message(FATAL_ERROR "PrimeForge PIVOT-04 requires CUDA Toolkit 13.3.x")
     endif()
 
-    add_executable(primeforge-cuda-validation src/cuda/validation.cu)
-    target_link_libraries(primeforge-cuda-validation PRIVATE CUDA::cudart)
-    target_compile_features(primeforge-cuda-validation PRIVATE cuda_std_20)
-    target_compile_options(
-        primeforge-cuda-validation
-        PRIVATE
+    function(primeforge_configure_cuda_target target)
+        target_compile_features(${target} PRIVATE cuda_std_20)
+        target_compile_options(
+            ${target}
+            PRIVATE
             $<$<COMPILE_LANGUAGE:CUDA>:--Werror=all-warnings>
             $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/W4>
             $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/WX>
@@ -351,14 +350,38 @@ if(PRIMEFORGE_ENABLE_CUDA)
             $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/permissive->
             $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/EHsc>
             $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/utf-8>
-    )
-    set_target_properties(
-        primeforge-cuda-validation
-        PROPERTIES
+        )
+        set_target_properties(
+            ${target}
+            PROPERTIES
             CUDA_ARCHITECTURES 120
             CUDA_EXTENSIONS OFF
             CUDA_SEPARABLE_COMPILATION OFF
+        )
+    endfunction()
+
+    add_executable(primeforge-cuda-validation src/cuda/validation.cu)
+    target_link_libraries(primeforge-cuda-validation PRIVATE CUDA::cudart)
+    primeforge_configure_cuda_target(primeforge-cuda-validation)
+
+    add_library(primeforge_cuda STATIC src/cuda/modular_batch.cu)
+    add_library(PrimeForge::cuda ALIAS primeforge_cuda)
+    target_include_directories(
+        primeforge_cuda
+        PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+            $<INSTALL_INTERFACE:include>
     )
+    target_link_libraries(primeforge_cuda PUBLIC CUDA::cudart)
+    primeforge_configure_cuda_target(primeforge_cuda)
+
+    add_executable(primeforge-cuda-modular-tests tests/cuda_modular_batch_test.cpp)
+    target_link_libraries(
+        primeforge-cuda-modular-tests
+        PRIVATE PrimeForge::cuda PrimeForge::core
+    )
+    target_compile_features(primeforge-cuda-modular-tests PRIVATE cxx_std_23)
+    primeforge_enable_strict_warnings(primeforge-cuda-modular-tests)
 endif()
 
 if(BUILD_TESTING)
@@ -422,6 +445,7 @@ if(BUILD_TESTING)
     add_test(NAME primeforge.cpu_topology_cli COMMAND primeforge-cpu-topology)
     if(PRIMEFORGE_ENABLE_CUDA)
         add_test(NAME primeforge.cuda_validation COMMAND primeforge-cuda-validation)
+        add_test(NAME primeforge.cuda_modular_batch COMMAND primeforge-cuda-modular-tests)
     endif()
     add_test(
         NAME primeforge.watchdog_process

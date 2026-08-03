@@ -33,6 +33,14 @@ integer widths and byte order. Fixed-size arithmetic begins with small bounded
 operations and carry edge cases. Every kernel has a scalar CPU reference and
 fixed-seed differential tests. GPU output is untrusted until CPU verification.
 
+PIVOT-05 now provides `ModularBatchBackend` version
+`primeforge.cuda.modular-u64.v1`. It owns persistent fixed-capacity device buffers
+and a nonblocking stream behind a synchronous host contract. The first exact
+kernel uses overflow-safe add/double modular multiplication for every nonzero
+64-bit modulus. One thousand Cartesian boundary vectors and 100,000 fixed-seed
+vectors agree with both CPU references and pass Compute Sanitizer. This closes
+the bounded arithmetic foundation; it deliberately makes no throughput claim.
+
 Streams, pinned memory, cooperative groups, block dimensions, limb widths and
 resident batch sizes are autotuned only after correctness. CGBN and other sources
 remain audited references unless an individual license/integration decision

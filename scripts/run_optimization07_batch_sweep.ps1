@@ -332,7 +332,11 @@ try {
             'run', '--profile', ('"{0}"' -f $profile),
             '--backend', [string]$item.requested_backend,
             '--output', ('"{0}"' -f $runDirectory),
-            '--warmup', '0', '--repetitions', '1',
+            # The direct CUDA backend initializes eagerly in its constructor,
+            # while the automatic router initializes CUDA on its first
+            # accelerated call. One untimed call per process makes their
+            # steady-state timing boundaries identical.
+            '--warmup', '1', '--repetitions', '1',
             '--batch-size', [string]$item.batch_size
         )
         $process = Start-Process -FilePath $benchmark -ArgumentList $arguments `
@@ -760,8 +764,9 @@ $environment = [ordered]@{
     batch_sizes = $batchSizes
     repetitions = $Repetitions
     warmups = $Warmups
+    per_process_backend_warmups = 1
     randomized_block_seed = $Seed
-    schedule_protocol = 'ONE_WARMUP_OR_MEASUREMENT_PER_PROCESS;30_RANDOMIZED_COMBINATIONS_PER_BLOCK'
+    schedule_protocol = 'ONE_SCHEDULED_ROW_AND_ONE_UNTIMED_BACKEND_CALL_PER_PROCESS;30_RANDOMIZED_COMBINATIONS_PER_BLOCK'
     measured_row_count = 30 * $Repetitions
     safety_thresholds = [ordered]@{
         maximum_cpu_preflight_celsius = $maximumCpuPreflightCelsius

@@ -286,6 +286,8 @@ try {
         )
         $worker = $null
         $watchdogProcess = $null
+        $workerExitCode = $null
+        $watchdogExitCode = $null
         $timer = [Diagnostics.Stopwatch]::new()
         $primaryFailure = $null
         try {
@@ -319,11 +321,18 @@ try {
                 }
             }
             $watchdogProcess.WaitForExit()
-            if ($worker.ExitCode -ne 0) {
-                throw "PrimeForge worker failed for $runId with code $($worker.ExitCode)."
+            $workerExitCode = $worker.ExitCode
+            $watchdogExitCode = $watchdogProcess.ExitCode
+            # Windows PowerShell 5.1 can expose a null ExitCode for a
+            # Start-Process object even after WaitForExit when standard streams
+            # are redirected. Reject native nonzero codes when available; the
+            # watchdog's independently collected worker_exited event remains
+            # the authoritative fallback below.
+            if ($null -ne $workerExitCode -and [int]$workerExitCode -ne 0) {
+                throw "PrimeForge worker failed for $runId with code $workerExitCode."
             }
-            if ($watchdogProcess.ExitCode -ne 0) {
-                throw "Watchdog failed for $runId with code $($watchdogProcess.ExitCode)."
+            if ($null -ne $watchdogExitCode -and [int]$watchdogExitCode -ne 0) {
+                throw "Watchdog failed for $runId with code $watchdogExitCode."
             }
         } catch {
             $primaryFailure = $_.Exception
@@ -368,6 +377,11 @@ try {
         }
         if (@($events | Where-Object event_type -in @('graceful_stop_requested', 'forced_stop')).Count -ne 0) {
             throw "Watchdog rejected run $runId."
+        }
+        if ((Get-Item -LiteralPath $watchdogStderr).Length -ne 0L -or
+            -not (Select-String -LiteralPath $watchdogStdout -SimpleMatch `
+                'benchmark_watchdog.decision=WORKER_EXITED reason=NONE' -Quiet)) {
+            throw "Watchdog completion contract failed for $runId."
         }
         $keyValues = Get-KeyValues $searchStdout
         if ($keyValues['search.status'] -ne 'PASS' -or
@@ -467,6 +481,8 @@ try {
             io_ns = [uint64]$keyValues['metrics.io_ns']
             checkpoint_ns = [uint64]$keyValues['metrics.checkpoint_ns']
             wall_elapsed_ms = [uint64]$timer.ElapsedMilliseconds
+            worker_exit_code = if ($null -eq $workerExitCode) { 'WATCHDOG_VERIFIED' } else { [int]$workerExitCode }
+            watchdog_exit_code = if ($null -eq $watchdogExitCode) { 'OUTPUT_VERIFIED' } else { [int]$watchdogExitCode }
             verify_status = $verifyStatus
             cpu_temperature_max_c = ($cpuTemperatures | Measure-Object -Maximum).Maximum
             cpu_power_max_w = ($cpuPowers | Measure-Object -Maximum).Maximum

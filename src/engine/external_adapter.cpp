@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
+#include <limits>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -31,7 +32,25 @@ namespace {
 [[nodiscard]] std::string read_file(const std::filesystem::path& path) {
     std::ifstream input{path, std::ios::binary};
     if (!input) throw std::runtime_error("cannot read artifact: " + path.string());
-    return {std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
+    input.seekg(0, std::ios::end);
+    const auto end_position = input.tellg();
+    const auto length = static_cast<std::streamoff>(end_position);
+    if (length < 0 || static_cast<std::uintmax_t>(length) >
+                          std::numeric_limits<std::size_t>::max()) {
+        throw std::runtime_error("artifact size is not representable: " + path.string());
+    }
+    std::string content(static_cast<std::size_t>(length), '\0');
+    input.seekg(0, std::ios::beg);
+    if (!content.empty()) {
+        input.read(content.data(), static_cast<std::streamsize>(content.size()));
+        if (input.gcount() != static_cast<std::streamsize>(content.size())) {
+            throw std::runtime_error("artifact changed while reading: " + path.string());
+        }
+    }
+    if (input.peek() != std::char_traits<char>::eof()) {
+        throw std::runtime_error("artifact grew while reading: " + path.string());
+    }
+    return content;
 }
 
 void write_file(const std::filesystem::path& path, const std::string_view content) {

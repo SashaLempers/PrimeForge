@@ -183,7 +183,7 @@ make_prp_backend(const std::string_view requested) {
 }
 
 void run_selftest() {
-    const primeforge::PortableSha256Provider sha256;
+    const primeforge::PlatformSha256Provider sha256;
     constexpr std::string_view minimal =
         "schema: primeforge.search.v1\n"
         "campaign_name: selftest\n"
@@ -227,7 +227,7 @@ void run_selftest() {
 }
 
 void run_inspect(const std::filesystem::path &config_path) {
-    const primeforge::PortableSha256Provider sha256;
+    const primeforge::PlatformSha256Provider sha256;
     const auto config = primeforge::mvp::load_search_config(config_path);
     const auto plan = primeforge::mvp::build_campaign_plan(config, sha256);
     std::cout << "campaign.name=" << config.campaign_name << '\n'
@@ -315,7 +315,7 @@ void print_search_summary(const primeforge::mvp::SearchSummary &summary) {
 void run_search(const std::filesystem::path &config_path,
                 const std::optional<std::uint64_t> stop_after,
                 const std::string_view prp_backend_name, const std::size_t prp_batch_candidates) {
-    const primeforge::PortableSha256Provider sha256;
+    const primeforge::PlatformSha256Provider sha256;
     const auto config = primeforge::mvp::load_search_config(config_path);
     primeforge::engine::ExternalEngineAdapter proof_engine{pari_config(config), sha256};
     primeforge::engine::ExternalEngineAdapter independent_engine{flint_config(config), sha256};
@@ -334,7 +334,7 @@ void run_resume(const std::filesystem::path &checkpoint_path,
                 const std::string_view prp_backend_name, const std::size_t prp_batch_candidates) {
     const auto absolute_checkpoint = std::filesystem::absolute(checkpoint_path);
     const auto config_path = absolute_checkpoint.parent_path() / "search.yaml";
-    const primeforge::PortableSha256Provider sha256;
+    const primeforge::PlatformSha256Provider sha256;
     const auto config = primeforge::mvp::load_search_config(config_path);
     if (std::filesystem::absolute(config.output_directory).lexically_normal() !=
         absolute_checkpoint.parent_path().lexically_normal()) {
@@ -357,7 +357,7 @@ void run_verify(const std::filesystem::path &results_path) {
     const auto absolute_results = std::filesystem::absolute(results_path);
     const auto config =
         primeforge::mvp::load_search_config(absolute_results.parent_path() / "search.yaml");
-    const primeforge::PortableSha256Provider sha256;
+    const primeforge::PlatformSha256Provider sha256;
     auto certificate = pari_config(config);
     certificate.kind = primeforge::engine::ExternalEngineKind::pari_gp_certificate;
     certificate.stable_id = "pari-gp-2.17.4-primecert-verifier";

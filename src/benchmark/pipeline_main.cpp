@@ -327,7 +327,7 @@ int run(const int argc, char** argv) {
         static_cast<void>(backend->test(candidates, verdicts));
     }
 
-    const primeforge::PortableSha256Provider sha256;
+    const primeforge::PlatformSha256Provider sha256;
     const auto profile_sha256 = sha256_file(options.profile, sha256);
     const auto dataset_sha256 = sha256_bytes(std::as_bytes(std::span{candidates}), sha256);
     const auto executable = std::filesystem::absolute(argv[0]);

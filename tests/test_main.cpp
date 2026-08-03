@@ -85,6 +85,21 @@ void test_sha256_abstraction() {
     check(decoded.has_value() && *decoded == digest, "digest hex round trip");
     check(!primeforge::sha256_from_hex("invalid").has_value(), "invalid digest length rejected");
     check(!primeforge::sha256_from_hex(std::string(64U, 'z')).has_value(), "invalid digest character rejected");
+
+    constexpr std::string_view abc{"abc"};
+    const auto abc_bytes = std::as_bytes(std::span{abc.data(), abc.size()});
+    const primeforge::PortableSha256Provider portable;
+    const primeforge::PlatformSha256Provider platform;
+    const auto portable_digest = portable.digest(abc_bytes);
+    const auto platform_digest = platform.digest(abc_bytes);
+    check(portable_digest == platform_digest, "platform SHA-256 matches portable provider");
+    check(primeforge::sha256_to_hex(platform_digest) ==
+              "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+          "platform SHA-256 known vector");
+
+    const std::array<std::byte, 4096> block{};
+    check(platform.digest(block) == portable.digest(block),
+          "platform SHA-256 matches portable provider across many blocks");
 }
 
 void test_engine_adapter_contract() {

@@ -10,6 +10,11 @@
 #include <stdexcept>
 #include <vector>
 
+#if defined(_WIN32)
+#include <windows.h>
+#include <bcrypt.h>
+#endif
+
 namespace primeforge {
 namespace {
 
@@ -130,6 +135,55 @@ Sha256Digest sha256(const std::span<const std::byte> bytes) {
 
 Sha256Digest PortableSha256Provider::digest(const std::span<const std::byte> bytes) const {
     return sha256(bytes);
+}
+
+Sha256Digest PlatformSha256Provider::digest(const std::span<const std::byte> bytes) const {
+#if defined(_WIN32)
+    BCRYPT_ALG_HANDLE algorithm = nullptr;
+    if (BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0U) < 0) {
+        throw std::runtime_error("cannot open Windows SHA-256 provider");
+    }
+    DWORD object_size = 0U;
+    DWORD returned = 0U;
+    if (BCryptGetProperty(algorithm, BCRYPT_OBJECT_LENGTH,
+                          reinterpret_cast<PUCHAR>(&object_size), sizeof(object_size),
+                          &returned, 0U) < 0 || returned != sizeof(object_size)) {
+        BCryptCloseAlgorithmProvider(algorithm, 0U);
+        throw std::runtime_error("cannot query Windows SHA-256 provider");
+    }
+    std::vector<UCHAR> object(object_size);
+    BCRYPT_HASH_HANDLE hash = nullptr;
+    if (BCryptCreateHash(algorithm, &hash, object.data(), object_size, nullptr, 0U, 0U) < 0) {
+        BCryptCloseAlgorithmProvider(algorithm, 0U);
+        throw std::runtime_error("cannot create Windows SHA-256 hash");
+    }
+    std::size_t offset = 0U;
+    while (offset < bytes.size()) {
+        const auto remaining = bytes.size() - offset;
+        const auto chunk = static_cast<ULONG>(std::min<std::size_t>(
+            remaining, std::numeric_limits<ULONG>::max()));
+        auto* const data = reinterpret_cast<PUCHAR>(
+            const_cast<std::byte*>(bytes.data() + offset));
+        if (BCryptHashData(hash, data, chunk, 0U) < 0) {
+            BCryptDestroyHash(hash);
+            BCryptCloseAlgorithmProvider(algorithm, 0U);
+            throw std::runtime_error("Windows SHA-256 update failed");
+        }
+        offset += chunk;
+    }
+    Sha256Digest result{};
+    if (BCryptFinishHash(hash, reinterpret_cast<PUCHAR>(result.data()),
+                         static_cast<ULONG>(result.size()), 0U) < 0) {
+        BCryptDestroyHash(hash);
+        BCryptCloseAlgorithmProvider(algorithm, 0U);
+        throw std::runtime_error("Windows SHA-256 finalization failed");
+    }
+    BCryptDestroyHash(hash);
+    BCryptCloseAlgorithmProvider(algorithm, 0U);
+    return result;
+#else
+    return sha256(bytes);
+#endif
 }
 
 std::string sha256_to_hex(const Sha256Digest& digest) {

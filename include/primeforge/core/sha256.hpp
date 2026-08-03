@@ -25,6 +25,13 @@ public:
     [[nodiscard]] Sha256Digest digest(std::span<const std::byte> bytes) const override;
 };
 
+// Uses the operating-system cryptographic provider when available and preserves
+// the portable implementation as the non-Windows fallback.
+class PlatformSha256Provider final : public Sha256Provider {
+public:
+    [[nodiscard]] Sha256Digest digest(std::span<const std::byte> bytes) const override;
+};
+
 [[nodiscard]] Sha256Digest sha256(std::span<const std::byte> bytes);
 
 [[nodiscard]] std::string sha256_to_hex(const Sha256Digest& digest);

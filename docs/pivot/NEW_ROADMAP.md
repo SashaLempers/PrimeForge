@@ -132,6 +132,11 @@ Run a small known or locally controlled range with complete ledger, recovery,
 independent verification and cost measurement. Gate: exact coverage and bounded
 recovery loss. No publication or external assignment is implicit.
 
+**Gate:** `COMPLETE`. The committed pipeline-v2 known range stopped at 37/160,
+resumed to exact completion, persisted 34 native Proth certificates, classified
+126 composites and passed fresh independent FLINT verification plus a 106-entry
+manifest. Novelty remains `NOT_CHECKED`; PIVOT-11 is next.
+
 ## PIVOT-11 — Bottleneck-only optimization
 
 Profile the complete pipeline, identify the dominant measured bottleneck, change

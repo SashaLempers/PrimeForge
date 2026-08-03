@@ -444,3 +444,12 @@ Each future entry must include:
 - **Failure criterion:** a proof artifact must be committed atomically under a campaign-owned directory without relying on pre-existing filesystem state.
 - **Conclusion:** the pipeline now creates the exact `proofs/proth` parent before atomic write. The complete Debug, Release and CUDA suites then passed, including interruption/recovery and strict on-disk parsing.
 - **Retry condition:** none for this defect; retain the fresh-directory test and fail if it regresses.
+
+## NR-0048 - The first integration draft did not bind proof policy to campaign identity
+
+- **Date:** 2026-08-03
+- **Change tested:** recovery review after changing the campaign primary proof path from PARI/GP to native Proth.
+- **Evidence:** the first draft changed generated work-unit proof policy but left the canonical configuration hash unchanged. A partial v1 campaign therefore had an identity that did not describe the new executable semantics.
+- **Failure criterion:** recovery must never combine an authenticated prefix produced under one proof policy with a suffix produced under another policy.
+- **Conclusion:** no final evidence campaign used that identity. `primeforge.mvp.pipeline.v2` and the exact proof-policy identifier now enter canonical campaign hashing; the old partial checkpoint was rejected, then a fresh v2 stop/resume gate passed.
+- **Retry condition:** increment the pipeline identity whenever a result-affecting implicit policy changes, and retain the old-checkpoint rejection gate.

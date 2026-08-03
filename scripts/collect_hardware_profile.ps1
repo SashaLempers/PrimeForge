@@ -6,7 +6,8 @@ param(
     [string]$IdentityOutputPath = '',
     [string]$SelfTestPath = '',
     [switch]$DisableNvidiaSmi,
-    [switch]$DisableCudaToolkit
+    [switch]$DisableCudaToolkit,
+    [switch]$DisableLConnectTelemetry
 )
 
 $ErrorActionPreference = 'Stop'
@@ -302,6 +303,55 @@ function Get-NvidiaTelemetryAvailability {
     return New-Observation DETECTED "nvidia-smi.$Name" 'AVAILABLE'
 }
 
+function Test-FiniteTelemetryValue {
+    param(
+        $Value,
+        [double]$MinimumExclusive,
+        [double]$MaximumInclusive
+    )
+    if ($null -eq $Value) { return $false }
+    try {
+        $number = [Convert]::ToDouble($Value, [Globalization.CultureInfo]::InvariantCulture)
+        return -not [double]::IsNaN($number) -and -not [double]::IsInfinity($number) -and
+            $number -gt $MinimumExclusive -and $number -le $MaximumInclusive
+    } catch {
+        return $false
+    }
+}
+
+$lconnectTelemetry = $null
+if (-not $DisableLConnectTelemetry) {
+    try {
+        $candidateTelemetry = Invoke-RestMethod `
+            -Uri 'http://127.0.0.1:11021/?action=SystemResource' `
+            -Method Post `
+            -TimeoutSec 2
+        $observedUtc = [DateTimeOffset]::Parse(
+            [string]$candidateTelemetry.LastTime,
+            [Globalization.CultureInfo]::InvariantCulture,
+            [Globalization.DateTimeStyles]::AssumeUniversal)
+        $age = [DateTimeOffset]::UtcNow - $observedUtc.ToUniversalTime()
+        if ($age.TotalSeconds -ge -2 -and $age.TotalSeconds -le 10) {
+            $lconnectTelemetry = $candidateTelemetry
+        }
+    } catch {
+        $lconnectTelemetry = $null
+    }
+}
+
+function Get-LConnectTelemetryAvailability {
+    param(
+        [string]$PropertyName,
+        [double]$MinimumExclusive,
+        [double]$MaximumInclusive
+    )
+    if ($null -ne $lconnectTelemetry -and
+        (Test-FiniteTelemetryValue $lconnectTelemetry.$PropertyName $MinimumExclusive $MaximumInclusive)) {
+        return New-Observation DETECTED "L-Connect local SystemResource.$PropertyName" 'AVAILABLE'
+    }
+    return New-Observation UNKNOWN "L-Connect local SystemResource.$PropertyName" 'UNKNOWN'
+}
+
 $cudaNvcc = Find-CudaNvcc
 $cudaDetectionMethod = New-Observation UNKNOWN 'CUDA detector' 'UNKNOWN'
 $cudaNvccPath = New-Observation UNKNOWN 'CUDA detector' 'UNKNOWN'
@@ -526,9 +576,9 @@ $identity = [ordered]@{
     }
     schema = 'primeforge.hardware-profile.v1'
     telemetry_capabilities = [ordered]@{
-        cpu_effective_frequency = New-Observation UNKNOWN 'no validated provider integrated' 'UNKNOWN'
-        cpu_power = New-Observation UNKNOWN 'no validated provider integrated' 'UNKNOWN'
-        cpu_temperature = New-Observation UNKNOWN 'no validated provider integrated' 'UNKNOWN'
+        cpu_effective_frequency = Get-LConnectTelemetryAvailability 'CPUClockRate' 0 10000
+        cpu_power = Get-LConnectTelemetryAvailability 'CPUPower' 0 1000
+        cpu_temperature = Get-LConnectTelemetryAvailability 'CPUTemperature' 0 125
         gpu_core_frequency = Get-NvidiaTelemetryAvailability 3 'clocks.sm'
         gpu_hotspot_temperature = New-Observation UNKNOWN 'nvidia-smi query unavailable' 'UNKNOWN'
         gpu_memory_temperature = Get-NvidiaTelemetryAvailability 1 'temperature.memory'

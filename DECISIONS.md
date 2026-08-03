@@ -652,3 +652,20 @@ that base's Jacobi symbol `-1`. The filter therefore cannot remove a successful
 witness. Exact counters are retained separately from elapsed time: fewer modular
 exponentiations is a reproduced algorithmic result, not by itself a performance
 or energy claim.
+
+## D-0079 - Target-local L-Connect telemetry is optional and fail-closed
+
+**Status:** Accepted - 2026-08-03
+
+On Windows, `hardware_monitor` may read the already-running L-Connect service's
+fixed loopback `SystemResource` response for CPU package temperature, package
+power and clock. It accepts only a fresh UTC timestamp and finite positive values
+inside conservative validation ranges. Timeout, absence, stale data, duplicate
+keys and malformed/out-of-range values remain `UNKNOWN`; a campaign can require
+the sensors so their loss triggers a graceful stop. The 92 °C CPU threshold is
+explicit policy, while no CPU-power threshold is invented.
+
+PrimeForge does not install, launch, load, link, copy or redistribute L-Connect
+or its transitive HWiNFO DLL. This private target-machine use does not establish
+permission for public redistribution. Process separation is not a license
+conclusion, and any public provider decision requires a new review.

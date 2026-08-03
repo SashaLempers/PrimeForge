@@ -40,8 +40,12 @@ int main(int argc, char** argv) {
             else if (argument == "--checkpoint" && index + 1 < argc) { checkpoint_path = argv[++index]; }
             else if (argument == "--interval-ms" && index + 1 < argc) { interval_ms = std::stoull(argv[++index]); }
             else if (argument == "--grace-ms" && index + 1 < argc) { policy.graceful_timeout_milliseconds = std::stoull(argv[++index]); }
+            else if (argument == "--max-cpu-temp-c" && index + 1 < argc) { policy.maximum_cpu_temperature_celsius = std::stod(argv[++index]); }
+            else if (argument == "--max-cpu-power-w" && index + 1 < argc) { policy.maximum_cpu_power_watts = std::stod(argv[++index]); }
             else if (argument == "--max-gpu-temp-c" && index + 1 < argc) { policy.maximum_gpu_temperature_celsius = std::stod(argv[++index]); }
             else if (argument == "--max-gpu-power-w" && index + 1 < argc) { policy.maximum_gpu_power_watts = std::stod(argv[++index]); }
+            else if (argument == "--require-cpu-temperature") { policy.require_cpu_temperature = true; }
+            else if (argument == "--require-cpu-power") { policy.require_cpu_power = true; }
             else if (argument == "--require-gpu-temperature") { policy.require_gpu_temperature = true; }
             else if (argument == "--require-gpu-power") { policy.require_gpu_power = true; }
             else { throw std::invalid_argument("invalid benchmark_watchdog argument"); }

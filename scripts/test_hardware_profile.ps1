@@ -15,6 +15,7 @@ $identityA = Join-Path $WorkingDirectory 'identity-a.json'
 $identityB = Join-Path $WorkingDirectory 'identity-b.json'
 $profileWithoutNvidia = Join-Path $WorkingDirectory 'profile-without-nvidia.json'
 $profileWithoutCuda = Join-Path $WorkingDirectory 'profile-without-cuda.json'
+$profileWithoutLConnect = Join-Path $WorkingDirectory 'profile-without-lconnect.json'
 
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Collector -OutputPath $profileA -IdentityOutputPath $identityA -SelfTestPath $SelfTestPath | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'First hardware-profile collection failed.' }
@@ -49,7 +50,15 @@ if ($profile.profile_id -ne "sha256:$identityHash") { throw 'Profile id does not
 
 if ($profile.cpu.brand.status -notin @('DETECTED', 'UNKNOWN')) { throw 'CPU brand source classification is invalid.' }
 if ($profile.memory.total_physical_bytes.status -ne 'DETECTED') { throw 'Physical memory was not detected.' }
-if ($profile.telemetry_capabilities.cpu_temperature.status -ne 'UNKNOWN' -or $profile.telemetry_capabilities.cpu_temperature.value -ne 'UNKNOWN') { throw 'Unavailable CPU temperature must remain UNKNOWN.' }
+foreach ($field in @(
+    $profile.telemetry_capabilities.cpu_temperature,
+    $profile.telemetry_capabilities.cpu_power,
+    $profile.telemetry_capabilities.cpu_effective_frequency
+)) {
+    if ($field.status -notin @('DETECTED', 'UNKNOWN')) { throw 'CPU telemetry availability classification is invalid.' }
+    if ($field.status -eq 'DETECTED' -and $field.value -ne 'AVAILABLE') { throw 'Detected CPU telemetry must be marked AVAILABLE.' }
+    if ($field.status -eq 'UNKNOWN' -and $field.value -ne 'UNKNOWN') { throw 'Unavailable CPU telemetry must remain UNKNOWN.' }
+}
 if ($profile.toolchain.cuda_toolkit_nvcc.status -eq 'UNKNOWN' -and $profile.toolchain.cuda_toolkit_nvcc.value -ne 'UNKNOWN') { throw 'Unknown CUDA toolkit value is inconsistent.' }
 if ($profile.cuda.nvcc_path.status -eq 'DETECTED') {
     foreach ($field in @(
@@ -88,5 +97,18 @@ $withoutCuda = Get-Content -Raw -LiteralPath $profileWithoutCuda | ConvertFrom-J
 if ($withoutCuda.cuda.nvcc_path.status -ne 'UNKNOWN') { throw 'Disabled CUDA toolkit must leave nvcc UNKNOWN.' }
 if ($withoutCuda.cuda.probe_status.status -ne 'UNKNOWN') { throw 'Disabled CUDA toolkit must leave the runtime probe UNKNOWN.' }
 if (@($withoutCuda.cuda.devices).Count -ne 0) { throw 'Disabled CUDA toolkit must produce an empty CUDA device inventory.' }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Collector -OutputPath $profileWithoutLConnect -SelfTestPath $SelfTestPath -DisableLConnectTelemetry | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'No-L-Connect hardware-profile collection failed.' }
+$withoutLConnect = Get-Content -Raw -LiteralPath $profileWithoutLConnect | ConvertFrom-Json
+foreach ($field in @(
+    $withoutLConnect.telemetry_capabilities.cpu_temperature,
+    $withoutLConnect.telemetry_capabilities.cpu_power,
+    $withoutLConnect.telemetry_capabilities.cpu_effective_frequency
+)) {
+    if ($field.status -ne 'UNKNOWN' -or $field.value -ne 'UNKNOWN') {
+        throw 'Disabled L-Connect telemetry must leave CPU telemetry UNKNOWN.'
+    }
+}
 
 Write-Output 'primeforge-hardware-profile-tests: PASS'

@@ -146,8 +146,10 @@ end-to-end benefit with unchanged correctness; otherwise record a negative resul
 **Gate:** `COMPLETE-ALGORITHMIC / INCONCLUSIVE END-TO-END`. The native Proth
 kernel now uses a Jacobi prefilter: the known campaign proofs require 34 modular
 exponentiations instead of 132, with identical certificates and all correctness
-gates green. CPU stability sensors remain unavailable, so no elapsed-time or
-energy claim is retained. PIVOT-12 remains an explicit prolonged-campaign gate.
+gates green. CPU stability sensors were unavailable during that measurement, so
+no elapsed-time or energy claim is retained retroactively. A later target-local
+L-Connect provider now closes the sensor-readiness blocker, but PIVOT-12 remains
+an explicit prolonged-campaign authorization gate.
 
 ## PIVOT-12 — Prolonged campaign
 

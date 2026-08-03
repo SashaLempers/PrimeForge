@@ -42,14 +42,18 @@ struct HardwareSnapshot {
 };
 
 using CommandRunner = std::function<std::optional<std::string>(std::string_view)>;
+using LocalTelemetryReader = std::function<std::optional<std::string>()>;
 
 class HardwareMonitor {
 public:
-    explicit HardwareMonitor(CommandRunner runner = {});
+    explicit HardwareMonitor(
+        CommandRunner runner = {},
+        LocalTelemetryReader local_telemetry_reader = {});
     [[nodiscard]] HardwareSnapshot sample() const;
 
 private:
     CommandRunner runner_;
+    LocalTelemetryReader local_telemetry_reader_;
 };
 
 } // namespace primeforge::runtime

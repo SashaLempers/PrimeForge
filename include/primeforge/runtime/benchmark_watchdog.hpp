@@ -34,8 +34,12 @@ private:
 
 struct WatchdogPolicy {
     std::uint64_t graceful_timeout_milliseconds{30'000U};
+    std::optional<double> maximum_cpu_temperature_celsius;
+    std::optional<double> maximum_cpu_power_watts;
     std::optional<double> maximum_gpu_temperature_celsius;
     std::optional<double> maximum_gpu_power_watts;
+    bool require_cpu_temperature{};
+    bool require_cpu_power{};
     bool require_gpu_temperature{};
     bool require_gpu_power{};
 };

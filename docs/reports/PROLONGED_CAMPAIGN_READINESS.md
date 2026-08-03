@@ -1,35 +1,47 @@
 # Prolonged campaign readiness
 
-**Status:** BLOCKED SAFELY — CAMPAIGN NOT STARTED
+**Status:** SHORT VALIDATION PASSED — 24-HOUR AUTHORIZATION PENDING
+
 **Date:** 2026-08-03
 
-PIVOT-00 through PIVOT-11 have passed their scoped correctness gates. The next
-roadmap milestone is a prolonged campaign, but two mandatory conditions prevent
-launch:
+PIVOT-00 through PIVOT-11 have passed their scoped correctness gates. The former
+CPU-sensor blocker is closed on the target: the already-installed L-Connect 3
+service provides fresh CPU package temperature, package power and clock through
+a local loopback response. PrimeForge accepts those fields only with strict
+freshness and range validation and otherwise returns `UNKNOWN`.
 
-1. the owner has not yet given the separate explicit authorization required for
-   a real campaign of 24 hours or more;
-2. CPU temperature and package power remain `UNKNOWN`, so the required 92 °C
-   stop rule cannot be enforced.
+Three consecutive Release samples reported CPU temperatures from 63.0 to
+64.125 °C and CPU package power from 98.671146947560786 to
+116.89694076029312 W. GPU temperature was 50–51 °C, GPU board power was
+45.10–45.94 W, RAM availability stayed above 42.9 GB, VRAM availability stayed
+above 13.0 GiB and NVIDIA reported no throttling reason. These are short
+readiness observations, not benchmark or energy claims.
 
-The host exposes no usable `MSAcpi_ThermalZoneTemperature` value and no supported
-hardware monitor is already running. An official LibreHardwareMonitor v0.9.6
-probe was downloaded from GitHub, verified against archive SHA-256
-`086D9F1B5A99E643EDC2CFAAAC16051685B551E4C5AC0B32A57C58C0E529C001`,
-and loaded only from ignored local storage. It enumerated the Ryzen package
-temperature and power sensors but returned zero values, which PrimeForge rejects
-as invalid. The probe is not integrated or redistributed.
+The final Debug and Release builds each passed 34/34 tests in 50.11 s and
+16.77 s. The optional CUDA build passed 37/37 tests in 17.45 s; all three CUDA
+Compute Sanitizer runs reported zero errors. The runtime fault
+suite covers valid, missing, stale and invalid local data, the required-sensor
+loss paths and the 92 °C stop decision. The canonical hardware-profile gate also
+passes both detected and deliberately disabled L-Connect paths. The post-CUDA
+sample reported CPU 62 °C, GPU 51 °C, no NVIDIA throttling and zero WHEA events
+in the preceding ten minutes.
 
-The next technical attempt would require privileged hardware access and possibly
-a driver. PrimeForge did not elevate, install a driver, change BIOS/voltage/power
-limits/fan curves, or start any campaign. GPU telemetry remains available, but it
-cannot substitute for CPU thermal safety.
+PrimeForge does not load, link, copy or redistribute L-Connect/HWiNFO. The local
+provider is restricted to this private target-machine workflow; public product
+redistribution would require a separate component review. No driver was installed,
+no privilege was elevated and no BIOS, voltage, power limit or fan curve changed.
+
+One mandatory condition still prevents PIVOT-12 launch: the owner has not yet
+given the separate explicit authorization required immediately before a real
+campaign of 24 hours or more. WHEA/CUDA exit checks and low-memory gates must be
+enabled in the final campaign wrapper before that launch.
 
 ## Contribution directe au logiciel final
 
-Ce contrôle protège directement le moteur contre une campagne dont la règle
-d'arrêt thermique CPU serait impossible à appliquer. Il ne rajoute aucun système
-générique : il clôt une seule vérification bloquante et conserve `UNKNOWN` au lieu
-d'inventer une mesure. Le moteur borné, ses preuves et sa reprise sont prêts ; la
-campagne prolongée attend l'autorisation du propriétaire et une source CPU
-fiable.
+Ce contrôle permet au moteur d'appliquer réellement l'arrêt thermique à 92 °C,
+de journaliser la puissance CPU mesurée et de s'arrêter si la source disparaît.
+Il ferme le blocage matériel sans ajouter de moteur externe ni détourner le
+projet vers l'infrastructure. La télémétrie cible est terminée pour les essais
+courts ; il faudra seulement la revalider si L-Connect est mis à jour. La campagne
+prolongée reste en attente de l'autorisation explicite du propriétaire et de
+l'activation de ses dernières portes WHEA/CUDA/mémoire.

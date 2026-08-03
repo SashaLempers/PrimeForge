@@ -5,6 +5,7 @@
 #include "primeforge/work/work_unit.hpp"
 #include "runtime_internal.hpp"
 
+#include <cmath>
 #include <filesystem>
 #include <stdexcept>
 #include <utility>
@@ -24,7 +25,14 @@ namespace {
     if (!metric.available()) {
         return std::nullopt;
     }
-    return internal::parse_double(metric.value);
+    const auto value = internal::parse_double(metric.value);
+    return value && std::isfinite(*value) ? value : std::nullopt;
+}
+
+void validate_threshold(const std::optional<double>& threshold, const char* name) {
+    if (threshold && (!std::isfinite(*threshold) || *threshold <= 0.0)) {
+        throw std::invalid_argument(std::string{name} + " must be finite and positive");
+    }
 }
 
 } // namespace
@@ -91,12 +99,32 @@ BenchmarkWatchdog::BenchmarkWatchdog(
     if (policy_.graceful_timeout_milliseconds == 0U) {
         throw std::invalid_argument("watchdog graceful timeout must be positive");
     }
+    validate_threshold(policy_.maximum_cpu_temperature_celsius, "maximum CPU temperature");
+    validate_threshold(policy_.maximum_cpu_power_watts, "maximum CPU power");
+    validate_threshold(policy_.maximum_gpu_temperature_celsius, "maximum GPU temperature");
+    validate_threshold(policy_.maximum_gpu_power_watts, "maximum GPU power");
 }
 
 std::optional<std::string> BenchmarkWatchdog::unsafe_reason(
     const HardwareSnapshot& snapshot) const {
     if (snapshot.throttling_detected) {
         return "GPU_THROTTLING:" + snapshot.throttling_reasons;
+    }
+    const auto cpu_temperature = metric_value(snapshot.cpu_temperature_celsius);
+    if (policy_.require_cpu_temperature && !cpu_temperature) {
+        return "CPU_TEMPERATURE_SENSOR_LOST";
+    }
+    if (cpu_temperature && policy_.maximum_cpu_temperature_celsius &&
+        *cpu_temperature > *policy_.maximum_cpu_temperature_celsius) {
+        return "CPU_TEMPERATURE_THRESHOLD";
+    }
+    const auto cpu_power = metric_value(snapshot.cpu_power_watts);
+    if (policy_.require_cpu_power && !cpu_power) {
+        return "CPU_POWER_SENSOR_LOST";
+    }
+    if (cpu_power && policy_.maximum_cpu_power_watts &&
+        *cpu_power > *policy_.maximum_cpu_power_watts) {
+        return "CPU_POWER_THRESHOLD";
     }
     const auto temperature = metric_value(snapshot.gpu_temperature_celsius);
     if (policy_.require_gpu_temperature && !temperature) {

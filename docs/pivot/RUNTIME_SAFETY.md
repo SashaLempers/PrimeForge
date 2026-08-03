@@ -8,12 +8,21 @@ benchmark. It does not run a search and contains no performance claim.
 `hardware_monitor` samples one record at a time and retains no history in memory.
 On Windows it reads mean current logical-processor MHz through
 `CallNtPowerInformation`, RAM through `GlobalMemoryStatusEx`, and NVIDIA data
-through a fixed `nvidia-smi` query. On the target, the available fields are GPU
-core temperature, board power and limit, SM/memory clocks, GPU/memory utilization,
-VRAM used/free, RAM used/free and CPU frequency. NVIDIA software power cap,
+through a fixed `nvidia-smi` query. When the already-installed L-Connect service
+is available on the target, a fixed no-proxy POST to
+`http://127.0.0.1:11021/?action=SystemResource` supplies CPU package temperature,
+package power and clock. PrimeForge accepts only HTTP 200, at most 64 KiB, a UTC
+timestamp no older than ten seconds, finite positive values and conservative
+ranges. The request has one-second network timeouts. Missing, stale, duplicated
+or out-of-range data remains `UNKNOWN`.
+
+On the target, the available fields are CPU package temperature/power/clock,
+GPU core temperature, board power and limit, SM/memory clocks, GPU/memory
+utilization, VRAM used/free and RAM used/free. NVIDIA software power cap,
 software thermal slowdown, hardware thermal slowdown and hardware power-brake
-reasons are checked explicitly. CPU temperature, CPU power and GPU memory
-temperature currently remain `UNKNOWN`; no TDP or inferred value replaces them.
+reasons are checked explicitly. GPU memory temperature remains `UNKNOWN`; no TDP
+or inferred value replaces a measurement. PrimeForge neither loads nor copies
+the L-Connect or HWiNFO binaries.
 
 `benchmark_logger` writes one UTF-8 JSON object per line. Every event has a
 campaign id, event type, opaque JSON payload, decimal sequence and UTC timestamp.
@@ -78,6 +87,8 @@ Guard an already-running worker whose PID is `$worker.Id`:
   --checkpoint out\campaigns\example\checkpoint.json `
   --log out\campaigns\example\events.jsonl `
   --campaign example --interval-ms 1000 --grace-ms 30000 `
+  --require-cpu-temperature --require-cpu-power `
+  --max-cpu-temp-c 92 `
   --require-gpu-temperature --require-gpu-power `
   --max-gpu-temp-c DOCUMENTED_LIMIT `
   --max-gpu-power-w DOCUMENTED_LIMIT
@@ -90,8 +101,9 @@ enforces the grace timeout.
 
 ## Fault gate
 
-`primeforge.runtime` tests available/missing telemetry, all exposed metric
-families, throttle invalidation, required-sensor loss, durable logger reopen,
+`primeforge.runtime` tests available/missing/stale local telemetry, accepted
+value ranges, CPU and GPU threshold stops, all exposed metric families, throttle
+invalidation, required-sensor loss, durable logger reopen,
 truncated log rejection, checkpoint round trip/corruption, operator stop,
 threshold stop, forced stop and simulated multi-day elapsed time.
 
@@ -102,8 +114,11 @@ and Linux CI run these tests. No massive benchmark is part of this gate.
 
 ## Remaining boundary
 
-CPU temperature and package power need a reliable, licensed provider before a
-campaign may require them. GPU memory temperature is unavailable from the current
-driver query. No automatic process closure exists. Concrete engine benchmarks may
-later add workload-specific interference observation, but PIVOT-02 is otherwise
-finished and should not become an infrastructure project.
+The target now has a validated optional CPU provider, and losing it is an
+enforceable stop when the two `--require-cpu-*` flags are used. This closes the
+former CPU-sensor blocker for a target-local campaign. It does not authorize
+redistribution of L-Connect/HWiNFO and does not authorize the 24-hour campaign.
+GPU memory temperature remains unavailable from the current driver query. No
+automatic process closure exists. Concrete engine campaigns still need their
+WHEA/CUDA exit checks and workload-specific interference policy, but PIVOT-02 is
+otherwise finished and should not become an infrastructure project.

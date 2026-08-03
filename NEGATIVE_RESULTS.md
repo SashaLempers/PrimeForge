@@ -471,3 +471,21 @@ Each future entry must include:
 - **Failure criterion:** zero or absent readings cannot be treated as real temperature/power, and a prolonged campaign requires enforceable CPU thermal stop thresholds.
 - **Conclusion:** CPU temperature and package power remain `UNKNOWN`; LibreHardwareMonitor is not integrated. No privileged driver, BIOS setting, voltage, power limit or fan control was changed.
 - **Retry condition:** the owner may explicitly authorize a separately reviewed privileged sensor provider/driver, or provide an already running trustworthy sensor source with a stable documented API.
+
+## NR-0051 - Direct unprivileged sensor-library reuse still returned zero values
+
+- **Date:** 2026-08-03
+- **Change tested:** direct local probes using both official LibreHardwareMonitor v0.9.6 and the already-installed HYTE/L-Connect sensor-library context, without elevation or hardware-setting changes.
+- **Evidence:** the Ryzen package temperature and power sensors were enumerated but their current/minimum/maximum values stayed zero. A direct second HWiNFO SDK instance also could not initialize while the owning service was active.
+- **Failure criterion:** zero, unavailable or exclusive-provider results cannot be treated as real CPU telemetry, and PrimeForge must not copy/load a proprietary transitive DLL without a separate license decision.
+- **Conclusion:** no direct sensor DLL is integrated. PrimeForge instead consumes only the fresh read-only loopback response already produced by the target's L-Connect service, with strict range/freshness validation and `UNKNOWN` fallback.
+- **Retry condition:** none for private target use; re-review the provider if L-Connect changes its response, hash or licensing, or before any public redistribution.
+
+## NR-0052 - The first transitive sensor manifest label was outside the closed vocabulary
+
+- **Date:** 2026-08-03
+- **Change tested:** complete CUDA CTest gate after adding the non-redistributed HWiNFO DLL observed inside L-Connect to the distribution manifest.
+- **Evidence:** 36/37 tests passed; `primeforge.license_distribution` rejected the invented classification `EXTERNAL_TRANSITIVE` before any sanitizer or campaign ran.
+- **Failure criterion:** every distribution-manifest classification must belong to its tested closed vocabulary, even for a component that PrimeForge neither calls nor redistributes.
+- **Conclusion:** the component now uses allowed classification `EXTERNAL`, while `TRANSITIVE_NOT_CALLED_OR_LOADED` preserves the more precise integration decision. No license scope or redistribution status changed.
+- **Retry condition:** the complete CUDA gate must pass before commit.

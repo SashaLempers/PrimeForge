@@ -166,7 +166,7 @@ if(WIN32)
     target_compile_definitions(primeforge_core PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
     target_link_libraries(primeforge_core PRIVATE user32)
     target_compile_definitions(primeforge_runtime PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
-    target_link_libraries(primeforge_runtime PRIVATE PowrProf)
+    target_link_libraries(primeforge_runtime PRIVATE PowrProf Winhttp)
 endif()
 
 add_executable(primeforge-selftest src/selftest/main.cpp)

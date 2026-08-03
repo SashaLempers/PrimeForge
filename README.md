@@ -31,6 +31,13 @@ proofs used by the known campaign, the exact modular-exponentiation count falls
 from 132 to 34 with byte-identical certificates. This is an algorithmic operation
 reduction only; no wall-time or fastest-engine claim is made.
 
+Target-local campaign safety now reads fresh CPU package temperature, power and
+clock from the already-installed L-Connect service over loopback, alongside the
+existing NVIDIA, RAM and VRAM telemetry. Missing, stale or invalid CPU data stays
+`UNKNOWN`, and the independent watchdog can require both sensors and stop above
+92 °C. No L-Connect or HWiNFO binary is linked, copied or redistributed. This
+does not itself authorize the pending 24-hour PIVOT-12 campaign.
+
 Post-release PIVOT-03 work now keeps proper-factor evidence in the original
 sieve traversal and lets aligned k-major segments write disjoint canonical
 bitset words directly. That same path now enumerates the compiled forbidden
@@ -39,9 +46,10 @@ archive is unchanged; the optimized source
 path remains under Debug/Release, differential and private-CI validation before
 a later release. No timing is promoted to a performance claim.
 
-PIVOT-03 CPU selection is complete but `INCONCLUSIVE`: 630 disjoint
-calibration/validation executions were exact, while validated CPU temperature
-and package power remained unavailable and profile ranks varied by regime. The
+PIVOT-03 CPU selection is complete but `INCONCLUSIVE`: during those 630 disjoint
+calibration/validation executions, CPU temperature and package power were not
+available and profile ranks varied by regime. The later telemetry integration
+does not retroactively make those historical timings performance-valid. The
 safe one-thread product profile is unchanged. Work therefore advances to the
 bounded CUDA validation milestone rather than inventing a CPU optimum.
 

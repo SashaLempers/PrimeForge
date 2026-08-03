@@ -78,3 +78,21 @@ PrimeForge's Apache-2.0 grant. The unprivileged probe returned invalid zero CPU
 temperature/power values, so it is not an accepted telemetry provider. Installing
 or enabling a privileged hardware-access driver remains a separate system action
 requiring explicit owner authorization and a new component-specific review.
+
+## Target-local L-Connect telemetry
+
+The target already contains L-Connect 3 version 2.1.26.0. PrimeForge performs a
+read-only request to the service's loopback `SystemResource` response and consumes
+only current CPU temperature, power and clock fields. PrimeForge does not install,
+launch, load, link, copy, modify or redistribute any L-Connect or HWiNFO component.
+The request does not access HWiNFO shared memory and does not bypass a license,
+authentication token or product limitation.
+
+L-Connect's installed HWiNFO64.dll is a transitive local implementation detail,
+not a PrimeForge dependency granted by Apache-2.0. HWiNFO's official SDK material
+describes commercial terms, and its EULA restricts third-party embedding/bundling.
+Accordingly, the current decision authorizes only the owner's existing private
+target-machine workflow. A public binary or general distribution that retains
+this provider requires a new component-specific review; process separation is
+not treated as an automatic licensing conclusion. No third-party binary or
+notice is added to the PrimeForge package by this change.

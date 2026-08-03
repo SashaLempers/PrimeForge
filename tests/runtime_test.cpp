@@ -7,6 +7,7 @@
 #include "primeforge/runtime/hardware_monitor.hpp"
 
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -42,6 +43,8 @@ public:
 [[nodiscard]] primeforge::runtime::HardwareSnapshot safe_snapshot() {
     primeforge::runtime::HardwareSnapshot snapshot;
     snapshot.utc = "2026-08-02T00:00:00.000Z";
+    snapshot.cpu_temperature_celsius = {"fake.cpu.temperature", "60"};
+    snapshot.cpu_power_watts = {"fake.cpu.power", "100"};
     snapshot.gpu_temperature_celsius = {"fake.temperature", "60"};
     snapshot.gpu_power_watts = {"fake.power", "100"};
     snapshot.throttling_reasons = "NONE";
@@ -50,27 +53,50 @@ public:
 
 void test_hardware_monitor() {
     bool invoked = false;
+    const auto lconnect = std::string{"{\"LastTime\":\""} + primeforge::runtime::utc_now() +
+        "\",\"CPUTemperature\":63.25,\"CPUPower\":107.5,\"CPUClockRate\":5550}";
     primeforge::runtime::HardwareMonitor monitor(
         [&invoked](const std::string_view command) -> std::optional<std::string> {
             invoked = command.find("clocks_event_reasons") != std::string_view::npos;
             return "71, N/A, 250.50, 360.00, 2700, 15001, 99, 20, 4096, 12207, Active, Not Active, Not Active, Not Active\n";
-        });
+        },
+        [&lconnect]() -> std::optional<std::string> { return lconnect; });
     const auto snapshot = monitor.sample();
     check(invoked, "hardware monitor uses the fixed NVIDIA query");
     check(snapshot.gpu_temperature_celsius.value == "71", "GPU temperature parsed");
     check(snapshot.gpu_memory_temperature_celsius.value == "UNKNOWN", "N/A remains UNKNOWN");
     check(snapshot.gpu_sm_clock_mhz.value == "2700", "GPU frequency parsed");
     check(snapshot.gpu_power_watts.value == "250.50", "GPU power parsed");
+    check(snapshot.cpu_temperature_celsius.value == "63.25", "L-Connect CPU temperature parsed");
+    check(snapshot.cpu_power_watts.value == "107.5", "L-Connect CPU power parsed");
+    check(snapshot.cpu_frequency_mhz.value == "5550", "L-Connect CPU frequency parsed");
     check(snapshot.throttling_detected, "active NVIDIA clock-event reason is throttling");
     check(snapshot.throttling_reasons == "SW_POWER_CAP", "exact throttle reason retained");
     check(snapshot.canonical_json().find("\"cpu_power_watts\"") != std::string::npos,
           "snapshot serializes UNKNOWN fields");
 
     primeforge::runtime::HardwareMonitor unavailable(
-        [](std::string_view) -> std::optional<std::string> { return std::nullopt; });
+        [](std::string_view) -> std::optional<std::string> { return std::nullopt; },
+        []() -> std::optional<std::string> { return std::nullopt; });
     const auto absent = unavailable.sample();
     check(!absent.gpu_temperature_celsius.available(), "missing NVIDIA provider remains UNKNOWN");
     check(absent.throttling_reasons == "UNKNOWN", "missing throttle provider remains UNKNOWN");
+
+    const auto invalid_lconnect = std::string{"{\"LastTime\":\""} + primeforge::runtime::utc_now() +
+        "\",\"CPUTemperature\":0,\"CPUPower\":0,\"CPUClockRate\":0}";
+    primeforge::runtime::HardwareMonitor invalid(
+        [](std::string_view) -> std::optional<std::string> { return std::nullopt; },
+        [&invalid_lconnect]() -> std::optional<std::string> { return invalid_lconnect; });
+    const auto rejected = invalid.sample();
+    check(!rejected.cpu_temperature_celsius.available(), "zero CPU temperature is rejected");
+    check(!rejected.cpu_power_watts.available(), "zero CPU power is rejected");
+
+    primeforge::runtime::HardwareMonitor stale(
+        [](std::string_view) -> std::optional<std::string> { return std::nullopt; },
+        []() -> std::optional<std::string> {
+            return "{\"LastTime\":\"2020-01-01T00:00:00.000Z\",\"CPUTemperature\":70,\"CPUPower\":120}";
+        });
+    check(!stale.sample().cpu_temperature_celsius.available(), "stale local telemetry is rejected");
 }
 
 void test_logger(const std::filesystem::path& directory) {
@@ -118,6 +144,81 @@ void test_checkpoints(const std::filesystem::path& directory) {
 }
 
 void test_watchdog(const std::filesystem::path& directory) {
+    {
+        MockWorker worker;
+        primeforge::runtime::BenchmarkLogger logger(directory / "invalid-policy.jsonl", "invalid-policy");
+        primeforge::runtime::WatchdogPolicy policy;
+        policy.maximum_cpu_temperature_celsius = std::nan("");
+        bool rejected = false;
+        try {
+            primeforge::runtime::BenchmarkWatchdog watchdog(policy, worker, logger);
+        } catch (const std::invalid_argument&) {
+            rejected = true;
+        }
+        check(rejected, "nonfinite watchdog threshold is rejected");
+    }
+    {
+        MockWorker worker;
+        primeforge::runtime::BenchmarkLogger logger(directory / "cpu-threshold.jsonl", "cpu-threshold");
+        primeforge::runtime::WatchdogPolicy policy;
+        policy.maximum_cpu_temperature_celsius = 92.0;
+        policy.require_cpu_temperature = true;
+        primeforge::runtime::BenchmarkWatchdog watchdog(policy, worker, logger);
+        auto snapshot = safe_snapshot();
+        snapshot.cpu_temperature_celsius.value = "92.1";
+        const auto result = watchdog.tick(1U, snapshot);
+        check(result.reason == "CPU_TEMPERATURE_THRESHOLD" && worker.graceful_requests == 1U,
+              "CPU threshold requests a graceful stop");
+    }
+    {
+        MockWorker worker;
+        primeforge::runtime::BenchmarkLogger logger(directory / "cpu-sensor.jsonl", "cpu-sensor");
+        primeforge::runtime::WatchdogPolicy policy;
+        policy.require_cpu_temperature = true;
+        policy.require_cpu_power = true;
+        primeforge::runtime::BenchmarkWatchdog watchdog(policy, worker, logger);
+        auto snapshot = safe_snapshot();
+        snapshot.cpu_temperature_celsius.value = "UNKNOWN";
+        const auto temperature = watchdog.tick(1U, snapshot);
+        check(temperature.reason == "CPU_TEMPERATURE_SENSOR_LOST",
+              "required CPU temperature loss stops safely");
+    }
+    {
+        MockWorker worker;
+        primeforge::runtime::BenchmarkLogger logger(directory / "cpu-power-sensor.jsonl", "cpu-power-sensor");
+        primeforge::runtime::WatchdogPolicy policy;
+        policy.require_cpu_power = true;
+        primeforge::runtime::BenchmarkWatchdog watchdog(policy, worker, logger);
+        auto snapshot = safe_snapshot();
+        snapshot.cpu_power_watts.value = "UNKNOWN";
+        const auto power = watchdog.tick(1U, snapshot);
+        check(power.reason == "CPU_POWER_SENSOR_LOST",
+              "required CPU power loss stops safely");
+    }
+    {
+        MockWorker worker;
+        primeforge::runtime::BenchmarkLogger logger(directory / "cpu-nonfinite.jsonl", "cpu-nonfinite");
+        primeforge::runtime::WatchdogPolicy policy;
+        policy.require_cpu_temperature = true;
+        primeforge::runtime::BenchmarkWatchdog watchdog(policy, worker, logger);
+        auto snapshot = safe_snapshot();
+        snapshot.cpu_temperature_celsius.value = "nan";
+        const auto temperature = watchdog.tick(1U, snapshot);
+        check(temperature.reason == "CPU_TEMPERATURE_SENSOR_LOST",
+              "nonfinite CPU telemetry is treated as sensor loss");
+    }
+    {
+        MockWorker worker;
+        primeforge::runtime::BenchmarkLogger logger(directory / "cpu-power-threshold.jsonl", "cpu-power-threshold");
+        primeforge::runtime::WatchdogPolicy policy;
+        policy.maximum_cpu_power_watts = 200.0;
+        primeforge::runtime::BenchmarkWatchdog watchdog(policy, worker, logger);
+        auto snapshot = safe_snapshot();
+        snapshot.cpu_power_watts.value = "200.1";
+        const auto power = watchdog.tick(1U, snapshot);
+        check(power.reason == "CPU_POWER_THRESHOLD",
+              "CPU power threshold requests a graceful stop");
+    }
     {
         MockWorker worker;
         primeforge::runtime::BenchmarkLogger logger(directory / "threshold.jsonl", "threshold");
@@ -189,7 +290,7 @@ int main() {
         test_watchdog(directory);
         std::filesystem::remove_all(directory);
         std::cout << "primeforge-runtime-tests: PASS\n";
-        std::cout << "covered=monitor availability/loss, temperature/frequency/power, throttling, "
+        std::cout << "covered=local/GPU monitor availability/loss/staleness, CPU/GPU temperature/frequency/power, throttling, "
                      "durable logs, log resume/truncation, checkpoint resume/corruption, graceful/forced stop, "
                      "multi-day monotonic time\n";
         return 0;

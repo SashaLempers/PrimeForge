@@ -7,6 +7,7 @@
 
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -18,6 +19,7 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <powrprof.h>
+#include <winhttp.h>
 #else
 #include <sys/wait.h>
 #endif
@@ -67,6 +69,216 @@ namespace {
         return std::nullopt;
     }
     return output;
+}
+
+[[nodiscard]] std::optional<std::string> json_scalar_field(
+    const std::string_view json,
+    const std::string_view name) {
+    const std::string marker = "\"" + std::string(name) + "\":";
+    const auto marker_position = json.find(marker);
+    if (marker_position == std::string_view::npos ||
+        json.find(marker, marker_position + marker.size()) != std::string_view::npos) {
+        return std::nullopt;
+    }
+    auto begin = marker_position + marker.size();
+    while (begin < json.size() && (json[begin] == ' ' || json[begin] == '\t')) {
+        ++begin;
+    }
+    if (begin == json.size() || json.substr(begin, 4U) == "null") {
+        return std::nullopt;
+    }
+    auto end = begin;
+    while (end < json.size() && json[end] != ',' && json[end] != '}' &&
+           json[end] != ' ' && json[end] != '\t' && json[end] != '\r' && json[end] != '\n') {
+        ++end;
+    }
+    if (end == begin) {
+        return std::nullopt;
+    }
+    return std::string(json.substr(begin, end - begin));
+}
+
+[[nodiscard]] std::optional<std::string> json_string_field(
+    const std::string_view json,
+    const std::string_view name) {
+    const std::string marker = "\"" + std::string(name) + "\":";
+    const auto marker_position = json.find(marker);
+    if (marker_position == std::string_view::npos ||
+        json.find(marker, marker_position + marker.size()) != std::string_view::npos) {
+        return std::nullopt;
+    }
+    auto begin = marker_position + marker.size();
+    while (begin < json.size() && (json[begin] == ' ' || json[begin] == '\t')) {
+        ++begin;
+    }
+    if (begin == json.size() || json[begin] != '"') {
+        return std::nullopt;
+    }
+    ++begin;
+    const auto end = json.find('"', begin);
+    if (end == std::string_view::npos || json.substr(begin, end - begin).find('\\') != std::string_view::npos) {
+        return std::nullopt;
+    }
+    return std::string(json.substr(begin, end - begin));
+}
+
+[[nodiscard]] std::optional<unsigned> decimal_component(
+    const std::string_view text,
+    const std::size_t position,
+    const std::size_t length) {
+    if (position + length > text.size()) {
+        return std::nullopt;
+    }
+    unsigned value = 0U;
+    for (std::size_t index = position; index < position + length; ++index) {
+        if (text[index] < '0' || text[index] > '9') {
+            return std::nullopt;
+        }
+        value = value * 10U + static_cast<unsigned>(text[index] - '0');
+    }
+    return value;
+}
+
+[[nodiscard]] bool recent_utc_timestamp(const std::string_view timestamp) {
+    if (timestamp.size() < 20U || timestamp[4] != '-' || timestamp[7] != '-' ||
+        timestamp[10] != 'T' || timestamp[13] != ':' || timestamp[16] != ':' ||
+        timestamp.back() != 'Z') {
+        return false;
+    }
+    if (timestamp.size() > 20U) {
+        if (timestamp[19] != '.' || timestamp.size() == 21U) {
+            return false;
+        }
+        for (std::size_t index = 20U; index + 1U < timestamp.size(); ++index) {
+            if (timestamp[index] < '0' || timestamp[index] > '9') {
+                return false;
+            }
+        }
+    }
+    const auto year_value = decimal_component(timestamp, 0U, 4U);
+    const auto month_value = decimal_component(timestamp, 5U, 2U);
+    const auto day_value = decimal_component(timestamp, 8U, 2U);
+    const auto hour_value = decimal_component(timestamp, 11U, 2U);
+    const auto minute_value = decimal_component(timestamp, 14U, 2U);
+    const auto second_value = decimal_component(timestamp, 17U, 2U);
+    if (!year_value || !month_value || !day_value || !hour_value || !minute_value || !second_value ||
+        *hour_value > 23U || *minute_value > 59U || *second_value > 60U) {
+        return false;
+    }
+    const std::chrono::year_month_day calendar{
+        std::chrono::year{static_cast<int>(*year_value)},
+        std::chrono::month{*month_value},
+        std::chrono::day{*day_value}};
+    if (!calendar.ok()) {
+        return false;
+    }
+    const auto observed = std::chrono::sys_days{calendar} +
+        std::chrono::hours{*hour_value} + std::chrono::minutes{*minute_value} +
+        std::chrono::seconds{*second_value};
+    const auto now = std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now());
+    return observed <= now + std::chrono::seconds{2} && now - observed <= std::chrono::seconds{10};
+}
+
+#ifdef _WIN32
+class WinHttpHandle {
+public:
+    explicit WinHttpHandle(HINTERNET handle = nullptr) noexcept : handle_(handle) {}
+    ~WinHttpHandle() { if (handle_ != nullptr) { WinHttpCloseHandle(handle_); } }
+    WinHttpHandle(const WinHttpHandle&) = delete;
+    WinHttpHandle& operator=(const WinHttpHandle&) = delete;
+    [[nodiscard]] HINTERNET get() const noexcept { return handle_; }
+
+private:
+    HINTERNET handle_{};
+};
+
+[[nodiscard]] std::optional<std::string> read_lconnect_local() {
+    WinHttpHandle session{WinHttpOpen(
+        L"PrimeForge hardware monitor/1",
+        WINHTTP_ACCESS_TYPE_NO_PROXY,
+        WINHTTP_NO_PROXY_NAME,
+        WINHTTP_NO_PROXY_BYPASS,
+        0U)};
+    if (session.get() == nullptr) {
+        return std::nullopt;
+    }
+    static_cast<void>(WinHttpSetTimeouts(session.get(), 1'000, 1'000, 1'000, 1'000));
+    WinHttpHandle connection{WinHttpConnect(session.get(), L"127.0.0.1", 11'021U, 0U)};
+    if (connection.get() == nullptr) {
+        return std::nullopt;
+    }
+    WinHttpHandle request{WinHttpOpenRequest(
+        connection.get(),
+        L"POST",
+        L"/?action=SystemResource",
+        nullptr,
+        WINHTTP_NO_REFERER,
+        WINHTTP_DEFAULT_ACCEPT_TYPES,
+        0U)};
+    if (request.get() == nullptr ||
+        WinHttpSendRequest(
+            request.get(), WINHTTP_NO_ADDITIONAL_HEADERS, 0U,
+            WINHTTP_NO_REQUEST_DATA, 0U, 0U, 0U) == FALSE ||
+        WinHttpReceiveResponse(request.get(), nullptr) == FALSE) {
+        return std::nullopt;
+    }
+    DWORD status_code = 0U;
+    DWORD status_size = sizeof(status_code);
+    if (WinHttpQueryHeaders(
+            request.get(), WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+            WINHTTP_HEADER_NAME_BY_INDEX, &status_code, &status_size,
+            WINHTTP_NO_HEADER_INDEX) == FALSE ||
+        status_code != 200U) {
+        return std::nullopt;
+    }
+    std::string response;
+    while (true) {
+        DWORD available = 0U;
+        if (WinHttpQueryDataAvailable(request.get(), &available) == FALSE) {
+            return std::nullopt;
+        }
+        if (available == 0U) {
+            break;
+        }
+        if (response.size() + available > 64U * 1024U) {
+            return std::nullopt;
+        }
+        std::vector<char> buffer(available);
+        DWORD read = 0U;
+        if (WinHttpReadData(request.get(), buffer.data(), available, &read) == FALSE || read == 0U) {
+            return std::nullopt;
+        }
+        response.append(buffer.data(), read);
+    }
+    return response.empty() ? std::nullopt : std::optional<std::string>{std::move(response)};
+}
+#else
+[[nodiscard]] std::optional<std::string> read_lconnect_local() {
+    return std::nullopt;
+}
+#endif
+
+void collect_lconnect(HardwareSnapshot& snapshot, const LocalTelemetryReader& reader) {
+    const auto response = reader();
+    if (!response || response->size() > 64U * 1024U) {
+        return;
+    }
+    const auto timestamp = json_string_field(*response, "LastTime");
+    if (!timestamp || !recent_utc_timestamp(*timestamp)) {
+        return;
+    }
+    const auto assign = [&](Metric& destination, const std::string_view field,
+                            const double minimum_exclusive, const double maximum_inclusive) {
+        const auto text = json_scalar_field(*response, field);
+        const auto numeric = text ? internal::parse_double(*text) : std::nullopt;
+        if (numeric && std::isfinite(*numeric) && *numeric > minimum_exclusive &&
+            *numeric <= maximum_inclusive) {
+            destination = detected_metric("L-Connect.local.SystemResource." + std::string(field), *text);
+        }
+    };
+    assign(snapshot.cpu_temperature_celsius, "CPUTemperature", 0.0, 125.0);
+    assign(snapshot.cpu_power_watts, "CPUPower", 0.0, 1'000.0);
+    assign(snapshot.cpu_frequency_mhz, "CPUClockRate", 0.0, 10'000.0);
 }
 
 void collect_cpu_and_ram(HardwareSnapshot& snapshot) {
@@ -201,8 +413,13 @@ std::string HardwareSnapshot::canonical_json() const {
            ",\"vram_used_mib\":" + metric_json(vram_used_mib) + "}";
 }
 
-HardwareMonitor::HardwareMonitor(CommandRunner runner)
-    : runner_(runner ? std::move(runner) : CommandRunner{run_command}) {}
+HardwareMonitor::HardwareMonitor(
+    CommandRunner runner,
+    LocalTelemetryReader local_telemetry_reader)
+    : runner_(runner ? std::move(runner) : CommandRunner{run_command}),
+      local_telemetry_reader_(local_telemetry_reader
+                                  ? std::move(local_telemetry_reader)
+                                  : LocalTelemetryReader{read_lconnect_local}) {}
 
 HardwareSnapshot HardwareMonitor::sample() const {
     HardwareSnapshot snapshot;
@@ -226,6 +443,7 @@ HardwareSnapshot HardwareMonitor::sample() const {
     snapshot.vram_used_mib = unknown_metric("nvidia-smi.memory.used");
     snapshot.vram_free_mib = unknown_metric("nvidia-smi.memory.free");
     collect_cpu_and_ram(snapshot);
+    collect_lconnect(snapshot, local_telemetry_reader_);
     collect_nvidia(snapshot, runner_);
     return snapshot;
 }

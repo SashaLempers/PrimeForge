@@ -8,12 +8,12 @@ or `UNKNOWN` with its source.
 Profile id:
 
 ```text
-sha256:f670d2a92f7fe817b6d550c7e9adc2da353d874e75d7469dc4438982cf54d32b
+sha256:dfa1e747642a0d2028c143a929eb9b0ca44bff360ff9a30fa93695b95e4037b7
 ```
 
 The id hashes the canonical profile identity before insertion of `profile_id`.
 The complete tracked file SHA-256 is
-`209a438fe234cce2577a59439728fb75d35abc3b4c365cdeaea92fad6809e570`.
+`902017b999f8c846d005b3f1177e7468fdb96f05486b4143c75124cb135c3755`.
 Two immediate collections produced identical identity and profile bytes.
 
 ## Detected target
@@ -53,16 +53,23 @@ fields are not benchmark conclusions.
 VRAM queries. This records sensor availability only; PIVOT-01 retains no dynamic
 sample and establishes no safe threshold.
 
-CPU temperature, CPU effective frequency, CPU power, GPU hotspot temperature,
-GPU memory temperature and memory timings remain `UNKNOWN`. WHEA and
-available-RAM sources are queryable but are not yet a watchdog.
+On this target, the already-installed L-Connect 3 service exposes fresh CPU
+package temperature, package power and effective clock through its local-only
+`SystemResource` response. The profile records only `AVAILABLE`, never the
+changing reading. The collector rejects stale, nonfinite, zero and out-of-range
+values; `-DisableLConnectTelemetry` proves that absence remains `UNKNOWN`.
+
+GPU hotspot temperature, GPU memory temperature and memory timings remain
+`UNKNOWN`. WHEA and available-RAM sources are queryable but require campaign
+policy before prolonged work.
 
 CUDA discovery succeeded through the `v13.3` NVIDIA registry entry. The profile
 records the exact toolkit root, `nvcc`, `cudart64_13.dll`, `nvidia-smi.exe`, MSVC
 host compiler, probe source and generated probe paths. The generated probe stays
 under ignored `out/`; no NVIDIA file is linked into or redistributed with
-PrimeForge. `-DisableCudaToolkit` and `-DisableNvidiaSmi` test the genuine
-unavailable paths, which must retain `UNKNOWN`.
+PrimeForge. `-DisableCudaToolkit`, `-DisableNvidiaSmi` and
+`-DisableLConnectTelemetry` test the genuine unavailable paths, which must retain
+`UNKNOWN`.
 
 ## Reproduction
 

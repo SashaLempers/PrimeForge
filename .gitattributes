@@ -6,9 +6,11 @@
 *.cmake text eol=lf
 CMakeLists.txt text eol=lf
 *.json text eol=lf
+*.jsonl text eol=lf
 *.md text eol=lf
 *.tsv text eol=lf
 *.csv text eol=lf
+*.svg text eol=lf
 *.sha256 text eol=lf
 *.lock text eol=lf
 *.pf text eol=lf
@@ -20,3 +22,4 @@ NOTICE text eol=lf
 THIRD_PARTY_NOTICES.txt text eol=lf
 corpus/v1/certificates/*.txt text eol=lf
 docs/specifications/*.txt -text
+*.nsys-rep -text

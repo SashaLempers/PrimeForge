@@ -508,29 +508,6 @@ if(BUILD_TESTING)
             ${CMAKE_CURRENT_SOURCE_DIR}/corpus/mvp/known_proth_small_primes.tsv
     )
     add_test(NAME primeforge.mvp_cli_selftest COMMAND primeforge selftest)
-    file(
-        GENERATE
-        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/primeforge_invalid_flint_processes_$<CONFIG>.cmake"
-        CONTENT [=[
-execute_process(
-    COMMAND "$<TARGET_FILE:primeforge>" search --config unused.yaml --flint-processes 3
-    RESULT_VARIABLE result
-    ERROR_VARIABLE error
-)
-if(result EQUAL 0)
-    message(FATAL_ERROR "invalid --flint-processes value was accepted")
-endif()
-string(STRIP "${error}" error)
-if(NOT error STREQUAL "primeforge: --flint-processes requires 1, 2, 4, or 8")
-    message(FATAL_ERROR "unexpected diagnostic: ${error}")
-endif()
-]=]
-    )
-    add_test(
-        NAME primeforge.mvp_cli_invalid_flint_processes
-        COMMAND ${CMAKE_COMMAND}
-            -P "${CMAKE_CURRENT_BINARY_DIR}/primeforge_invalid_flint_processes_$<CONFIG>.cmake"
-    )
     add_test(
         NAME primeforge.launcher_state
         COMMAND primeforge-launcher-tests

@@ -543,3 +543,21 @@ Each future entry must include:
 - **Failure criterion:** benchmark evidence must have stable numeric bytes across Windows locales and remain unambiguous to standard CSV readers.
 - **Conclusion:** JSONL remains authoritative. The CSV writer now formats `double`, `single` and `decimal` values with invariant culture; the final OPTIMIZATION-07 CSV files were regenerated from the authoritative JSONL and verified to contain decimal points.
 - **Retry condition:** retain the invariant-conversion self-test and reject a generated evidence CSV containing locale-formatted numeric fields.
+
+## NR-0059 - Bounded parallel FLINT verification did not improve the complete pipeline
+
+- **Date:** 2026-08-03
+- **Change tested:** one, two, four and eight bounded FLINT verification processes at candidate commit `14fa5c29e83f9ca6ab32196b3da00665f1a61773`, with deterministic ordered collection and every process joined before proof/result serialization.
+- **Evidence:** `benchmarks/baselines/optimization-08/`; seven randomized paired measurements per variant after one warmup. The one-process total median is `2,931,084,900 ns`. Two, four and eight processes are respectively `3,113,500 ns`, `33,053,300 ns` and `90,823,400 ns` slower by medians; their paired median gains are `-0.614516265%`, `-1.041417789%` and `-1.297182803%`. All 32 campaigns have identical campaign IDs and five logical artifact hashes.
+- **Failure criterion:** retention required a paired median total gain of at least 3%, a delta of medians above twice the largest MAD, and a positive two-sided paired bootstrap interval with 95% family confidence after Bonferroni correction across three baseline comparisons.
+- **Conclusion:** no parallel variant passed any complete retention gate, so the decision is `KEEP_SINGLE_PROCESS` and the candidate runtime parallelism is reverted. Round 7 contains retained, unexplained outliers for one, two and four processes; no post-hoc deletion was made. The robust medians still show no parallel advantage, and there was no WHEA error, throttling or thermal-limit event.
+- **Retry condition:** retry only for a materially different large-number workload, a persistent FLINT API that removes launch overhead, or an explicit CPU-resource partition between FLINT and Proth proof; preregister a new protocol and use more repetitions.
+
+## NR-0060 - The rejected FLINT partition did not compile under the Linux warning gate
+
+- **Date:** 2026-08-03
+- **Change tested:** private `linux-gcc` CI for bounded FLINT process partitioning at candidate commit `14fa5c29e83f9ca6ab32196b3da00665f1a61773`.
+- **Evidence:** GCC stopped the build under `-Werror=range-loop-construct` at `for (const auto [begin, end] : ranges)` because the structured binding copied each `std::pair`. The Windows CI job was still running when the rejection decision was recorded.
+- **Failure criterion:** original PrimeForge code must compile warning-free on the supported Linux/GCC path before a candidate can be retained.
+- **Conclusion:** the candidate was already rejected by the complete-pipeline performance gate in NR-0059. The entire parallel partition is therefore reverted, which removes the faulty hunk; it is not patched and retained merely to make a scientifically rejected optimization compile. The Windows benchmark evidence remains valid for its measured platform, but the candidate is not a portable retained implementation.
+- **Retry condition:** if a materially different FLINT parallel design is ever justified, use a non-copying binding such as `const auto& [begin, end]`, pass Linux/GCC and Windows/MSVC CI before measurement, then satisfy a new preregistered performance gate.

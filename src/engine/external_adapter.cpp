@@ -4,19 +4,14 @@
 
 #include <algorithm>
 #include <array>
-#include <atomic>
-#include <cerrno>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <exception>
 #include <fstream>
 #include <limits>
-#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <system_error>
 #include <thread>
 #include <utility>
 
@@ -25,25 +20,14 @@
 #else
 #include <csignal>
 #include <fcntl.h>
-#include <spawn.h>
+#include <sys/resource.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #endif
 
-#if !defined(_WIN32)
-extern char** environ;
-#endif
-
 namespace primeforge::engine {
 namespace {
-
-#if defined(_WIN32)
-[[nodiscard]] std::mutex& process_creation_mutex() {
-    static std::mutex mutex;
-    return mutex;
-}
-#endif
 
 [[nodiscard]] std::string read_file(const std::filesystem::path& path) {
     std::ifstream input{path, std::ios::binary};
@@ -225,25 +209,9 @@ void validate_job_id(const std::string_view value) {
     const std::filesystem::path& working_directory,
     const std::chrono::milliseconds timeout,
     const std::uint64_t memory_limit_bytes) {
-    const auto absolute_working_directory =
-        std::filesystem::absolute(working_directory);
-    const auto stdout_path = absolute_working_directory / "stdout.txt";
-    const auto stderr_path = absolute_working_directory / "stderr.txt";
+    const auto stdout_path = working_directory / "stdout.txt";
+    const auto stderr_path = working_directory / "stderr.txt";
 #if defined(_WIN32)
-    const auto job = CreateJobObjectW(nullptr, nullptr);
-    if (job == nullptr) throw std::runtime_error("cannot create process job object");
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};
-    limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-    if (memory_limit_bytes != 0U) {
-        limits.BasicLimitInformation.LimitFlags |= JOB_OBJECT_LIMIT_PROCESS_MEMORY;
-        limits.ProcessMemoryLimit = static_cast<SIZE_T>(memory_limit_bytes);
-    }
-    if (SetInformationJobObject(
-            job, JobObjectExtendedLimitInformation, &limits, sizeof(limits)) == FALSE) {
-        CloseHandle(job);
-        throw std::runtime_error("cannot configure process job object");
-    }
-
     const auto executable_wide = executable.wstring();
     std::wstring command = quote_windows(executable_wide);
     for (const auto& argument : arguments) {
@@ -252,48 +220,38 @@ void validate_job_id(const std::string_view value) {
     }
     std::vector<wchar_t> mutable_command(command.begin(), command.end());
     mutable_command.push_back(L'\0');
-    PROCESS_INFORMATION process{};
-    BOOL created = FALSE;
-    {
-        // CreateProcess receives inheritable stdout/stderr handles. Keep only this
-        // narrow creation window serial so concurrent children cannot inherit one
-        // another's output handles; process execution and waiting remain parallel.
-        const std::scoped_lock creation_lock{process_creation_mutex()};
-        const auto stdout_handle = CreateFileW(
-            stdout_path.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS,
-            FILE_ATTRIBUTE_NORMAL, nullptr);
-        const auto stderr_handle = CreateFileW(
-            stderr_path.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS,
-            FILE_ATTRIBUTE_NORMAL, nullptr);
-        if (stdout_handle == INVALID_HANDLE_VALUE || stderr_handle == INVALID_HANDLE_VALUE) {
-            if (stdout_handle != INVALID_HANDLE_VALUE) CloseHandle(stdout_handle);
-            if (stderr_handle != INVALID_HANDLE_VALUE) CloseHandle(stderr_handle);
-            CloseHandle(job);
-            throw std::runtime_error("cannot create raw process outputs");
-        }
-        if (SetHandleInformation(stdout_handle, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT) ==
-                FALSE ||
-            SetHandleInformation(stderr_handle, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT) ==
-                FALSE) {
-            CloseHandle(stdout_handle);
-            CloseHandle(stderr_handle);
-            CloseHandle(job);
-            throw std::runtime_error("cannot configure raw process outputs");
-        }
-        STARTUPINFOW startup{};
-        startup.cb = sizeof(startup);
-        startup.dwFlags = STARTF_USESTDHANDLES;
-        startup.hStdOutput = stdout_handle;
-        startup.hStdError = stderr_handle;
-        startup.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
-        created = CreateProcessW(
-            executable_wide.c_str(), mutable_command.data(), nullptr, nullptr, TRUE,
-            CREATE_NO_WINDOW | CREATE_SUSPENDED, nullptr,
-            absolute_working_directory.c_str(),
-            &startup, &process);
-        CloseHandle(stdout_handle);
-        CloseHandle(stderr_handle);
+    const auto stdout_handle = CreateFileW(stdout_path.c_str(), GENERIC_WRITE, FILE_SHARE_READ,
+                                           nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    const auto stderr_handle = CreateFileW(stderr_path.c_str(), GENERIC_WRITE, FILE_SHARE_READ,
+                                           nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (stdout_handle == INVALID_HANDLE_VALUE || stderr_handle == INVALID_HANDLE_VALUE) {
+        if (stdout_handle != INVALID_HANDLE_VALUE) CloseHandle(stdout_handle);
+        if (stderr_handle != INVALID_HANDLE_VALUE) CloseHandle(stderr_handle);
+        throw std::runtime_error("cannot create raw process outputs");
     }
+    SetHandleInformation(stdout_handle, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
+    SetHandleInformation(stderr_handle, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
+    STARTUPINFOW startup{};
+    startup.cb = sizeof(startup);
+    startup.dwFlags = STARTF_USESTDHANDLES;
+    startup.hStdOutput = stdout_handle;
+    startup.hStdError = stderr_handle;
+    startup.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+    PROCESS_INFORMATION process{};
+    const auto job = CreateJobObjectW(nullptr, nullptr);
+    if (job == nullptr) throw std::runtime_error("cannot create process job object");
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};
+    limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    if (memory_limit_bytes != 0U) {
+        limits.BasicLimitInformation.LimitFlags |= JOB_OBJECT_LIMIT_PROCESS_MEMORY;
+        limits.ProcessMemoryLimit = static_cast<SIZE_T>(memory_limit_bytes);
+    }
+    SetInformationJobObject(job, JobObjectExtendedLimitInformation, &limits, sizeof(limits));
+    const auto created = CreateProcessW(
+        executable_wide.c_str(), mutable_command.data(), nullptr, nullptr, TRUE,
+        CREATE_NO_WINDOW | CREATE_SUSPENDED, nullptr, working_directory.c_str(), &startup, &process);
+    CloseHandle(stdout_handle);
+    CloseHandle(stderr_handle);
     if (created == FALSE) {
         CloseHandle(job);
         throw std::runtime_error("external process creation failed");
@@ -317,62 +275,29 @@ void validate_job_id(const std::string_view value) {
     CloseHandle(job);
     return {static_cast<int>(exit_code), timed_out, stdout_path, stderr_path};
 #else
-    // Build every allocation before posix_spawn. Unlike fork followed by C++
-    // work in a jthread child, posix_spawn is safe to call concurrently. A
-    // constant shell wrapper receives every value as a positional argument: it
-    // applies the per-process virtual-memory limit, changes directory, then
-    // execs the hash-verified engine without interpolating user-controlled text.
-    constexpr std::string_view posix_wrapper{
-        "if [ \"$1\" != 0 ]; then ulimit -v \"$1\" || exit 125; fi; "
-        "cd \"$2\" || exit 126; shift 2; exec \"$@\""};
-    const auto memory_limit_kibibytes =
-        memory_limit_bytes / 1'024U +
-        (memory_limit_bytes % 1'024U == 0U ? 0U : 1U);
-    std::vector<std::string> storage;
-    storage.reserve(arguments.size() + 7U);
-    storage.emplace_back("/bin/sh");
-    storage.emplace_back("-c");
-    storage.emplace_back(posix_wrapper);
-    storage.emplace_back("primeforge-posix-spawn");
-    storage.push_back(std::to_string(memory_limit_kibibytes));
-    storage.push_back(absolute_working_directory.string());
-    storage.push_back(executable.string());
-    storage.insert(storage.end(), arguments.begin(), arguments.end());
-    std::vector<char*> argv;
-    argv.reserve(storage.size() + 1U);
-    for (auto& item : storage) argv.push_back(item.data());
-    argv.push_back(nullptr);
-
-    posix_spawn_file_actions_t file_actions{};
-    const auto actions_error = posix_spawn_file_actions_init(&file_actions);
-    if (actions_error != 0) {
-        throw std::system_error(
-            actions_error, std::generic_category(),
-            "cannot initialize posix_spawn file actions");
-    }
-    const auto throw_actions_error = [&](const int error, const char* const message) {
-        static_cast<void>(posix_spawn_file_actions_destroy(&file_actions));
-        throw std::system_error(error, std::generic_category(), message);
-    };
-    auto action_error = posix_spawn_file_actions_addopen(
-        &file_actions, STDOUT_FILENO, stdout_path.c_str(),
-        O_CREAT | O_WRONLY | O_TRUNC, 0600);
-    if (action_error != 0) {
-        throw_actions_error(action_error, "cannot redirect posix_spawn stdout");
-    }
-    action_error = posix_spawn_file_actions_addopen(
-        &file_actions, STDERR_FILENO, stderr_path.c_str(),
-        O_CREAT | O_WRONLY | O_TRUNC, 0600);
-    if (action_error != 0) {
-        throw_actions_error(action_error, "cannot redirect posix_spawn stderr");
-    }
-    pid_t child = -1;
-    const auto spawn_error = posix_spawn(
-        &child, "/bin/sh", &file_actions, nullptr, argv.data(), ::environ);
-    static_cast<void>(posix_spawn_file_actions_destroy(&file_actions));
-    if (spawn_error != 0) {
-        throw std::system_error(
-            spawn_error, std::generic_category(), "posix_spawn failed");
+    const auto child = fork();
+    if (child < 0) throw std::runtime_error("fork failed");
+    if (child == 0) {
+        static_cast<void>(chdir(working_directory.c_str()));
+        const auto stdout_fd = open(stdout_path.c_str(), O_CREAT | O_WRONLY | O_TRUNC, 0600);
+        const auto stderr_fd = open(stderr_path.c_str(), O_CREAT | O_WRONLY | O_TRUNC, 0600);
+        if (stdout_fd < 0 || stderr_fd < 0) _exit(126);
+        dup2(stdout_fd, STDOUT_FILENO);
+        dup2(stderr_fd, STDERR_FILENO);
+        close(stdout_fd);
+        close(stderr_fd);
+        if (memory_limit_bytes != 0U) {
+            rlimit limit{memory_limit_bytes, memory_limit_bytes};
+            setrlimit(RLIMIT_AS, &limit);
+        }
+        std::vector<std::string> storage;
+        storage.push_back(executable.string());
+        storage.insert(storage.end(), arguments.begin(), arguments.end());
+        std::vector<char*> argv;
+        for (auto& item : storage) argv.push_back(item.data());
+        argv.push_back(nullptr);
+        execv(executable.c_str(), argv.data());
+        _exit(127);
     }
     const auto started = std::chrono::steady_clock::now();
     int status = 0;
@@ -380,23 +305,11 @@ void validate_job_id(const std::string_view value) {
     for (;;) {
         const auto waited = waitpid(child, &status, WNOHANG);
         if (waited == child) break;
-        if (waited < 0) {
-            if (errno == EINTR) continue;
-            const auto wait_error = errno;
-            static_cast<void>(kill(child, SIGKILL));
-            while (waitpid(child, &status, 0) < 0 && errno == EINTR) {
-            }
-            throw std::system_error(
-                wait_error, std::generic_category(), "waitpid failed");
-        }
+        if (waited < 0) throw std::runtime_error("waitpid failed");
         if (std::chrono::steady_clock::now() - started >= timeout) {
             timed_out = true;
-            static_cast<void>(kill(child, SIGKILL));
-            while (waitpid(child, &status, 0) < 0) {
-                if (errno == EINTR) continue;
-                throw std::system_error(
-                    errno, std::generic_category(), "waitpid after timeout failed");
-            }
+            kill(child, SIGKILL);
+            waitpid(child, &status, 0);
             break;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds{2});
@@ -472,13 +385,6 @@ ExternalEngineAdapter::ExternalEngineAdapter(
     if (config_.stable_id.empty() || config_.parser_version.empty() || config_.executable.empty() ||
         !sha256_from_hex(config_.expected_executable_sha256).has_value()) {
         throw std::invalid_argument("incomplete external adapter configuration");
-    }
-    if (config_.batch_parallel_processes != 1U &&
-        config_.batch_parallel_processes != 2U &&
-        config_.batch_parallel_processes != 4U &&
-        config_.batch_parallel_processes != 8U) {
-        throw std::invalid_argument(
-            "batch_parallel_processes must be one of 1, 2, 4 or 8");
     }
     for (const auto& runtime_file : config_.required_runtime_files) {
         if (runtime_file.path.empty() ||
@@ -631,38 +537,6 @@ std::vector<EngineResult> ExternalEngineAdapter::run_batch(
         verified_executable_sha256 = installation_verification_.executable_sha256;
     }
 
-    constexpr std::size_t maximum_argument_characters = 24'000U;
-    std::vector<std::size_t> prefix_sizes(requests.size() + 1U, 0U);
-    std::vector<std::filesystem::path> planned_work_directories;
-    planned_work_directories.reserve(requests.size());
-    for (std::size_t index = 0U; index < requests.size(); ++index) {
-        const auto& request = requests[index];
-        if (!supports(request)) {
-            throw std::invalid_argument("external engine does not support family");
-        }
-        validate_job_id(request.job_id);
-        const auto planned_work =
-            (std::filesystem::absolute(request.working_directory) / request.job_id)
-                .lexically_normal();
-        if (std::filesystem::exists(planned_work) ||
-            std::ranges::find(planned_work_directories, planned_work) !=
-                planned_work_directories.end()) {
-            throw std::invalid_argument(
-                "isolated work directory already exists or is duplicated");
-        }
-        planned_work_directories.push_back(planned_work);
-        if (request.canonical_input.size() > maximum_argument_characters - 3U) {
-            throw std::length_error(
-                "FLINT batch argument exceeds the 24000-character segment limit");
-        }
-        const auto estimated_characters = request.canonical_input.size() + 3U;
-        if (prefix_sizes[index] >
-            std::numeric_limits<std::size_t>::max() - estimated_characters) {
-            throw std::length_error("FLINT batch argument size overflow");
-        }
-        prefix_sizes[index + 1U] = prefix_sizes[index] + estimated_characters;
-    }
-
     std::vector<PreparedExternalRun> prepared;
     std::vector<std::string> arguments;
     prepared.reserve(requests.size());
@@ -671,215 +545,69 @@ std::vector<EngineResult> ExternalEngineAdapter::run_batch(
         prepared.push_back(prepare(request));
         arguments.push_back(request.canonical_input);
     }
-
-    struct BatchSegment {
-        std::size_t begin{};
-        std::size_t end{};
-        std::vector<std::string> arguments;
-        std::filesystem::path working_directory;
-    };
-    struct BatchSegmentOutcome {
-        ExternalProcessResult process;
-        std::string combined_stdout;
-        std::string combined_stderr;
-        std::vector<std::string> lines;
-        bool output_shape_valid{};
-    };
-
-    // suffix_minimum_segments[i] is the smallest number of ordered hard-capped
-    // segments required for [i, N). Greedy maximal prefixes are optimal for this
-    // one-dimensional ordered partition and make exact-count feasibility cheap.
-    std::vector<std::size_t> suffix_minimum_segments(arguments.size() + 1U, 0U);
-    for (std::size_t index = arguments.size(); index-- > 0U;) {
-        const auto maximum_prefix =
-            prefix_sizes[index] >
-                    std::numeric_limits<std::size_t>::max() -
-                        maximum_argument_characters
-                ? std::numeric_limits<std::size_t>::max()
-                : prefix_sizes[index] + maximum_argument_characters;
-        const auto upper = std::upper_bound(
-            prefix_sizes.begin() + static_cast<std::ptrdiff_t>(index + 1U),
-            prefix_sizes.end(), maximum_prefix);
-        const auto end = static_cast<std::size_t>(
-            std::distance(prefix_sizes.begin(), upper) - 1);
-        suffix_minimum_segments[index] =
-            1U + suffix_minimum_segments[end];
-    }
-
-    const auto desired_segment_count =
-        std::min(config_.batch_parallel_processes, arguments.size());
-    const auto minimum_segment_count = suffix_minimum_segments.front();
-    std::vector<std::pair<std::size_t, std::size_t>> ranges;
-    if (minimum_segment_count > desired_segment_count) {
-        // The requested process count cannot satisfy the 24k hard cap. Use the
-        // unique deterministic minimal greedy partition; workers remain bounded.
-        ranges.reserve(minimum_segment_count);
-        for (std::size_t begin = 0U; begin < arguments.size();) {
-            const auto maximum_prefix =
-                prefix_sizes[begin] >
-                        std::numeric_limits<std::size_t>::max() -
-                            maximum_argument_characters
-                    ? std::numeric_limits<std::size_t>::max()
-                    : prefix_sizes[begin] + maximum_argument_characters;
-            const auto upper = std::upper_bound(
-                prefix_sizes.begin() + static_cast<std::ptrdiff_t>(begin + 1U),
-                prefix_sizes.end(), maximum_prefix);
-            const auto end = static_cast<std::size_t>(
-                std::distance(prefix_sizes.begin(), upper) - 1);
-            ranges.emplace_back(begin, end);
-            begin = end;
-        }
-    } else {
-        // Produce exactly min(P,N) contiguous segments. At each boundary choose
-        // the feasible prefix nearest the remaining average while reserving at
-        // least one item and enough hard-capped capacity for every later segment.
-        ranges.reserve(desired_segment_count);
-        std::size_t begin{};
-        for (std::size_t remaining_segments = desired_segment_count;
-             remaining_segments > 1U; --remaining_segments) {
-            const auto remaining_characters =
-                prefix_sizes.back() - prefix_sizes[begin];
-            const auto ideal_characters =
-                remaining_characters / remaining_segments +
-                (remaining_characters % remaining_segments == 0U ? 0U : 1U);
-            const auto maximum_end =
-                arguments.size() - (remaining_segments - 1U);
-            std::size_t best_end{};
-            auto best_distance = std::numeric_limits<std::size_t>::max();
-            for (std::size_t end = begin + 1U; end <= maximum_end; ++end) {
-                const auto segment_characters =
-                    prefix_sizes[end] - prefix_sizes[begin];
-                if (segment_characters > maximum_argument_characters) break;
-                if (suffix_minimum_segments[end] > remaining_segments - 1U) {
-                    continue;
-                }
-                const auto distance = segment_characters > ideal_characters
-                                          ? segment_characters - ideal_characters
-                                          : ideal_characters - segment_characters;
-                if (distance < best_distance) {
-                    best_distance = distance;
-                    best_end = end;
-                }
-            }
-            if (best_end == 0U) {
-                throw std::logic_error("cannot construct feasible FLINT batch partition");
-            }
-            ranges.emplace_back(begin, best_end);
-            begin = best_end;
-        }
-        if (prefix_sizes.back() - prefix_sizes[begin] > maximum_argument_characters) {
-            throw std::logic_error("final FLINT batch segment exceeds hard limit");
-        }
-        ranges.emplace_back(begin, arguments.size());
-    }
-
-    std::vector<BatchSegment> segments;
-    segments.reserve(ranges.size());
-    for (const auto [begin, end] : ranges) {
-        std::vector<std::string> chunk_arguments;
-        chunk_arguments.reserve(end - begin);
-        for (std::size_t index = begin; index < end; ++index) {
-            chunk_arguments.push_back(arguments[index]);
-        }
-        // The first request job id is the stable unique segment identity. Reuse
-        // its already-isolated directory so changing the process count creates no
-        // extra durable campaign artifacts or manifest differences.
-        segments.push_back({begin, end, std::move(chunk_arguments),
-                            prepared[begin].working_directory});
-    }
-
-    std::vector<std::optional<BatchSegmentOutcome>> outcomes(segments.size());
-    std::vector<std::exception_ptr> exceptions(segments.size());
-    std::atomic_size_t next_segment{};
-    const auto execute_segment = [&](const std::size_t segment_index) {
-        const auto& segment = segments[segment_index];
-        BatchSegmentOutcome outcome;
-        outcome.process = invoke_process(
-            std::filesystem::absolute(config_.executable), segment.arguments,
-            segment.working_directory, config_.timeout, config_.memory_limit_bytes);
-        outcome.combined_stdout = read_file(outcome.process.raw_stdout_path);
-        outcome.combined_stderr = read_file(outcome.process.raw_stderr_path);
-        std::size_t offset = 0U;
-        while (offset < outcome.combined_stdout.size()) {
-            const auto newline = outcome.combined_stdout.find('\n', offset);
-            if (newline == std::string::npos) break;
-            outcome.lines.push_back(
-                outcome.combined_stdout.substr(offset, newline - offset + 1U));
-            offset = newline + 1U;
-        }
-        outcome.output_shape_valid =
-            offset == outcome.combined_stdout.size() &&
-            outcome.lines.size() == segment.end - segment.begin;
-        outcomes[segment_index].emplace(std::move(outcome));
-    };
-    const auto worker_count =
-        std::min(config_.batch_parallel_processes, segments.size());
-    {
-        std::vector<std::jthread> workers;
-        workers.reserve(worker_count);
-        for (std::size_t worker = 0U; worker < worker_count; ++worker) {
-            workers.emplace_back([&] {
-                for (;;) {
-                    const auto segment_index =
-                        next_segment.fetch_add(1U, std::memory_order_relaxed);
-                    if (segment_index >= segments.size()) return;
-                    try {
-                        execute_segment(segment_index);
-                    } catch (...) {
-                        exceptions[segment_index] = std::current_exception();
-                    }
-                }
-            });
-        }
-    }
-    // All workers finish before any result is exposed or any per-request raw
-    // evidence is written. If several segments fail internally, report the
-    // lowest deterministic segment index rather than scheduler completion order.
-    for (const auto& exception : exceptions) {
-        if (exception) std::rethrow_exception(exception);
-    }
-
     std::vector<EngineResult> results;
     results.reserve(requests.size());
-    for (std::size_t segment_index = 0U; segment_index < segments.size(); ++segment_index) {
-        const auto& segment = segments[segment_index];
-        if (!outcomes[segment_index].has_value()) {
-            throw std::runtime_error("FLINT batch segment produced no outcome");
+    constexpr std::size_t maximum_argument_characters = 24'000U;
+    for (std::size_t begin = 0U; begin < requests.size();) {
+        std::vector<std::string> chunk_arguments;
+        std::size_t argument_characters = 0U;
+        std::size_t end = begin;
+        while (end < requests.size()) {
+            const auto estimated_characters = arguments[end].size() + 3U;
+            if (end != begin &&
+                argument_characters + estimated_characters > maximum_argument_characters) {
+                break;
+            }
+            argument_characters += estimated_characters;
+            chunk_arguments.push_back(arguments[end]);
+            ++end;
         }
-        const auto& outcome = *outcomes[segment_index];
-        for (std::size_t index = segment.begin; index < segment.end; ++index) {
+        const auto process = invoke_process(
+            std::filesystem::absolute(config_.executable), chunk_arguments,
+            prepared[begin].working_directory, config_.timeout, config_.memory_limit_bytes);
+        const auto combined_stdout = read_file(process.raw_stdout_path);
+        const auto combined_stderr = read_file(process.raw_stderr_path);
+
+        std::vector<std::string> lines;
+        std::size_t offset = 0U;
+        while (offset < combined_stdout.size()) {
+            const auto newline = combined_stdout.find('\n', offset);
+            if (newline == std::string::npos) break;
+            lines.push_back(combined_stdout.substr(offset, newline - offset + 1U));
+            offset = newline + 1U;
+        }
+        const auto chunk_size = end - begin;
+        const bool output_shape_valid = offset == combined_stdout.size() &&
+                                        lines.size() == chunk_size;
+        for (std::size_t index = begin; index < end; ++index) {
             const auto stdout_path = prepared[index].working_directory / "stdout.txt";
             const auto stderr_path = prepared[index].working_directory / "stderr.txt";
-            const auto& line = outcome.output_shape_valid
-                                   ? outcome.lines[index - segment.begin]
-                                   : outcome.combined_stdout;
+            const auto line = output_shape_valid ? lines[index - begin] : combined_stdout;
             write_file(stdout_path, line);
-            write_file(stderr_path, outcome.combined_stderr);
+            write_file(stderr_path, combined_stderr);
             EngineResult result;
-            if (outcome.process.timed_out) {
+            if (process.timed_out) {
                 result = parsed(PrimalityStatus::untested, "PROCESS_TIMEOUT");
-            } else if (outcome.process.exit_code != 0) {
+            } else if (process.exit_code != 0) {
                 result = parsed(PrimalityStatus::untested, "PROCESS_EXIT_NONZERO");
-            } else if (!outcome.output_shape_valid) {
+            } else if (!output_shape_valid) {
                 result = parsed(PrimalityStatus::untested, "BATCH_OUTPUT_COUNT_MISMATCH");
             } else {
                 result = parse_external_output(
-                    config_.kind, config_.parser_version, line,
-                    outcome.combined_stderr);
+                    config_.kind, config_.parser_version, line, combined_stderr);
             }
             result.engine_executable_sha256 = verified_executable_sha256;
             result.raw_stdout_path = stdout_path;
             result.raw_stderr_path = stderr_path;
             results.push_back(std::move(result));
         }
+        begin = end;
     }
     return results;
 }
 
 std::size_t ExternalEngineAdapter::recommended_parallelism() const noexcept {
-    return config_.kind == ExternalEngineKind::flint
-               ? config_.batch_parallel_processes
-               : 1U;
+    return config_.kind == ExternalEngineKind::flint ? 8U : 1U;
 }
 
 std::string ExternalEngineAdapter::report_capabilities() const {

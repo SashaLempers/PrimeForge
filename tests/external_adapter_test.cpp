@@ -3,7 +3,6 @@
 #include "primeforge/core/sha256.hpp"
 #include "primeforge/engine/external_adapter.hpp"
 
-#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cstddef>
@@ -11,11 +10,9 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <set>
 #include <span>
 #include <stdexcept>
 #include <string>
-#include <vector>
 
 namespace {
 
@@ -61,24 +58,6 @@ void expect_failure(Function&& function, const std::string& message) {
         std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
     return primeforge::sha256_to_hex(
         sha256.digest(std::as_bytes(std::span{content.data(), content.size()})));
-}
-
-[[nodiscard]] std::string read_text(const std::filesystem::path& path) {
-    std::ifstream input{path, std::ios::binary};
-    if (!input) throw std::runtime_error("cannot read test artifact");
-    return {std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
-}
-
-[[nodiscard]] std::size_t count_batch_segment_directories(
-    const std::filesystem::path& root) {
-    std::size_t count{};
-    for (const auto& entry : std::filesystem::recursive_directory_iterator{root}) {
-        if (entry.is_directory() &&
-            entry.path().filename().string().starts_with("batch-segment-")) {
-            ++count;
-        }
-    }
-    return count;
 }
 
 void check_parser(
@@ -186,7 +165,6 @@ int main(const int argc, char** argv) {
         auto flint_batch_config = config;
         flint_batch_config.kind = engine::ExternalEngineKind::flint;
         flint_batch_config.stable_id = "primeforge.fixture.flint-batch.v1";
-        flint_batch_config.batch_parallel_processes = 4U;
         engine::ExternalEngineAdapter flint_batch{flint_batch_config, sha256};
         const std::array batch_requests{
             primeforge::EngineRequest{"batch-0", "fixture", "PROVEN_PRIME", work_root},
@@ -198,181 +176,10 @@ int main(const int argc, char** argv) {
                   batch_results[1].status.primality == primeforge::PrimalityStatus::composite &&
                   batch_results[2].status.primality == primeforge::PrimalityStatus::proven_prime,
               "FLINT batch output retains request ordering and exact classifications");
-        check(flint_batch.recommended_parallelism() == 4U &&
+        check(flint_batch.recommended_parallelism() == 8U &&
                   std::filesystem::is_regular_file(batch_results[0].raw_stdout_path) &&
                   std::filesystem::is_regular_file(batch_results[1].raw_stdout_path),
               "FLINT batch retains deterministic per-request raw evidence");
-
-        for (const auto invalid_process_count : {0U, 3U, 16U}) {
-            auto invalid_config = flint_batch_config;
-            invalid_config.batch_parallel_processes = invalid_process_count;
-            expect_failure(
-                [&] {
-                    engine::ExternalEngineAdapter invalid_adapter{
-                        invalid_config, sha256};
-                    static_cast<void>(invalid_adapter);
-                },
-                "unsupported FLINT batch process count rejected");
-        }
-        auto non_flint_parallel_config = config;
-        non_flint_parallel_config.stable_id =
-            "primeforge.fixture.non-flint-parallelism.v1";
-        non_flint_parallel_config.batch_parallel_processes = 8U;
-        engine::ExternalEngineAdapter non_flint_parallel_adapter{
-            non_flint_parallel_config, sha256};
-        check(non_flint_parallel_adapter.recommended_parallelism() == 1U,
-              "non-FLINT adapters never advertise fictitious batch parallelism");
-
-        constexpr std::size_t barrier_request_count = 8U;
-        const std::array<std::size_t, 4U> accepted_process_counts{1U, 2U, 4U, 8U};
-        for (const auto process_count : accepted_process_counts) {
-            auto parallel_config = flint_batch_config;
-            parallel_config.stable_id =
-                "primeforge.fixture.flint-parallel." + std::to_string(process_count);
-            parallel_config.batch_parallel_processes = process_count;
-            parallel_config.timeout = std::chrono::milliseconds{5'000};
-            engine::ExternalEngineAdapter parallel_adapter{parallel_config, sha256};
-            check(parallel_adapter.recommended_parallelism() == process_count,
-                  "configured FLINT process count is reported exactly");
-
-            const auto run_root =
-                work_root / ("parallel-" + std::to_string(process_count));
-            const auto barrier_root =
-                work_root / ("barrier-" + std::to_string(process_count));
-            const auto barrier_target = process_count;
-            std::vector<primeforge::EngineRequest> parallel_requests;
-            parallel_requests.reserve(barrier_request_count);
-            for (std::size_t index = 0U; index < barrier_request_count; ++index) {
-                const auto input = std::string{"BARRIER_PROVEN|"} +
-                                   barrier_root.generic_string() + "|request-" +
-                                   std::to_string(index) + "|" +
-                                   std::to_string(barrier_target) + "|" +
-                                   std::string(2'500U, 'x');
-                parallel_requests.push_back(
-                    {"parallel-" + std::to_string(process_count) + "-" +
-                         std::to_string(index),
-                     "fixture", input, run_root});
-            }
-            const auto parallel_results =
-                parallel_adapter.run_batch(parallel_requests);
-            check(parallel_results.size() == parallel_requests.size(),
-                  "parallel FLINT batch preserves result cardinality");
-            std::set<std::string> segment_stderr;
-            for (std::size_t index = 0U; index < parallel_results.size(); ++index) {
-                check(parallel_results[index].status.primality ==
-                              primeforge::PrimalityStatus::proven_prime &&
-                          parallel_results[index].engine_executable_sha256 ==
-                              flint_batch_config.expected_executable_sha256,
-                      "parallel FLINT results retain request order and identity");
-                check(parallel_results[index].raw_stdout_path.parent_path().filename() ==
-                          parallel_requests[index].job_id,
-                      "ordered raw evidence remains attached to its request job id");
-                const auto stderr_text = read_text(parallel_results[index].raw_stderr_path);
-                check(stderr_text.find(
-                          "FIXTURE_ARGUMENT_COUNT=" +
-                          std::to_string(barrier_request_count / process_count)) !=
-                          std::string::npos,
-                      "target segment size follows configured process count");
-                segment_stderr.insert(stderr_text);
-            }
-            check(segment_stderr.size() == process_count,
-                  "configured process count creates the expected unique real segments");
-            check(count_batch_segment_directories(run_root) == 0U,
-                  "parallelism creates no persistent segment-only artifacts");
-        }
-
-        auto tiny_tail_config = flint_batch_config;
-        tiny_tail_config.stable_id = "primeforge.fixture.flint-tiny-tail.v1";
-        tiny_tail_config.batch_parallel_processes = 4U;
-        engine::ExternalEngineAdapter tiny_tail_adapter{tiny_tail_config, sha256};
-        const auto tiny_tail_root = work_root / "tiny-tail";
-        const std::array<std::size_t, 5U> uneven_padding{
-            5'700U, 5'800U, 5'600U, 5'900U, 1U};
-        std::vector<primeforge::EngineRequest> tiny_tail_requests;
-        tiny_tail_requests.reserve(uneven_padding.size());
-        for (std::size_t index = 0U; index < uneven_padding.size(); ++index) {
-            tiny_tail_requests.push_back(
-                {"tiny-tail-" + std::to_string(index), "fixture",
-                 "PADDED_PROVEN|" + std::to_string(index) + "|" +
-                     std::string(uneven_padding[index], 't'),
-                 tiny_tail_root});
-        }
-        const auto tiny_tail_results =
-            tiny_tail_adapter.run_batch(tiny_tail_requests);
-        std::set<std::string> tiny_tail_segments;
-        for (const auto& tiny_tail_result : tiny_tail_results) {
-            check(tiny_tail_result.status.primality ==
-                      primeforge::PrimalityStatus::proven_prime,
-                  "uneven partition preserves classifications");
-            tiny_tail_segments.insert(read_text(tiny_tail_result.raw_stderr_path));
-        }
-        check(tiny_tail_segments.size() == 4U,
-              "uneven inputs with a tiny tail produce exactly P feasible segments");
-        check(std::ranges::count_if(
-                  tiny_tail_segments, [](const std::string& stderr_text) {
-                      return stderr_text.find("FIXTURE_ARGUMENT_COUNT=2") !=
-                             std::string::npos;
-                  }) == 1,
-              "tiny tail is deterministically retained in the final balanced segment");
-        check(count_batch_segment_directories(tiny_tail_root) == 0U,
-              "balanced tiny-tail partition leaves no segment-only artifacts");
-
-        auto failure_config = flint_batch_config;
-        failure_config.stable_id = "primeforge.fixture.flint-fail-closed.v1";
-        failure_config.batch_parallel_processes = 4U;
-        engine::ExternalEngineAdapter failure_adapter{failure_config, sha256};
-        const auto failure_root = work_root / "fail-closed";
-        const std::string long_padding(12'000U, 'z');
-        const std::array failure_requests{
-            primeforge::EngineRequest{
-                "failure-0", "fixture", "PADDED_PROVEN|" + long_padding, failure_root},
-            primeforge::EngineRequest{
-                "failure-1", "fixture", "FAIL_PROCESS|" + long_padding, failure_root},
-            primeforge::EngineRequest{
-                "failure-2", "fixture", "OMIT_OUTPUT|" + long_padding, failure_root},
-            primeforge::EngineRequest{
-                "failure-3", "fixture", "PADDED_COMPOSITE|" + long_padding,
-                failure_root}};
-        const auto failure_results = failure_adapter.run_batch(failure_requests);
-        check(failure_results.size() == failure_requests.size() &&
-                  failure_results[0].status.primality ==
-                      primeforge::PrimalityStatus::proven_prime &&
-                  failure_results[1].status.primality ==
-                      primeforge::PrimalityStatus::untested &&
-                  failure_results[1].diagnostics == "PROCESS_EXIT_NONZERO" &&
-                  failure_results[2].status.primality ==
-                      primeforge::PrimalityStatus::untested &&
-                  failure_results[2].diagnostics == "BATCH_OUTPUT_COUNT_MISMATCH" &&
-                  failure_results[3].status.primality ==
-                      primeforge::PrimalityStatus::composite,
-              "segment failures are fail-closed without reordering healthy results");
-
-        auto oversized_config = flint_batch_config;
-        oversized_config.stable_id = "primeforge.fixture.flint-oversized.v1";
-        engine::ExternalEngineAdapter oversized_adapter{oversized_config, sha256};
-        const std::array oversized_requests{
-            primeforge::EngineRequest{
-                "oversized-0", "fixture", std::string(23'998U, '1'),
-                work_root / "oversized"},
-            primeforge::EngineRequest{
-                "oversized-1", "fixture", "PROVEN_PRIME", work_root / "oversized"}};
-        expect_failure(
-            [&] { static_cast<void>(oversized_adapter.run_batch(oversized_requests)); },
-            "single argument exceeding the segment budget is rejected fail-closed");
-        check(!std::filesystem::exists(work_root / "oversized"),
-              "oversized batch preflight creates no work-directory artifacts");
-
-        const auto invalid_job_root = work_root / "invalid-job-preflight";
-        const std::array invalid_job_requests{
-            primeforge::EngineRequest{
-                "would-have-been-valid", "fixture", "PROVEN_PRIME", invalid_job_root},
-            primeforge::EngineRequest{
-                "../escape", "fixture", "COMPOSITE", invalid_job_root}};
-        expect_failure(
-            [&] { static_cast<void>(oversized_adapter.run_batch(invalid_job_requests)); },
-            "all batch job ids are validated before preparing any request");
-        check(!std::filesystem::exists(invalid_job_root),
-              "invalid later job id leaves no partial batch artifacts");
 
         auto timeout_config = config;
         timeout_config.stable_id = "primeforge.fixture.timeout.v1";
@@ -419,8 +226,6 @@ int main(const int argc, char** argv) {
                   << "raw_outputs_retained=YES\n"
                   << "installation_hash_cache=YES\n"
                   << "flint_batch_ordering=YES\n"
-                  << "flint_batch_parallel_processes=1,2,4,8\n"
-                  << "flint_batch_fail_closed=YES\n"
                   << "PrimeForge external adapter tests: PASS\n";
         return 0;
     } catch (const std::exception& error) {

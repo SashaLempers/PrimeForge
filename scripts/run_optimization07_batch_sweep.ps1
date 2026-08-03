@@ -60,7 +60,18 @@ $maximumGpuPreflightCelsius = 80.0
 
 function Convert-ToDouble {
     param([Parameter(Mandatory = $true)][object]$Value)
-    return [double]::Parse([string]$Value, $invariant)
+    if ($Value -is [string]) {
+        return [double]::Parse(
+            [string]$Value,
+            [Globalization.NumberStyles]::Float,
+            $invariant
+        )
+    }
+    return [Convert]::ToDouble($Value, $invariant)
+}
+if ([Math]::Abs((Convert-ToDouble ([double]70.875)) - 70.875) -gt 0.000001 -or
+    [Math]::Abs((Convert-ToDouble '70.875') - 70.875) -gt 0.000001) {
+    throw 'Invariant floating-point conversion self-test failed.'
 }
 
 function Get-MedianUInt64 {

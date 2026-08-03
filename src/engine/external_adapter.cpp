@@ -44,6 +44,33 @@ namespace {
     return text.find(marker) != std::string_view::npos;
 }
 
+[[nodiscard]] ArtifactVerification verify_installation(
+    const ExternalAdapterConfig& config, const Sha256Provider& sha256) {
+    ArtifactVerification result;
+    try {
+        if (!std::filesystem::is_regular_file(config.executable)) {
+            result.errors.push_back("EXECUTABLE_MISSING");
+        } else {
+            result.executable_sha256 = hash_file(config.executable, sha256);
+            if (result.executable_sha256 != config.expected_executable_sha256) {
+                result.errors.push_back("EXECUTABLE_HASH_MISMATCH");
+            }
+        }
+        for (const auto& runtime_file : config.required_runtime_files) {
+            if (!std::filesystem::is_regular_file(runtime_file.path)) {
+                result.errors.push_back("RUNTIME_FILE_MISSING:" + runtime_file.path.string());
+            } else if (hash_file(runtime_file.path, sha256) != runtime_file.expected_sha256) {
+                result.errors.push_back(
+                    "RUNTIME_FILE_HASH_MISMATCH:" + runtime_file.path.string());
+            }
+        }
+    } catch (const std::exception& error) {
+        result.errors.push_back("ARTIFACT_ERROR:" + std::string{error.what()});
+    }
+    result.valid = result.errors.empty();
+    return result;
+}
+
 [[nodiscard]] EngineResult parsed(
     const PrimalityStatus primality, const std::string& diagnostics) {
     EngineResult result;
@@ -398,20 +425,8 @@ EngineResult ExternalEngineAdapter::parse(const ExternalProcessResult& process) 
 
 ArtifactVerification ExternalEngineAdapter::verify_artifacts(
     const ExternalProcessResult& process) const {
-    ArtifactVerification result;
+    auto result = verify_installation(config_, *sha256_);
     try {
-        result.executable_sha256 = hash_file(config_.executable, *sha256_);
-        if (result.executable_sha256 != config_.expected_executable_sha256) {
-            result.errors.push_back("EXECUTABLE_HASH_MISMATCH");
-        }
-        for (const auto& runtime_file : config_.required_runtime_files) {
-            if (!std::filesystem::is_regular_file(runtime_file.path)) {
-                result.errors.push_back("RUNTIME_FILE_MISSING:" + runtime_file.path.string());
-            } else if (hash_file(runtime_file.path, *sha256_) != runtime_file.expected_sha256) {
-                result.errors.push_back(
-                    "RUNTIME_FILE_HASH_MISMATCH:" + runtime_file.path.string());
-            }
-        }
         if (!std::filesystem::is_regular_file(process.raw_stdout_path)) result.errors.push_back("STDOUT_MISSING");
         if (!std::filesystem::is_regular_file(process.raw_stderr_path)) result.errors.push_back("STDERR_MISSING");
     } catch (const std::exception& error) {
@@ -422,35 +437,30 @@ ArtifactVerification ExternalEngineAdapter::verify_artifacts(
 }
 
 EngineResult ExternalEngineAdapter::run(const EngineRequest& request) {
-    std::string observed_executable_sha256;
-    try {
-        if (!std::filesystem::is_regular_file(config_.executable)) {
-            return parsed(PrimalityStatus::untested, "EXECUTABLE_PREFLIGHT_FAILED");
-        }
-        observed_executable_sha256 = hash_file(config_.executable, *sha256_);
-        if (observed_executable_sha256 != config_.expected_executable_sha256) {
-            return parsed(PrimalityStatus::untested, "EXECUTABLE_PREFLIGHT_FAILED");
-        }
-        for (const auto& runtime_file : config_.required_runtime_files) {
-            if (!std::filesystem::is_regular_file(runtime_file.path) ||
-                hash_file(runtime_file.path, *sha256_) != runtime_file.expected_sha256) {
-                return parsed(PrimalityStatus::untested, "RUNTIME_FILE_PREFLIGHT_FAILED");
-            }
-        }
-    } catch (const std::exception&) {
-        return parsed(PrimalityStatus::untested, "EXECUTABLE_PREFLIGHT_FAILED");
+    if (!installation_checked_) {
+        installation_verification_ = verify_installation(config_, *sha256_);
+        installation_checked_ = true;
+    }
+    if (!installation_verification_.valid) {
+        const auto executable_error = std::ranges::any_of(
+            installation_verification_.errors, [](const std::string& error) {
+                return error.starts_with("EXECUTABLE_") || error.starts_with("ARTIFACT_ERROR:");
+            });
+        return parsed(PrimalityStatus::untested,
+                      executable_error ? "EXECUTABLE_PREFLIGHT_FAILED"
+                                       : "RUNTIME_FILE_PREFLIGHT_FAILED");
     }
     const auto prepared = prepare(request);
     const auto process = run_process(prepared);
-    const auto verification = verify_artifacts(process);
-    if (!verification.valid) {
+    if (!std::filesystem::is_regular_file(process.raw_stdout_path) ||
+        !std::filesystem::is_regular_file(process.raw_stderr_path)) {
         auto result = parsed(PrimalityStatus::untested, "ARTIFACT_VERIFICATION_FAILED");
         result.raw_stdout_path = process.raw_stdout_path;
         result.raw_stderr_path = process.raw_stderr_path;
         return result;
     }
     auto result = parse(process);
-    result.engine_executable_sha256 = observed_executable_sha256;
+    result.engine_executable_sha256 = installation_verification_.executable_sha256;
     if (config_.can_produce_proof &&
         result.status.primality == PrimalityStatus::proven_prime) {
         const auto certificate = prepared.working_directory / "certificate.txt";

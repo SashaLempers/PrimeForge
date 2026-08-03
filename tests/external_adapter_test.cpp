@@ -4,6 +4,7 @@
 #include "primeforge/engine/external_adapter.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -14,6 +15,24 @@
 namespace {
 
 namespace engine = primeforge::engine;
+
+class CountingSha256Provider final : public primeforge::Sha256Provider {
+public:
+    [[nodiscard]] primeforge::Sha256Digest digest(
+        const std::span<const std::byte> bytes) const override {
+        ++calls_;
+        bytes_ += bytes.size();
+        return provider_.digest(bytes);
+    }
+
+    [[nodiscard]] std::uint64_t calls() const noexcept { return calls_; }
+    [[nodiscard]] std::uint64_t bytes() const noexcept { return bytes_; }
+
+private:
+    primeforge::PortableSha256Provider provider_;
+    mutable std::uint64_t calls_{};
+    mutable std::uint64_t bytes_{};
+};
 
 void check(const bool condition, const std::string& message) {
     if (!condition) throw std::runtime_error(message);
@@ -122,6 +141,21 @@ int main(const int argc, char** argv) {
                   std::filesystem::is_regular_file(result.raw_stderr_path),
               "raw process output retained");
 
+        CountingSha256Provider counting_sha256;
+        engine::ExternalEngineAdapter cached_adapter{config, counting_sha256};
+        const auto cached_first = cached_adapter.run(
+            {"cached-first", "fixture", "FIXTURE:PRP", work_root});
+        const auto installation_hash_calls = counting_sha256.calls();
+        const auto installation_hash_bytes = counting_sha256.bytes();
+        const auto cached_second = cached_adapter.run(
+            {"cached-second", "fixture", "FIXTURE:COMPOSITE", work_root});
+        check(cached_first.status.primality == primeforge::PrimalityStatus::probable_prime &&
+                  cached_second.status.primality == primeforge::PrimalityStatus::composite,
+              "cached installation validation preserves classifications");
+        check(installation_hash_calls == 2U && counting_sha256.calls() == installation_hash_calls &&
+                  installation_hash_bytes != 0U && counting_sha256.bytes() == installation_hash_bytes,
+              "unchanged installation is hashed exactly once per adapter instance");
+
         auto timeout_config = config;
         timeout_config.stable_id = "primeforge.fixture.timeout.v1";
         timeout_config.timeout = std::chrono::milliseconds{20};
@@ -165,6 +199,7 @@ int main(const int argc, char** argv) {
                   << "timeout_enforced=YES\n"
                   << "memory_limit_configured=YES\n"
                   << "raw_outputs_retained=YES\n"
+                  << "installation_hash_cache=YES\n"
                   << "PrimeForge external adapter tests: PASS\n";
         return 0;
     } catch (const std::exception& error) {

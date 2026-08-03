@@ -102,6 +102,8 @@ public:
 private:
     ExternalAdapterConfig config_;
     const Sha256Provider* sha256_{};
+    bool installation_checked_{};
+    ArtifactVerification installation_verification_;
 };
 
 [[nodiscard]] std::string to_string(ExternalEngineKind kind);

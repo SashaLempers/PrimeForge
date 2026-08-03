@@ -58,6 +58,27 @@ Windows/MSVC is the product path. Linux/GCC remains mandatory portable-correctne
 CI. CUDA stays available for the post-MVP performance path but is not allowed to
 delay the first complete CPU campaign.
 
+### Windows graphical launcher
+
+The Windows build produces `primeforge-launcher.exe` beside `primeforge.exe`.
+Double-click it to start the configured campaign. It automatically starts a new
+search, resumes an authenticated checkpoint, or verifies a completed result
+ledger. A CUDA-enabled build uses `auto` routing between CPU and CUDA.
+
+The **Arrêter proprement** button, `Ctrl+C` in the launcher window, and closing
+the window during a search all use the same cooperative stop protocol. The
+engine finishes its current bounded work, durably commits the result prefix and
+checkpoint, and exits with `search.status=STOPPED`. The next launch clears the
+one-shot stop request and resumes that exact checkpoint automatically.
+
+```powershell
+& .\out\build\msvc-cuda-release\primeforge-launcher.exe
+
+# Select another campaign configuration:
+& .\out\build\msvc-cuda-release\primeforge-launcher.exe `
+  --config C:\path\to\search.yaml
+```
+
 MVP-01 now provides the unified executable front door and exact campaign
 inspection:
 
@@ -100,7 +121,7 @@ Build and verify the closed Windows package after a Release build:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass `
-  -File scripts\package_mvp.ps1 -Version 0.1.0-mvp
+  -File scripts\package_mvp.ps1 -Version 0.2.0-launcher
 ```
 
 The package contains `primeforge.exe`, configuration, documentation and original

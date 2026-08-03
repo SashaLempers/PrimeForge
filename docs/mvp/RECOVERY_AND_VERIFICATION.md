@@ -34,6 +34,16 @@ progress, writes the result durably, writes a checkpoint, omits final coverage a
 manifest, then exits cleanly. It never targets a process outside the active
 PrimeForge campaign.
 
+On Windows, `primeforge-launcher.exe` exposes the same protocol through the
+**Arrêter proprement** button, `Ctrl+C` registered by the launcher, and window
+close. The launcher writes an atomic one-shot `<campaign>.launcher.stop` request
+next to the campaign directory, so an immediate stop cannot create the campaign
+directory before the engine. `primeforge.exe --stop-file <path>` observes it through the
+normal cooperative-stop callback; after the child exits, the launcher removes
+the request. A subsequent launch selects `resume` when the checkpoint and ledger
+exist, `verify` when the final manifest exists, and `search` only when no campaign
+output exists. Ambiguous partial states fail closed.
+
 On resume, PrimeForge reloads the campaign-owned `search.yaml`, validates the
 checkpoint hash and identity, authenticates the ledger prefix and verifies that
 its records are contiguous and campaign-consistent. A suffix written after the

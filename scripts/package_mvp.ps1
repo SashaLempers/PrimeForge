@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 param(
-    [string]$Version = '0.1.0-mvp',
+    [string]$Version = '0.2.0-launcher',
     [string]$Executable = 'out\build\msvc-release\primeforge.exe',
+    [string]$LauncherExecutable = 'out\build\msvc-release\primeforge-launcher.exe',
     [string]$OutputDirectory = 'out\release'
 )
 
@@ -23,6 +24,7 @@ function Resolve-RepositoryPath([string]$Path) {
 }
 
 $resolvedExecutable = Resolve-RepositoryPath $Executable
+$resolvedLauncherExecutable = Resolve-RepositoryPath $LauncherExecutable
 $releaseRoot = Resolve-RepositoryPath $OutputDirectory
 $allowedReleaseRoot = [System.IO.Path]::GetFullPath((Join-Path $repositoryRoot 'out\release'))
 $allowedPrefix = $allowedReleaseRoot.TrimEnd('\') + '\'
@@ -32,6 +34,9 @@ if ($releaseRoot -ne $allowedReleaseRoot -and
 }
 if (-not (Test-Path -LiteralPath $resolvedExecutable -PathType Leaf)) {
     throw "Release executable not found: $resolvedExecutable"
+}
+if (-not (Test-Path -LiteralPath $resolvedLauncherExecutable -PathType Leaf)) {
+    throw "Release launcher not found: $resolvedLauncherExecutable"
 }
 
 $packageName = "PrimeForge-$Version-windows-x64"
@@ -55,6 +60,7 @@ New-Item -ItemType Directory -Path (Join-Path $packageRoot 'licenses') -Force | 
 
 $copies = @(
     @{ Source = $resolvedExecutable; Destination = 'primeforge.exe' },
+    @{ Source = $resolvedLauncherExecutable; Destination = 'primeforge-launcher.exe' },
     @{ Source = (Join-Path $repositoryRoot 'examples\mvp\search.yaml'); Destination = 'search.yaml' },
     @{ Source = (Join-Path $repositoryRoot 'packaging\README.md'); Destination = 'README.md' },
     @{ Source = (Join-Path $repositoryRoot 'packaging\ORACLES.md'); Destination = 'ORACLES.md' },
@@ -77,10 +83,12 @@ if ($LASTEXITCODE -ne 0 -or $commit -notmatch '^[0-9a-f]{40}$') {
     throw 'Unable to record the source commit.'
 }
 $executableHash = (Get-FileHash -LiteralPath $resolvedExecutable -Algorithm SHA256).Hash.ToLowerInvariant()
+$launcherHash = (Get-FileHash -LiteralPath $resolvedLauncherExecutable -Algorithm SHA256).Hash.ToLowerInvariant()
 $buildInfo = '{' +
     '"commit":"' + $commit + '",' +
     '"executable_sha256":"' + $executableHash + '",' +
-    '"package_schema":"primeforge.package.v1",' +
+    '"launcher_sha256":"' + $launcherHash + '",' +
+    '"package_schema":"primeforge.package.v2",' +
     '"version":"' + $Version + '"}'
 $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 [System.IO.File]::WriteAllText((Join-Path $packageRoot 'BUILD_INFO.json'), $buildInfo, $utf8NoBom)

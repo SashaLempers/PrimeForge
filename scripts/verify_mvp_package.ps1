@@ -38,6 +38,7 @@ try {
         'docs/SEARCH_CONFIG.md',
         'licenses/DISTRIBUTION_MANIFEST.tsv',
         'primeforge.exe',
+        'primeforge-launcher.exe',
         'run_known_campaign.ps1',
         'search.yaml'
     )
@@ -53,8 +54,10 @@ try {
     $binaries = @(Get-ChildItem -LiteralPath $root -Recurse -File | Where-Object {
         $_.Extension -in @('.exe', '.dll', '.lib', '.pdb')
     })
-    if ($binaries.Count -ne 1 -or $binaries[0].Name -ne 'primeforge.exe') {
-        throw 'The package must contain primeforge.exe and no other executable, DLL, library or PDB.'
+    $binaryNames = @($binaries.Name | Sort-Object)
+    if ($binaries.Count -ne 2 -or
+        ($binaryNames -join "`n") -ne "primeforge.exe`nprimeforge-launcher.exe") {
+        throw 'The package must contain only primeforge.exe and primeforge-launcher.exe.'
     }
 
     $licenseHash = (Get-FileHash -LiteralPath (Join-Path $root 'LICENSE') -Algorithm SHA256).Hash.ToLowerInvariant()

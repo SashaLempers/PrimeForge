@@ -17,6 +17,18 @@ proof or verification process.
 
 ## One-command known campaign
 
+### Graphical launcher (recommended)
+
+Double-click `primeforge-launcher.exe`. It starts a new campaign automatically,
+resumes the authenticated checkpoint when one exists, and verifies a completed
+campaign. The **Arrêter proprement** button, `Ctrl+C` in the launcher window, and
+closing the window all request the same cooperative stop: PrimeForge finishes
+the current candidate, durably writes the result prefix and checkpoint, and
+then exits. Starting the launcher again resumes from that checkpoint.
+
+The live PrimeForge output is displayed in the launcher window. The command-line
+engine remains `primeforge.exe` beside it.
+
 From this extracted directory:
 
 ```powershell

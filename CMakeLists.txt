@@ -146,6 +146,7 @@ primeforge_enable_strict_warnings(primeforge_prp)
 
 add_library(primeforge_mvp STATIC
     src/mvp/campaign_verifier.cpp
+    src/mvp/launcher.cpp
     src/mvp/search_pipeline.cpp
 )
 add_library(PrimeForge::mvp ALIAS primeforge_mvp)
@@ -203,6 +204,14 @@ target_link_libraries(primeforge PRIVATE PrimeForge::mvp)
 target_compile_features(primeforge PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge)
 
+if(WIN32)
+    add_executable(primeforge-launcher WIN32 src/launcher/windows_main.cpp)
+    target_link_libraries(primeforge-launcher PRIVATE PrimeForge::mvp user32 shell32)
+    target_compile_definitions(primeforge-launcher PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
+    target_compile_features(primeforge-launcher PRIVATE cxx_std_23)
+    primeforge_enable_strict_warnings(primeforge-launcher)
+endif()
+
 add_executable(primeforge-mvp-tests tests/mvp_test.cpp)
 target_link_libraries(primeforge-mvp-tests PRIVATE PrimeForge::core)
 target_compile_features(primeforge-mvp-tests PRIVATE cxx_std_23)
@@ -212,6 +221,11 @@ add_executable(primeforge-mvp-pipeline-tests tests/mvp_pipeline_test.cpp)
 target_link_libraries(primeforge-mvp-pipeline-tests PRIVATE PrimeForge::mvp)
 target_compile_features(primeforge-mvp-pipeline-tests PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge-mvp-pipeline-tests)
+
+add_executable(primeforge-launcher-tests tests/launcher_test.cpp)
+target_link_libraries(primeforge-launcher-tests PRIVATE PrimeForge::mvp)
+target_compile_features(primeforge-launcher-tests PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-launcher-tests)
 
 add_executable(primeforge-tests tests/test_main.cpp)
 target_link_libraries(primeforge-tests PRIVATE PrimeForge::core)
@@ -492,6 +506,12 @@ if(BUILD_TESTING)
     )
     add_test(NAME primeforge.mvp_cli_selftest COMMAND primeforge selftest)
     add_test(
+        NAME primeforge.launcher_state
+        COMMAND primeforge-launcher-tests
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/mvp/search.yaml
+            ${CMAKE_CURRENT_BINARY_DIR}/launcher-state-test
+    )
+    add_test(
         NAME primeforge.mvp_cli_inspect
         COMMAND primeforge inspect --config ${CMAKE_CURRENT_SOURCE_DIR}/examples/mvp/search.yaml
     )
@@ -699,9 +719,10 @@ if(WIN32)
             -NoProfile
             -ExecutionPolicy Bypass
             -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/package_mvp.ps1
-            -Version 0.1.0-mvp
+            -Version 0.2.0-launcher
             -Executable $<TARGET_FILE:primeforge>
-        DEPENDS primeforge primeforge-distribution-check
+            -LauncherExecutable $<TARGET_FILE:primeforge-launcher>
+        DEPENDS primeforge primeforge-launcher primeforge-distribution-check
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         COMMENT "Building and verifying the closed PrimeForge MVP package"
         VERBATIM

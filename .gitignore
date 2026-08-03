@@ -44,6 +44,8 @@ presults.txt
 !releases/.gitkeep
 
 # Temporary files
+__pycache__/
+*.pyc
 *.tmp
 *.bak
 *.log

@@ -86,8 +86,8 @@ def main() -> int:
         svg_report("Median stage time (ns)", STAGES, medians), encoding="utf-8")
 
     labels = [f'{row["profile_id"]}:{row["backend"]}' for row in rows]
-    throughput = [round(int(row["batch_size"]) * 1_000_000_000 / max(1, int(row["total_ns"])))
-                  for row in rows]
+    throughput = [round(int(row.get("candidate_count", row["batch_size"])) * 1_000_000_000 /
+                        max(1, int(row["total_ns"]))) for row in rows]
     write_bar_png(args.output / "throughput_by_bits.png", throughput, rgb)
     write_bar_png(args.output / "speedup_by_batch.png", throughput, list(reversed(rgb)))
     write_bar_png(args.output / "router_regret_heatmap.png", [0 for _ in throughput], rgb)

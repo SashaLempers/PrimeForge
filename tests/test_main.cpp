@@ -5,6 +5,7 @@
 #include "primeforge/core/system_info.hpp"
 #include "primeforge/engine/engine_adapter.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <exception>
@@ -13,6 +14,8 @@
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <thread>
+#include <vector>
 
 namespace {
 
@@ -100,6 +103,22 @@ void test_sha256_abstraction() {
     const std::array<std::byte, 4096> block{};
     check(platform.digest(block) == portable.digest(block),
           "platform SHA-256 matches portable provider across many blocks");
+
+    std::array<primeforge::Sha256Digest, 16> concurrent_digests{};
+    {
+        std::vector<std::jthread> workers;
+        workers.reserve(concurrent_digests.size());
+        for (std::size_t index = 0U; index < concurrent_digests.size(); ++index) {
+            workers.emplace_back([&platform, &block, &concurrent_digests, index] {
+                concurrent_digests[index] = platform.digest(block);
+            });
+        }
+    }
+    const auto expected_concurrent_digest = portable.digest(block);
+    check(std::ranges::all_of(concurrent_digests, [&](const auto& digest) {
+              return digest == expected_concurrent_digest;
+          }),
+          "SHA-256 provider supports concurrent calls on one instance");
 }
 
 void test_engine_adapter_contract() {

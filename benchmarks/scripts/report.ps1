@@ -72,7 +72,12 @@ function Write-BarPng {
 
 Write-BarPng (Join-Path $OutputPath 'stage_breakdown.png') ([uint64[]]$values)
 $throughput = [uint64[]]@($rows | ForEach-Object {
-    [uint64][Math]::Round([double]$_.batch_size * 1000000000 / [Math]::Max(1, [double]$_.total_ns))
+    $candidateCount = if ($null -ne $_.PSObject.Properties['candidate_count']) {
+        [uint64]$_.candidate_count
+    } else {
+        [uint64]$_.batch_size
+    }
+    [uint64][Math]::Round([double]$candidateCount * 1000000000 / [Math]::Max(1, [double]$_.total_ns))
 })
 Write-BarPng (Join-Path $OutputPath 'throughput_by_bits.png') $throughput
 Write-BarPng (Join-Path $OutputPath 'speedup_by_batch.png') $throughput

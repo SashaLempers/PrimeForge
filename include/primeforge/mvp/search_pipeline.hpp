@@ -73,6 +73,7 @@ struct SearchSummary {
     std::uint64_t prp_tested_count{};
     std::uint64_t prp_submitted_batches{};
     std::string prp_backend_id;
+    std::size_t native_proof_workers{};
     std::uint64_t externally_classified_count{};
     std::uint64_t proven_prime_count{};
     std::uint64_t composite_count{};
@@ -92,6 +93,7 @@ struct SearchExecutionOptions {
     std::function<bool()> stop_requested;
     prp::Base2StrongPrpBatchBackend* prp_backend{};
     std::size_t prp_batch_candidates{8'192U};
+    std::size_t native_proof_workers{4U};
 };
 
 [[nodiscard]] SearchSummary execute_search(

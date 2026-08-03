@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -72,6 +73,27 @@ struct ExpectedPrime {
     std::ifstream input{path, std::ios::binary};
     if (!input) throw std::runtime_error("cannot read test output");
     return {std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
+}
+
+[[nodiscard]] std::map<std::string, std::string> snapshot_regular_files(
+    const std::filesystem::path& directory) {
+    std::map<std::string, std::string> snapshot;
+    if (!std::filesystem::is_directory(directory)) return snapshot;
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(directory)) {
+        if (!entry.is_regular_file()) continue;
+        const auto relative = entry.path().lexically_relative(directory).generic_string();
+        snapshot.emplace(relative, read_file(entry.path()));
+    }
+    return snapshot;
+}
+
+[[nodiscard]] bool contains_atomic_temporary_file(
+    const std::filesystem::path& directory) {
+    if (!std::filesystem::is_directory(directory)) return false;
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(directory)) {
+        if (entry.is_regular_file() && entry.path().extension() == ".new") return true;
+    }
+    return false;
 }
 
 class KnownEngine final : public primeforge::EngineAdapter {
@@ -224,11 +246,22 @@ int main(const int argc, char** argv) {
 
         KnownEngine proof{"known-pari-proof", known_primes, true};
         KnownEngine independent{"known-flint-independent", known_primes, false};
+        for (const auto invalid_worker_count : {std::size_t{0U}, std::size_t{65U}}) {
+            primeforge::mvp::SearchExecutionOptions invalid_options;
+            invalid_options.native_proof_workers = invalid_worker_count;
+            expect_failure(
+                [&] {
+                    static_cast<void>(primeforge::mvp::execute_search(
+                        config, sha256, proof, independent, invalid_options));
+                },
+                "native proof worker count is bounded at the API boundary");
+        }
         auto batched_prp = primeforge::prp::make_cpu_base2_strong_prp_batch_backend(
             17U, 2U);
         primeforge::mvp::SearchExecutionOptions batched_options;
         batched_options.prp_backend = batched_prp.get();
         batched_options.prp_batch_candidates = 17U;
+        batched_options.native_proof_workers = 1U;
         const auto first = primeforge::mvp::execute_search(
             config, sha256, proof, independent, batched_options);
         check(first.completed && first.records.size() == 160U &&
@@ -287,6 +320,9 @@ int main(const int argc, char** argv) {
         check(native_certificates == known_primes.size(),
               "every known prime uses the native Proth proof boundary");
         const auto first_bytes = read_file(first.results_path);
+        const auto first_manifest = read_file(first.manifest_path);
+        const auto first_certificates =
+            snapshot_regular_files(first.output_directory / "proofs" / "proth");
         check(std::ranges::count(first_bytes, '\n') == 160,
               "one canonical JSONL record per candidate");
         KnownCertificateVerifier certificate_verifier;
@@ -307,14 +343,21 @@ int main(const int argc, char** argv) {
             "manifest detects a mutated result ledger");
 
         std::filesystem::remove_all(config.output_directory);
+        primeforge::mvp::SearchExecutionOptions parallel_options;
+        parallel_options.native_proof_workers = 4U;
         const auto second = primeforge::mvp::execute_search(
-            config, sha256, proof, independent);
-        check(read_file(second.results_path) == first_bytes,
-              "repeat search produces byte-identical logical results");
+            config, sha256, proof, independent, parallel_options);
+        check(read_file(second.results_path) == first_bytes &&
+                  read_file(second.manifest_path) == first_manifest &&
+                  snapshot_regular_files(second.output_directory / "proofs" / "proth") ==
+                      first_certificates &&
+                  !contains_atomic_temporary_file(second.output_directory),
+              "parallel proof workers preserve byte-identical results, manifest, and certificates");
 
         std::filesystem::remove_all(config.output_directory);
         primeforge::mvp::SearchExecutionOptions stop_options;
         stop_options.clean_stop_after_candidates = 37U;
+        stop_options.native_proof_workers = 4U;
         const auto interrupted = primeforge::mvp::execute_search(
             config, sha256, proof, independent, stop_options);
         check(!interrupted.completed &&
@@ -328,12 +371,61 @@ int main(const int argc, char** argv) {
         { std::ofstream output{orphan, std::ios::binary}; output << "ORPHAN"; }
         primeforge::mvp::SearchExecutionOptions resume_options;
         resume_options.resume_existing = true;
+        resume_options.native_proof_workers = 4U;
         const auto resumed = primeforge::mvp::execute_search(
             config, sha256, proof, independent, resume_options);
-        check(resumed.completed && read_file(resumed.results_path) == first_bytes,
+        check(resumed.completed && read_file(resumed.results_path) == first_bytes &&
+                  read_file(resumed.manifest_path) == first_manifest &&
+                  snapshot_regular_files(resumed.output_directory / "proofs" / "proth") ==
+                      first_certificates &&
+                  !contains_atomic_temporary_file(resumed.output_directory),
               "interruption and resume reproduce uninterrupted logical results");
         check(!std::filesystem::exists(orphan) || read_file(orphan) != "ORPHAN",
               "resume removes unauthenticated native proof suffix artifacts");
+
+        std::filesystem::remove_all(config.output_directory);
+        primeforge::mvp::SearchExecutionOptions empty_prefix_options;
+        empty_prefix_options.clean_stop_after_candidates = 0U;
+        const auto empty_prefix = primeforge::mvp::execute_search(
+            config, sha256, proof, independent, empty_prefix_options);
+        check(!empty_prefix.completed && read_file(empty_prefix.results_path).empty(),
+              "zero-length prefix creates a resumable checkpoint without processing candidates");
+        const auto checkpoint_before_write_failure = read_file(empty_prefix.checkpoint_path);
+        const auto obstructed_certificate = config.output_directory / "proofs" / "proth" /
+                                            ("proth-" +
+                                             std::to_string(expected.front().flat_index) +
+                                             ".json");
+        auto write_obstruction = obstructed_certificate;
+        write_obstruction += ".new";
+        std::filesystem::create_directories(write_obstruction);
+        {
+            std::ofstream marker{write_obstruction / "keep"};
+            marker << "OBSTRUCT";
+        }
+        primeforge::mvp::SearchExecutionOptions failing_parallel_resume;
+        failing_parallel_resume.resume_existing = true;
+        failing_parallel_resume.native_proof_workers = 4U;
+        expect_failure(
+            [&] {
+                static_cast<void>(primeforge::mvp::execute_search(
+                    config, sha256, proof, independent, failing_parallel_resume));
+            },
+            "parallel certificate write failure propagates to the campaign");
+        check(read_file(empty_prefix.checkpoint_path) == checkpoint_before_write_failure &&
+                  read_file(empty_prefix.results_path).empty() &&
+                  !std::filesystem::exists(empty_prefix.manifest_path),
+              "parallel write failure leaves checkpoint and result prefix uncommitted");
+        std::filesystem::remove_all(write_obstruction);
+        const auto recovered_after_write_failure = primeforge::mvp::execute_search(
+            config, sha256, proof, independent, failing_parallel_resume);
+        check(recovered_after_write_failure.completed &&
+                  read_file(recovered_after_write_failure.results_path) == first_bytes &&
+                  read_file(recovered_after_write_failure.manifest_path) == first_manifest &&
+                  snapshot_regular_files(recovered_after_write_failure.output_directory /
+                                         "proofs" / "proth") == first_certificates &&
+                  !contains_atomic_temporary_file(
+                      recovered_after_write_failure.output_directory),
+              "resume after parallel write failure reproduces the complete campaign exactly");
 
         std::filesystem::remove_all(config.output_directory);
         config.output_directory = "mvp-pipeline-disagreement-output";
@@ -358,6 +450,7 @@ int main(const int argc, char** argv) {
                   << "native_proth_certificates=" << native_certificates << '\n'
                   << "deterministic_results=YES\n"
                   << "interruption_resume_identical=YES\n"
+                  << "parallel_write_failure_recovery=YES\n"
                   << "parallel_independent_verification=YES\n"
                   << "manifest_mutation_rejected=YES\n"
                   << "independent_disagreement_rejected=YES\n"

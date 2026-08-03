@@ -4,6 +4,7 @@
 #include "primeforge/engine/external_adapter.hpp"
 
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -21,18 +22,22 @@ class CountingSha256Provider final : public primeforge::Sha256Provider {
 public:
     [[nodiscard]] primeforge::Sha256Digest digest(
         const std::span<const std::byte> bytes) const override {
-        ++calls_;
-        bytes_ += bytes.size();
+        calls_.fetch_add(1U, std::memory_order_relaxed);
+        bytes_.fetch_add(bytes.size(), std::memory_order_relaxed);
         return provider_.digest(bytes);
     }
 
-    [[nodiscard]] std::uint64_t calls() const noexcept { return calls_; }
-    [[nodiscard]] std::uint64_t bytes() const noexcept { return bytes_; }
+    [[nodiscard]] std::uint64_t calls() const noexcept {
+        return calls_.load(std::memory_order_relaxed);
+    }
+    [[nodiscard]] std::uint64_t bytes() const noexcept {
+        return bytes_.load(std::memory_order_relaxed);
+    }
 
 private:
     primeforge::PortableSha256Provider provider_;
-    mutable std::uint64_t calls_{};
-    mutable std::uint64_t bytes_{};
+    mutable std::atomic_uint64_t calls_{};
+    mutable std::atomic_uint64_t bytes_{};
 };
 
 void check(const bool condition, const std::string& message) {

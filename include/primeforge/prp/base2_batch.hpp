@@ -36,6 +36,12 @@ public:
         std::span<Base2StrongPrpVerdict> verdicts) = 0;
 };
 
+[[nodiscard]] Base2StrongPrpBatchMetrics test_base2_strong_prp_in_batches(
+    Base2StrongPrpBatchBackend& backend,
+    std::span<const std::uint64_t> values,
+    std::span<Base2StrongPrpVerdict> verdicts,
+    std::size_t batch_size);
+
 [[nodiscard]] std::unique_ptr<Base2StrongPrpBatchBackend>
 make_cpu_base2_strong_prp_batch_backend(std::size_t capacity, unsigned int worker_count = 0U);
 

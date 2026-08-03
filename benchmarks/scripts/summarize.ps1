@@ -47,7 +47,15 @@ if ($rows.Count -eq 0) { throw 'No valid benchmark rows found.' }
 
 $random = [System.Random]::new(1347569997)
 $summaries = @()
-$groups = $rows | Group-Object { "$($_.profile_id)|$($_.backend)|$($_.bits)|$($_.batch_size)" }
+$groups = $rows | Group-Object {
+    $candidateCount = if ($null -ne $_.PSObject.Properties['candidate_count']) {
+        $_.candidate_count
+    } else {
+        $_.batch_size
+    }
+    "$($_.commit_sha)|$($_.binary_sha256)|$($_.profile_sha256)|$($_.dataset_sha256)|" +
+        "$($_.profile_id)|$($_.backend)|$($_.bits)|$($_.batch_size)|$candidateCount"
+}
 foreach ($group in $groups | Sort-Object Name) {
     $values = [uint64[]]@($group.Group | ForEach-Object { [uint64]$_.total_ns })
     $median = Get-Median $values
@@ -70,10 +78,15 @@ foreach ($group in $groups | Sort-Object Name) {
     $hashes = @($group.Group.result_sha256 | Sort-Object -Unique)
     if ($hashes.Count -ne 1) { throw "Result divergence in $($group.Name)" }
     $summaries += [pscustomobject][ordered]@{
-        profile_id = $parts[0]
-        backend = $parts[1]
-        bits = [uint64]$parts[2]
-        batch_size = [uint64]$parts[3]
+        commit_sha = $parts[0]
+        binary_sha256 = $parts[1]
+        profile_sha256 = $parts[2]
+        dataset_sha256 = $parts[3]
+        profile_id = $parts[4]
+        backend = $parts[5]
+        bits = [uint64]$parts[6]
+        batch_size = [uint64]$parts[7]
+        candidate_count = [uint64]$parts[8]
         result_sha256 = $hashes[0]
         repetitions = $values.Count
         minimum_ns = [uint64](($values | Measure-Object -Minimum).Minimum)

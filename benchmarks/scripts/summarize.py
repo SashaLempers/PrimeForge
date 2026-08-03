@@ -77,21 +77,30 @@ def main() -> int:
         parser.error("--bootstrap-samples must be at least 100")
 
     rows = load_rows(args.input)
-    groups: dict[tuple[str, str, int, int], list[dict]] = {}
+    groups: dict[tuple[str, str, str, str, str, str, int, int, int], list[dict]] = {}
     for row in rows:
-        key = (row["profile_id"], row["backend"], int(row["bits"]), int(row["batch_size"]))
+        batch_size = int(row["batch_size"])
+        key = (row["commit_sha"], row["binary_sha256"], row["profile_sha256"],
+               row["dataset_sha256"], row["profile_id"], row["backend"],
+               int(row["bits"]), batch_size, int(row.get("candidate_count", batch_size)))
         groups.setdefault(key, []).append(row)
 
     summary_rows = []
-    for (profile, backend, bits, batch_size), group in sorted(groups.items()):
+    for (commit, binary_hash, profile_hash, dataset_hash, profile, backend, bits,
+         batch_size, candidate_count), group in sorted(groups.items()):
         result_hashes = {row["result_sha256"] for row in group}
         if len(result_hashes) != 1:
             raise ValueError(f"result divergence in {profile}/{backend}")
         item = {
+            "commit_sha": commit,
+            "binary_sha256": binary_hash,
+            "profile_sha256": profile_hash,
+            "dataset_sha256": dataset_hash,
             "profile_id": profile,
             "backend": backend,
             "bits": bits,
             "batch_size": batch_size,
+            "candidate_count": candidate_count,
             "result_sha256": next(iter(result_hashes)),
         }
         item.update(summarize([int(row["total_ns"]) for row in group], args.bootstrap_samples))

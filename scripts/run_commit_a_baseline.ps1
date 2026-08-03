@@ -88,7 +88,7 @@ for ($round = -$Warmup; $round -lt $Repetitions; $round++) {
         }
         $lines = Invoke-CheckedCapture $primeforge @(
             'search', '--config', $config, '--prp-backend', $backend,
-            '--prp-batch-candidates', '8192'
+            '--prp-batch-candidates', '8192', '--proof-workers', '1'
         )
         $fields = @{}
         foreach ($line in $lines) {
@@ -110,6 +110,7 @@ for ($round = -$Warmup; $round -lt $Repetitions; $round++) {
         $row = [ordered]@{
             backend = $fields['search.prp_backend']
             batch_size = 160
+            candidate_count = 160
             binary_sha256 = $binarySha
             bits = 64
             checkpoint_ns = [uint64]$fields['metrics.checkpoint_ns']

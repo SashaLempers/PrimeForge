@@ -6,12 +6,21 @@
 
 #include <algorithm>
 #include <chrono>
+#include <limits>
 #include <stdexcept>
 #include <thread>
 #include <vector>
 
 namespace primeforge::prp {
 namespace {
+
+[[nodiscard]] std::uint64_t checked_sum(
+    const std::uint64_t left, const std::uint64_t right) {
+    if (right > std::numeric_limits<std::uint64_t>::max() - left) {
+        throw std::overflow_error("aggregated PRP batch timing overflow");
+    }
+    return left + right;
+}
 
 class CpuBase2StrongPrpBatchBackend final : public Base2StrongPrpBatchBackend {
 public:
@@ -78,6 +87,39 @@ private:
 };
 
 }  // namespace
+
+Base2StrongPrpBatchMetrics test_base2_strong_prp_in_batches(
+    Base2StrongPrpBatchBackend& backend,
+    const std::span<const std::uint64_t> values,
+    const std::span<Base2StrongPrpVerdict> verdicts,
+    const std::size_t batch_size) {
+    if (values.size() != verdicts.size()) {
+        throw std::invalid_argument("batched PRP input/output sizes differ");
+    }
+    if (batch_size == 0U) {
+        throw std::invalid_argument("PRP batch size must be nonzero");
+    }
+    if (batch_size > backend.capacity()) {
+        throw std::length_error("PRP batch size exceeds backend capacity");
+    }
+
+    Base2StrongPrpBatchMetrics aggregate;
+    for (std::size_t offset = 0U; offset < values.size();) {
+        const auto count = std::min(batch_size, values.size() - offset);
+        const auto metrics = backend.test(
+            values.subspan(offset, count), verdicts.subspan(offset, count));
+        aggregate.total_ns = checked_sum(aggregate.total_ns, metrics.total_ns);
+        aggregate.cpu_ns = checked_sum(aggregate.cpu_ns, metrics.cpu_ns);
+        aggregate.host_to_device_ns =
+            checked_sum(aggregate.host_to_device_ns, metrics.host_to_device_ns);
+        aggregate.kernel_ns = checked_sum(aggregate.kernel_ns, metrics.kernel_ns);
+        aggregate.device_to_host_ns =
+            checked_sum(aggregate.device_to_host_ns, metrics.device_to_host_ns);
+        aggregate.used_accelerator = aggregate.used_accelerator || metrics.used_accelerator;
+        offset += count;
+    }
+    return aggregate;
+}
 
 std::unique_ptr<Base2StrongPrpBatchBackend>
 make_cpu_base2_strong_prp_batch_backend(const std::size_t capacity,

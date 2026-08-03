@@ -14,14 +14,17 @@
 #include "primeforge/work/work_unit.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <charconv>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <exception>
 #include <fstream>
 #include <future>
 #include <memory>
+#include <mutex>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -346,10 +349,12 @@ struct PreparedPrpBatch {
     std::vector<EngineResult> independent_results;
     struct NativeProofBatch {
         std::vector<proth::ProofAttempt> results;
+        std::vector<std::optional<NativeProofEvidence>> evidence;
         std::uint64_t elapsed_ns{};
     };
     std::future<NativeProofBatch> native_proof_completion;
     std::vector<proth::ProofAttempt> native_proof_results;
+    std::vector<std::optional<NativeProofEvidence>> native_proof_evidence;
     Clock::time_point independent_started{};
     bool independent_submitted{};
     bool independent_completed{};
@@ -445,20 +450,74 @@ void await_independent_batch(PreparedPrpBatch &batch, SearchSummary &summary) {
     batch.independent_completed = true;
 }
 
-void submit_native_proof_batch(PreparedPrpBatch &batch, const SearchConfig &config) {
-    batch.native_proof_completion = std::async(std::launch::async, [&batch, &config] {
-        const ScopedTrace trace{"proof"};
+void submit_native_proof_batch(PreparedPrpBatch &batch, const SearchConfig &config,
+                               const std::filesystem::path &output_directory,
+                               const Sha256Provider &sha256,
+                               const std::size_t requested_worker_count) {
+    batch.native_proof_completion = std::async(
+        std::launch::async,
+        [&batch, &config, output_directory, &sha256, requested_worker_count] {
+        const ScopedTrace trace{"proof_batch"};
         const auto started = Clock::now();
         PreparedPrpBatch::NativeProofBatch completed;
         completed.results.resize(batch.verdicts.size());
-        constexpr std::uint64_t native_witness_limit = 65'535U;
+        completed.evidence.resize(batch.verdicts.size());
+        std::vector<std::size_t> probable_survivors;
+        probable_survivors.reserve(batch.verdicts.size());
         for (std::size_t survivor = 0U; survivor < batch.verdicts.size(); ++survivor) {
-            if (batch.verdicts[survivor] != prp::Base2StrongPrpVerdict::probable_prime) continue;
-            const auto candidate = candidate_at(
-                config, batch.begin + batch.survivor_offsets[survivor]);
-            completed.results[survivor] = proth::try_prove_u64(
-                candidate.k, static_cast<std::uint32_t>(candidate.n), native_witness_limit);
+            if (batch.verdicts[survivor] == prp::Base2StrongPrpVerdict::probable_prime) {
+                probable_survivors.push_back(survivor);
+            }
         }
+
+        const auto proof_directory = output_directory / "proofs" / "proth";
+        std::filesystem::create_directories(proof_directory);
+        const auto worker_count =
+            std::min(requested_worker_count, probable_survivors.size());
+        std::atomic_size_t next_survivor{0U};
+        std::atomic_bool stop_workers{false};
+        std::mutex failure_mutex;
+        std::exception_ptr first_failure;
+        const auto worker = [&] {
+            try {
+                while (!stop_workers.load(std::memory_order_relaxed)) {
+                    const auto queue_index =
+                        next_survivor.fetch_add(1U, std::memory_order_relaxed);
+                    if (queue_index >= probable_survivors.size()) return;
+                    const auto survivor = probable_survivors[queue_index];
+                    const auto flat_index = batch.begin + batch.survivor_offsets[survivor];
+                    const auto candidate = candidate_at(config, flat_index);
+                    auto attempt = proth::try_prove_u64(
+                        candidate.k, static_cast<std::uint32_t>(candidate.n),
+                        65'535U);
+                    if (attempt.certificate.has_value()) {
+                        const auto certificate_bytes =
+                            proth::canonical_certificate(*attempt.certificate);
+                        const auto certificate_path =
+                            proof_directory / ("proth-" + std::to_string(flat_index) + ".json");
+                        write_atomic(certificate_path, certificate_bytes);
+                        completed.evidence[survivor] = NativeProofEvidence{
+                            proth::certificate_format, certificate_path,
+                            hash_text(certificate_bytes, sha256)};
+                    }
+                    completed.results[survivor] = std::move(attempt);
+                }
+            } catch (...) {
+                {
+                    const std::scoped_lock lock{failure_mutex};
+                    if (first_failure == nullptr) first_failure = std::current_exception();
+                }
+                stop_workers.store(true, std::memory_order_relaxed);
+            }
+        };
+        {
+            std::vector<std::jthread> workers;
+            workers.reserve(worker_count);
+            for (std::size_t index = 0U; index < worker_count; ++index) {
+                workers.emplace_back(worker);
+            }
+        }
+        if (first_failure != nullptr) std::rethrow_exception(first_failure);
         completed.elapsed_ns = elapsed_ns(started);
         return completed;
     });
@@ -467,6 +526,7 @@ void submit_native_proof_batch(PreparedPrpBatch &batch, const SearchConfig &conf
 void await_native_proof_batch(PreparedPrpBatch &batch, SearchSummary &summary) {
     auto completed = batch.native_proof_completion.get();
     batch.native_proof_results = std::move(completed.results);
+    batch.native_proof_evidence = std::move(completed.evidence);
     summary.metrics.proof_ns += completed.elapsed_ns;
 }
 
@@ -553,6 +613,10 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
     if (execution_options.prp_batch_candidates == 0U) {
         throw std::invalid_argument("PRP batch candidate count must be nonzero");
     }
+    if (execution_options.native_proof_workers == 0U ||
+        execution_options.native_proof_workers > 64U) {
+        throw std::invalid_argument("native proof worker count must be between 1 and 64");
+    }
     auto owned_prp_backend =
         execution_options.prp_backend == nullptr
             ? prp::make_cpu_base2_strong_prp_batch_backend(execution_options.prp_batch_candidates)
@@ -566,6 +630,7 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
         std::min(execution_options.prp_batch_candidates, prp_backend.capacity()));
     SearchSummary summary;
     summary.prp_backend_id = std::string{prp_backend.id()};
+    summary.native_proof_workers = execution_options.native_proof_workers;
     {
         const ScopedTrace trace{"candidate_generation"};
         auto [duration, plan] = timed_value([&] { return build_campaign_plan(config, sha256); });
@@ -693,7 +758,8 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
         await_prp_batch(*current_batch, summary);
         submit_independent_batch(*current_batch, config, independent_engine,
                                  summary.output_directory);
-        submit_native_proof_batch(*current_batch, config);
+        submit_native_proof_batch(*current_batch, config, summary.output_directory, sha256,
+                                  execution_options.native_proof_workers);
         await_independent_batch(*current_batch, summary);
         await_native_proof_batch(*current_batch, summary);
         if (next_batch != nullptr) {
@@ -739,27 +805,24 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
                     record.prp_status = "PASSED";
                     const auto decimal = std::to_string(record.candidate.value);
                     bool prime = false;
-                    {
-                        const ScopedTrace trace{"proof"};
+                    const auto &native =
+                        current_batch->native_proof_results[survivor_index - 1U];
+                    if (native.certificate.has_value()) {
+                        const auto &evidence =
+                            current_batch->native_proof_evidence[survivor_index - 1U];
+                        if (!evidence.has_value()) {
+                            throw std::logic_error(
+                                "native Proth proof omitted its durable artifact");
+                        }
+                        record.native_proth_certificate = *evidence;
+                        record.status.primality = PrimalityStatus::proven_prime;
+                        record.status.verification = VerificationStatus::self_verified;
+                        record.classification_method = "PROTH_CERTIFICATE_VALIDATED";
+                        prime = true;
+                    } else {
+                        const ScopedTrace trace{"proof_fallback"};
                         const auto proof_started = Clock::now();
-                        const auto &native =
-                            current_batch->native_proof_results[survivor_index - 1U];
-                        if (native.certificate.has_value()) {
-                            const auto certificate_bytes =
-                                proth::canonical_certificate(*native.certificate);
-                            const auto certificate_path = summary.output_directory / "proofs" /
-                                                          "proth" /
-                                                          ("proth-" + std::to_string(index) + ".json");
-                            std::filesystem::create_directories(certificate_path.parent_path());
-                            write_atomic(certificate_path, certificate_bytes);
-                            record.native_proth_certificate =
-                                NativeProofEvidence{proth::certificate_format, certificate_path,
-                                                    hash_file(certificate_path, sha256)};
-                            record.status.primality = PrimalityStatus::proven_prime;
-                            record.status.verification = VerificationStatus::self_verified;
-                            record.classification_method = "PROTH_CERTIFICATE_VALIDATED";
-                            prime = true;
-                        } else {
+                        {
                             const EngineRequest primary_request{
                                 "pari-" + std::to_string(index), "primeforge.proth.uint64.v1", decimal,
                                 summary.output_directory / "external" / "pari"};

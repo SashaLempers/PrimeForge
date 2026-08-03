@@ -17,6 +17,9 @@ class Sha256Provider {
 public:
     virtual ~Sha256Provider() = default;
 
+    // Implementations must support concurrent calls on the same provider
+    // instance. The input span only needs to remain valid for the duration of
+    // the call.
     [[nodiscard]] virtual Sha256Digest digest(std::span<const std::byte> bytes) const = 0;
 };
 

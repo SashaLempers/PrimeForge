@@ -202,6 +202,9 @@ primeforge_enable_strict_warnings(primeforge-selftest)
 add_executable(primeforge src/cli/main.cpp)
 target_link_libraries(primeforge PRIVATE PrimeForge::mvp)
 target_compile_features(primeforge PRIVATE cxx_std_23)
+target_compile_definitions(
+    primeforge PRIVATE PRIMEFORGE_BUILD_COMMIT="${PRIMEFORGE_BUILD_COMMIT}"
+)
 primeforge_enable_strict_warnings(primeforge)
 
 if(WIN32)
@@ -658,6 +661,22 @@ if(BUILD_TESTING)
             --output ${CMAKE_CURRENT_BINARY_DIR}/product-benchmark-smoke
             --warmup 1
             --repetitions 7
+    )
+    add_test(
+        NAME primeforge.product_benchmark_subbatch_smoke
+        COMMAND primeforge-bench run
+            --profile ${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/profiles/s64_prp_65536.json
+            --backend cpu
+            --output ${CMAKE_CURRENT_BINARY_DIR}/product-benchmark-subbatch-smoke
+            --warmup 1
+            --repetitions 2
+            --batch-size 32
+    )
+    set_tests_properties(
+        primeforge.product_benchmark_subbatch_smoke PROPERTIES
+        PASS_REGULAR_EXPRESSION
+            [=[benchmark\.batch_size=32
+benchmark\.candidate_count=65536]=]
     )
     add_test(
         NAME primeforge.product_benchmark_multiprecision_deferred

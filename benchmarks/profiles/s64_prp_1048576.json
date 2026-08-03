@@ -1,0 +1,1 @@
+{"bit_width":64,"candidate_count":"1048576","family":"generic-odd-u64","implemented":true,"input_kind":"prp_u64_vectors","profile_id":"S64_PRP_1048576","schema":"primeforge.benchmark.profile.v1","seed":"5706063385637920975"}

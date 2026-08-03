@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: Apache-2.0
+# Product-scale uint64 reference profile spanning 57 through 64 bits.
+schema: primeforge.search.v1
+campaign_name: full-u64-high-131072
+family: proth
+expression: k*2^n+1
+parameters:
+  k:
+    start: 32769
+    stop: 65535
+    step: 2
+  n:
+    start: 41
+    stop: 48
+    step: 1
+constraints:
+  odd_k: true
+  k_less_than_2_pow_n: true
+work_units:
+  candidates_per_unit: 65536
+sieve:
+  maximum_prime: 65521
+checkpoint:
+  every_candidates: 65536
+output:
+  directory: out/benchmarks/optimization-07/reference-campaign
+engines:
+  pari_gp:
+    path: out/oracles/pari-gp64-2.17.4.exe
+    sha256: 518ea54d23832211356c99d1bb58b74a3f0acd354a965543e7bcca9b34030119
+  flint:
+    path: out/oracles/flint/flint-primality-oracle.exe
+    sha256: bd0150840cc268b9cd88400535d4474c73260114ee221d2131a93586bb4cc804

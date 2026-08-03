@@ -47,8 +47,11 @@ int main() {
                 vector_count, 512U);
         std::vector<primeforge::prp::Base2StrongPrpVerdict> automatic_observed(values.size());
         const auto automatic_cpu_metrics = automatic->test(
-            std::span<const std::uint64_t>{values}.first(256U),
-            std::span<primeforge::prp::Base2StrongPrpVerdict>{automatic_observed}.first(256U));
+            std::span<const std::uint64_t>{values}.first(511U),
+            std::span<primeforge::prp::Base2StrongPrpVerdict>{automatic_observed}.first(511U));
+        const auto automatic_boundary_metrics = automatic->test(
+            std::span<const std::uint64_t>{values}.first(512U),
+            std::span<primeforge::prp::Base2StrongPrpVerdict>{automatic_observed}.first(512U));
         const auto cuda_start = std::chrono::steady_clock::now();
         const auto cuda_metrics = cuda->test(values, observed);
         const auto cuda_end = std::chrono::steady_clock::now();
@@ -57,7 +60,10 @@ int main() {
         const auto cpu_batch_end = std::chrono::steady_clock::now();
         const auto automatic_cuda_metrics = automatic->test(values, automatic_observed);
         check(!automatic_cpu_metrics.used_accelerator && automatic_cpu_metrics.cpu_ns > 0U,
-              "automatic backend reports its CPU route");
+              "automatic backend keeps 511 values on its CPU route");
+        check(automatic_boundary_metrics.used_accelerator &&
+                  automatic_boundary_metrics.kernel_ns > 0U,
+              "automatic backend routes exactly 512 values to CUDA");
         check(cuda_metrics.used_accelerator && cuda_metrics.total_ns > 0U &&
                   cuda_metrics.kernel_ns > 0U && cuda_metrics.cpu_ns == 0U,
               "CUDA backend reports measured accelerator phases");
@@ -65,6 +71,18 @@ int main() {
               "CPU backend reports measured CPU time");
         check(automatic_cuda_metrics.used_accelerator,
               "automatic backend reports its CUDA route");
+
+        auto chunked_automatic =
+            primeforge::cuda_backend::make_auto_cuda_base2_strong_prp_batch_backend(
+                600U, 512U);
+        std::vector<primeforge::prp::Base2StrongPrpVerdict> chunked_observed(values.size());
+        const auto chunked_automatic_metrics =
+            primeforge::prp::test_base2_strong_prp_in_batches(
+                *chunked_automatic, values, chunked_observed, 600U);
+        check(chunked_automatic_metrics.used_accelerator &&
+                  chunked_automatic_metrics.kernel_ns > 0U &&
+                  chunked_automatic_metrics.cpu_ns > 0U,
+              "mixed automatic chunks aggregate CUDA work and the final CPU tail");
         std::size_t probable_count = 0U;
         const auto cpu_start = std::chrono::steady_clock::now();
         for (std::size_t index = 0U; index < values.size(); ++index) {
@@ -80,6 +98,8 @@ int main() {
                       std::to_string(index));
             check(automatic_observed[index] == observed[index],
                   "automatic CPU/CUDA routing differs at " + std::to_string(index));
+            check(chunked_observed[index] == observed[index],
+                  "mixed chunk CPU/CUDA routing differs at " + std::to_string(index));
             if (actual) ++probable_count;
         }
         const auto cpu_end = std::chrono::steady_clock::now();

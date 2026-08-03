@@ -13,6 +13,7 @@
 #include "primeforge/cuda/prp_batch.hpp"
 #endif
 
+#include <algorithm>
 #include <charconv>
 #include <chrono>
 #include <csignal>
@@ -27,6 +28,10 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+
+#ifndef PRIMEFORGE_BUILD_COMMIT
+#define PRIMEFORGE_BUILD_COMMIT "UNKNOWN"
+#endif
 
 namespace {
 
@@ -73,6 +78,7 @@ struct SearchArguments {
     std::optional<std::uint64_t> stop_after;
     std::string prp_backend{"auto"};
     std::size_t prp_batch_candidates{8'192U};
+    std::size_t proof_workers{4U};
     std::optional<std::filesystem::path> stop_file;
 };
 
@@ -91,9 +97,10 @@ struct SearchArguments {
     if (argc < 4 || argc % 2 != 0 || std::string_view{argv[2]} != "--config") {
         throw std::invalid_argument("usage: primeforge search --config search.yaml "
                                     "[--stop-after count] [--prp-backend auto|cpu|cuda] "
-                                    "[--prp-batch-candidates count] [--stop-file path]");
+                                    "[--prp-batch-candidates count] [--proof-workers count] "
+                                    "[--stop-file path]");
     }
-    SearchArguments result{argv[3], std::nullopt, "auto", 8'192U, std::nullopt};
+    SearchArguments result{argv[3], std::nullopt, "auto", 8'192U, 4U, std::nullopt};
     for (int index = 4; index < argc; index += 2) {
         const std::string_view option{argv[index]};
         const std::string_view value{argv[index + 1]};
@@ -110,6 +117,12 @@ struct SearchArguments {
                 throw std::invalid_argument("--prp-batch-candidates exceeds the bounded maximum");
             }
             result.prp_batch_candidates = static_cast<std::size_t>(count);
+        } else if (option == "--proof-workers") {
+            const auto count = parse_positive_decimal(value, option);
+            if (count > 64U) {
+                throw std::invalid_argument("--proof-workers exceeds the bounded maximum");
+            }
+            result.proof_workers = static_cast<std::size_t>(count);
         } else if (option == "--stop-file") {
             if (value.empty()) throw std::invalid_argument("--stop-file requires a path");
             result.stop_file = std::filesystem::path{value};
@@ -124,6 +137,7 @@ struct ResumeArguments {
     std::filesystem::path checkpoint_path;
     std::string prp_backend{"auto"};
     std::size_t prp_batch_candidates{8'192U};
+    std::size_t proof_workers{4U};
     std::optional<std::filesystem::path> stop_file;
 };
 
@@ -131,9 +145,9 @@ struct ResumeArguments {
     if (argc < 4 || argc % 2 != 0 || std::string_view{argv[2]} != "--checkpoint") {
         throw std::invalid_argument("usage: primeforge resume --checkpoint <file> "
                                     "[--prp-backend auto|cpu|cuda] [--prp-batch-candidates count] "
-                                    "[--stop-file path]");
+                                    "[--proof-workers count] [--stop-file path]");
     }
-    ResumeArguments result{argv[3], "auto", 8'192U, std::nullopt};
+    ResumeArguments result{argv[3], "auto", 8'192U, 4U, std::nullopt};
     for (int index = 4; index < argc; index += 2) {
         const std::string_view option{argv[index]};
         const std::string_view value{argv[index + 1]};
@@ -149,6 +163,12 @@ struct ResumeArguments {
                 throw std::invalid_argument("--prp-batch-candidates exceeds the bounded maximum");
             }
             result.prp_batch_candidates = static_cast<std::size_t>(count);
+        } else if (option == "--proof-workers") {
+            const auto count = parse_positive_decimal(value, option);
+            if (count > 64U) {
+                throw std::invalid_argument("--proof-workers exceeds the bounded maximum");
+            }
+            result.proof_workers = static_cast<std::size_t>(count);
         } else if (option == "--stop-file") {
             if (value.empty()) throw std::invalid_argument("--stop-file requires a path");
             result.stop_file = std::filesystem::path{value};
@@ -160,19 +180,21 @@ struct ResumeArguments {
 }
 
 [[nodiscard]] std::unique_ptr<primeforge::prp::Base2StrongPrpBatchBackend>
-make_prp_backend(const std::string_view requested) {
-    constexpr std::size_t batch_capacity = 8'192U;
+make_prp_backend(const std::string_view requested, const std::size_t requested_capacity) {
+    constexpr std::size_t accelerator_minimum_values = 512U;
+    const auto backend_capacity = requested == "auto"
+                                      ? std::max(requested_capacity, accelerator_minimum_values)
+                                      : requested_capacity;
     if (requested == "cpu") {
-        return primeforge::prp::make_cpu_base2_strong_prp_batch_backend(batch_capacity);
+        return primeforge::prp::make_cpu_base2_strong_prp_batch_backend(backend_capacity);
     }
 #if defined(PRIMEFORGE_HAS_CUDA_PRP)
     if (requested == "cuda") {
-        return primeforge::cuda_backend::make_cuda_base2_strong_prp_batch_backend(batch_capacity);
+        return primeforge::cuda_backend::make_cuda_base2_strong_prp_batch_backend(backend_capacity);
     }
     if (requested == "auto") {
-        constexpr std::size_t accelerator_minimum_values = 512U;
         return primeforge::cuda_backend::make_auto_cuda_base2_strong_prp_batch_backend(
-            batch_capacity, accelerator_minimum_values);
+            backend_capacity, accelerator_minimum_values);
     }
 #else
     if (requested == "cuda") {
@@ -180,7 +202,7 @@ make_prp_backend(const std::string_view requested) {
             "this primeforge executable was built without the CUDA PRP backend");
     }
 #endif
-    return primeforge::prp::make_cpu_base2_strong_prp_batch_backend(batch_capacity);
+    return primeforge::prp::make_cpu_base2_strong_prp_batch_backend(backend_capacity);
 }
 
 [[nodiscard]] std::filesystem::path named_path_argument(const int argc, char **argv,
@@ -292,12 +314,14 @@ flint_config(const primeforge::mvp::SearchConfig &config) {
 }
 
 void print_search_summary(const primeforge::mvp::SearchSummary &summary) {
-    std::cout << "search.campaign_id=" << summary.plan.campaign_id << '\n'
+    std::cout << "search.commit_sha=" << PRIMEFORGE_BUILD_COMMIT << '\n'
+              << "search.campaign_id=" << summary.plan.campaign_id << '\n'
               << "search.candidates=" << summary.plan.candidate_count << '\n'
               << "search.sieve_threads=" << summary.sieve_threads << '\n'
               << "search.sieve_composites=" << summary.sieve_composite_count << '\n'
               << "search.base2_composites=" << summary.base2_composite_count << '\n'
               << "search.prp_backend=" << summary.prp_backend_id << '\n'
+              << "search.proof_workers=" << summary.native_proof_workers << '\n'
               << "search.prp_tested=" << summary.prp_tested_count << '\n'
               << "search.prp_batches=" << summary.prp_submitted_batches << '\n'
               << "search.external_classifications=" << summary.externally_classified_count << '\n'
@@ -325,13 +349,14 @@ void print_search_summary(const primeforge::mvp::SearchSummary &summary) {
 void run_search(const std::filesystem::path &config_path,
                 const std::optional<std::uint64_t> stop_after,
                 const std::string_view prp_backend_name, const std::size_t prp_batch_candidates,
+                const std::size_t proof_workers,
                 const std::optional<std::filesystem::path>& stop_file) {
     const primeforge::PlatformSha256Provider sha256;
     const auto config = primeforge::mvp::load_search_config(config_path);
     primeforge::engine::ExternalEngineAdapter proof_engine{pari_config(config), sha256};
     primeforge::engine::ExternalEngineAdapter independent_engine{flint_config(config), sha256};
     primeforge::mvp::SearchExecutionOptions options;
-    auto prp_backend = make_prp_backend(prp_backend_name);
+    auto prp_backend = make_prp_backend(prp_backend_name, prp_batch_candidates);
     std::optional<primeforge::mvp::StopRequestFile> external_stop;
     if (stop_file.has_value()) external_stop.emplace(*stop_file);
     options.clean_stop_after_candidates = stop_after;
@@ -341,6 +366,7 @@ void run_search(const std::filesystem::path &config_path,
     };
     options.prp_backend = prp_backend.get();
     options.prp_batch_candidates = prp_batch_candidates;
+    options.native_proof_workers = proof_workers;
     const auto summary =
         primeforge::mvp::execute_search(config, sha256, proof_engine, independent_engine, options);
     print_search_summary(summary);
@@ -348,6 +374,7 @@ void run_search(const std::filesystem::path &config_path,
 
 void run_resume(const std::filesystem::path &checkpoint_path,
                 const std::string_view prp_backend_name, const std::size_t prp_batch_candidates,
+                const std::size_t proof_workers,
                 const std::optional<std::filesystem::path>& stop_file) {
     const auto absolute_checkpoint = std::filesystem::absolute(checkpoint_path);
     const auto config_path = absolute_checkpoint.parent_path() / "search.yaml";
@@ -360,7 +387,7 @@ void run_resume(const std::filesystem::path &checkpoint_path,
     primeforge::engine::ExternalEngineAdapter proof_engine{pari_config(config), sha256};
     primeforge::engine::ExternalEngineAdapter independent_engine{flint_config(config), sha256};
     primeforge::mvp::SearchExecutionOptions options;
-    auto prp_backend = make_prp_backend(prp_backend_name);
+    auto prp_backend = make_prp_backend(prp_backend_name, prp_batch_candidates);
     std::optional<primeforge::mvp::StopRequestFile> external_stop;
     if (stop_file.has_value()) external_stop.emplace(*stop_file);
     options.resume_existing = true;
@@ -370,6 +397,7 @@ void run_resume(const std::filesystem::path &checkpoint_path,
     };
     options.prp_backend = prp_backend.get();
     options.prp_batch_candidates = prp_batch_candidates;
+    options.native_proof_workers = proof_workers;
     const auto summary =
         primeforge::mvp::execute_search(config, sha256, proof_engine, independent_engine, options);
     print_search_summary(summary);
@@ -415,11 +443,13 @@ int main(const int argc, char **argv) {
         } else if (command == "search") {
             const auto arguments = search_arguments(argc, argv);
             run_search(arguments.config_path, arguments.stop_after, arguments.prp_backend,
-                       arguments.prp_batch_candidates, arguments.stop_file);
+                       arguments.prp_batch_candidates, arguments.proof_workers,
+                       arguments.stop_file);
         } else if (command == "resume") {
             const auto arguments = resume_arguments(argc, argv);
             run_resume(arguments.checkpoint_path, arguments.prp_backend,
-                       arguments.prp_batch_candidates, arguments.stop_file);
+                       arguments.prp_batch_candidates, arguments.proof_workers,
+                       arguments.stop_file);
         } else if (command == "verify") {
             run_verify(named_path_argument(argc, argv, "--result",
                                            "usage: primeforge verify --result <results.jsonl>"));

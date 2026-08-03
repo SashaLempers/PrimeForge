@@ -280,14 +280,17 @@ make_backend(const std::string_view backend, const std::size_t capacity) {
 
 [[nodiscard]] std::string json_row(
     const Profile& profile, const std::string_view backend_id,
-    const std::size_t repetition, const std::string_view profile_sha256,
+    const std::size_t batch_size, const std::size_t repetition,
+    const std::string_view profile_sha256,
     const std::string_view dataset_sha256, const std::string_view binary_sha256,
     const std::string_view result_sha256,
     const primeforge::prp::Base2StrongPrpBatchMetrics& metrics) {
     std::ostringstream row;
     row << "{\"backend\":\"" << backend_id << "\",\"batch_size\":"
-        << profile.candidate_count << ",\"binary_sha256\":\"" << binary_sha256
-        << "\",\"bits\":" << profile.bit_width << ",\"checkpoint_ns\":0"
+        << batch_size << ",\"binary_sha256\":\"" << binary_sha256
+        << "\",\"bits\":" << profile.bit_width
+        << ",\"candidate_count\":" << profile.candidate_count
+        << ",\"checkpoint_ns\":0"
         << ",\"commit_sha\":\"" << PRIMEFORGE_BUILD_COMMIT
         << "\",\"compiler\":\"" << compiler_id()
         << "\",\"compiler_flags\":\"C++23_RELEASE_TARGET\""
@@ -315,16 +318,21 @@ int run(const int argc, char** argv) {
     const auto options = parse_options(argc, argv);
     const auto profile = load_profile(options.profile);
     auto candidates = make_candidates(profile);
-    const auto capacity = options.batch_size == 0U
-                              ? candidates.size()
-                              : std::min(options.batch_size, candidates.size());
-    if (capacity != candidates.size()) {
-        throw std::invalid_argument("commit A requires batch-size to cover the complete profile");
-    }
-    auto backend = make_backend(options.backend, capacity);
+    const auto batch_size = options.batch_size == 0U
+                                ? candidates.size()
+                                : std::min(options.batch_size, candidates.size());
+    // Keep the automatic router's measured 512-value boundary even when the
+    // requested chunks are smaller. Giving the router a 32-value capacity and
+    // reducing its boundary to 32 would benchmark forced CUDA, not routing.
+    const auto backend_capacity =
+        options.backend == "auto"
+            ? std::max<std::size_t>(batch_size, 512U)
+            : batch_size;
+    auto backend = make_backend(options.backend, backend_capacity);
     std::vector<primeforge::prp::Base2StrongPrpVerdict> verdicts(candidates.size());
     for (std::size_t warmup = 0U; warmup < options.warmup; ++warmup) {
-        static_cast<void>(backend->test(candidates, verdicts));
+        static_cast<void>(primeforge::prp::test_base2_strong_prp_in_batches(
+            *backend, candidates, verdicts, batch_size));
     }
 
     const primeforge::PlatformSha256Provider sha256;
@@ -336,23 +344,33 @@ int run(const int argc, char** argv) {
     std::ostringstream jsonl;
     std::ostringstream csv;
     csv << "schema,timestamp_utc,commit_sha,binary_sha256,profile_id,profile_sha256,"
-           "dataset_sha256,backend,bits,batch_size,repetition,h2d_ns,kernel_ns,d2h_ns,"
+           "dataset_sha256,backend,bits,batch_size,candidate_count,repetition,h2d_ns,kernel_ns,d2h_ns,"
            "prp_cpu_ns,total_ns,result_sha256,valid_measurement\n";
     std::string expected_result_sha256;
     for (std::size_t repetition = 0U; repetition < options.repetitions; ++repetition) {
-        const auto metrics = backend->test(candidates, verdicts);
+        const auto started = std::chrono::steady_clock::now();
+        auto metrics = primeforge::prp::test_base2_strong_prp_in_batches(
+            *backend, candidates, verdicts, batch_size);
+        const auto complete_nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                              std::chrono::steady_clock::now() - started)
+                                              .count();
+        if (complete_nanoseconds <= 0) {
+            throw std::runtime_error("benchmark wall-clock duration is not positive");
+        }
+        metrics.total_ns = static_cast<std::uint64_t>(complete_nanoseconds);
         const auto result_sha256 = sha256_bytes(std::as_bytes(std::span{verdicts}), sha256);
         if (expected_result_sha256.empty()) expected_result_sha256 = result_sha256;
         if (result_sha256 != expected_result_sha256) {
             throw std::runtime_error("benchmark verdict hash diverged between repetitions");
         }
-        jsonl << json_row(profile, backend->id(), repetition, profile_sha256,
+        jsonl << json_row(profile, backend->id(), batch_size, repetition, profile_sha256,
                           dataset_sha256, binary_sha256, result_sha256, metrics)
               << '\n';
         csv << "primeforge.benchmark.raw.v1," << utc_timestamp() << ','
             << PRIMEFORGE_BUILD_COMMIT << ',' << binary_sha256 << ',' << profile.profile_id
             << ',' << profile_sha256 << ',' << dataset_sha256 << ',' << backend->id() << ','
-            << profile.bit_width << ',' << candidates.size() << ',' << repetition << ','
+            << profile.bit_width << ',' << batch_size << ',' << candidates.size() << ','
+            << repetition << ','
             << metrics.host_to_device_ns << ',' << metrics.kernel_ns << ','
             << metrics.device_to_host_ns << ',' << metrics.cpu_ns << ',' << metrics.total_ns
             << ',' << result_sha256 << ",true\n";
@@ -361,6 +379,10 @@ int run(const int argc, char** argv) {
     write_file(options.output / "raw.csv", csv.str());
     std::cout << "benchmark.profile=" << profile.profile_id << '\n'
               << "benchmark.backend=" << backend->id() << '\n'
+              << "benchmark.batch_size=" << batch_size << '\n'
+              << "benchmark.candidate_count=" << candidates.size() << '\n'
+              << "benchmark.chunks_per_repetition="
+              << (candidates.size() + batch_size - 1U) / batch_size << '\n'
               << "benchmark.repetitions=" << options.repetitions << '\n'
               << "benchmark.result_sha256=" << expected_result_sha256 << '\n'
               << "benchmark.output=" << std::filesystem::absolute(options.output).string() << '\n'

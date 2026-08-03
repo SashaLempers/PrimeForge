@@ -660,6 +660,9 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
             ? prepare_prp_batch(config, sieve_result, current_batch->end, bounded_batch_candidates)
             : nullptr;
     if (next_batch != nullptr) summary.metrics.packing_ns += next_batch->packing_ns;
+    std::string pending_result_lines;
+    pending_result_lines.reserve(
+        static_cast<std::size_t>(config.checkpoint_every_candidates) * 1'024U);
 
     while (current_batch != nullptr) {
         await_prp_batch(*current_batch, summary);
@@ -798,11 +801,7 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
             }
 
             const auto line = canonical_search_record(record, summary.output_directory) + "\n";
-            {
-                const ScopedTrace trace{"result_io"};
-                summary.metrics.io_ns +=
-                    timed_action([&] { append_durably(summary.results_path, line); });
-            }
+            pending_result_lines += line;
             summary.records.push_back(std::move(record));
             const auto next_index = index + 1U;
             const bool requested_stop =
@@ -812,6 +811,13 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
                                         next_index == summary.plan.candidate_count ||
                                         next_index % config.checkpoint_every_candidates == 0U;
             if (checkpoint_due) {
+                {
+                    const ScopedTrace trace{"result_io"};
+                    summary.metrics.io_ns += timed_action([&] {
+                        append_durably(summary.results_path, pending_result_lines);
+                        pending_result_lines.clear();
+                    });
+                }
                 const ScopedTrace trace{"checkpoint"};
                 summary.metrics.checkpoint_ns +=
                     timed_action([&] { save_progress(summary, next_index, sha256); });

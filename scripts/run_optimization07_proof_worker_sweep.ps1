@@ -77,6 +77,28 @@ if ([Math]::Abs((Convert-ToDouble ([double]70.875)) - 70.875) -gt 0.000001 -or
     throw 'Invariant floating-point conversion self-test failed.'
 }
 
+function Convert-ToInvariantCsvLines {
+    param([Parameter(Mandatory = $true)][object[]]$Rows)
+    $normalized = @(
+        foreach ($row in $Rows) {
+            $properties = [ordered]@{}
+            foreach ($property in $row.PSObject.Properties) {
+                $value = $property.Value
+                if ($value -is [double]) {
+                    $value = $value.ToString('R', $invariant)
+                } elseif ($value -is [single]) {
+                    $value = $value.ToString('R', $invariant)
+                } elseif ($value -is [decimal]) {
+                    $value = $value.ToString('G29', $invariant)
+                }
+                $properties[$property.Name] = $value
+            }
+            [pscustomobject]$properties
+        }
+    )
+    return @($normalized | ConvertTo-Csv -NoTypeInformation)
+}
+
 function Get-Median {
     param([Parameter(Mandatory = $true)][double[]]$Values)
     if ($Values.Count -eq 0) { throw 'Cannot compute a median of an empty sample.' }
@@ -510,7 +532,7 @@ try {
             search_yaml_sha256 = [string]$observedHashes['search.yaml']
             status = 'PASS'
         })
-        $rawCsvLines = @($raw | ConvertTo-Csv -NoTypeInformation)
+        $rawCsvLines = @(Convert-ToInvariantCsvLines -Rows @($raw))
         [IO.File]::WriteAllText(
             (Join-Path $outputRoot 'raw.csv'), (($rawCsvLines -join "`n") + "`n"), $utf8NoBom
         )
@@ -518,7 +540,7 @@ try {
         [IO.File]::WriteAllText(
             (Join-Path $outputRoot 'raw.jsonl'), (($rawJsonLines -join "`n") + "`n"), $utf8NoBom
         )
-        $hashCsvLines = @($determinismHashes | ConvertTo-Csv -NoTypeInformation)
+        $hashCsvLines = @(Convert-ToInvariantCsvLines -Rows @($determinismHashes))
         [IO.File]::WriteAllText(
             (Join-Path $outputRoot 'determinism-hashes.csv'),
             (($hashCsvLines -join "`n") + "`n"),
@@ -595,7 +617,11 @@ foreach ($proofWorkers in $workers) {
         retention_gate = if ($retentionGate) { 'PASS' } else { 'FAIL' }
     })
 }
-$summary | Export-Csv -LiteralPath (Join-Path $outputRoot 'summary.csv') -NoTypeInformation
+$summaryCsvLines = @(Convert-ToInvariantCsvLines -Rows @($summary))
+[IO.File]::WriteAllText(
+    (Join-Path $outputRoot 'summary.csv'), (($summaryCsvLines -join "`n") + "`n"),
+    $utf8NoBom
+)
 $eligible = @($summary | Where-Object retention_gate -eq 'PASS' | Sort-Object median_total_ns, workers)
 $decision = if ($eligible.Count -eq 0) {
     [ordered]@{
@@ -685,8 +711,12 @@ $decision = if ($eligible.Count -eq 0) {
         })
         return -not $fastestSignificantlyFaster
     } | Sort-Object workers)
-    $plateauComparisons | Export-Csv `
-        -LiteralPath (Join-Path $outputRoot 'plateau-comparisons.csv') -NoTypeInformation
+    $plateauCsvLines = @(Convert-ToInvariantCsvLines -Rows @($plateauComparisons))
+    [IO.File]::WriteAllText(
+        (Join-Path $outputRoot 'plateau-comparisons.csv'),
+        (($plateauCsvLines -join "`n") + "`n"),
+        $utf8NoBom
+    )
     $selected = $noisePlateau[0]
     [ordered]@{
         schema_version = 1

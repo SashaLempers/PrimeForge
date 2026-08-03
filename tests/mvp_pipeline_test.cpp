@@ -140,9 +140,10 @@ public:
         std::string id,
         const std::set<std::uint64_t>& known_primes,
         const bool proof,
-        const bool disagree = false)
+        const bool disagree = false,
+        const bool mixed_raw_output = false)
         : id_{std::move(id)}, known_primes_{&known_primes},
-          proof_{proof}, disagree_{disagree} {}
+          proof_{proof}, disagree_{disagree}, mixed_raw_output_{mixed_raw_output} {}
 
     [[nodiscard]] std::string_view id() const noexcept override { return id_; }
 
@@ -156,7 +157,7 @@ public:
     }
 
     [[nodiscard]] std::size_t recommended_parallelism() const noexcept override {
-        return proof_ ? 1U : 4U;
+        return 1U;
     }
 
     [[nodiscard]] primeforge::EngineResult run(
@@ -209,6 +210,14 @@ private:
         if (inline_raw_output) {
             result.raw_stdout_bytes = stdout_bytes;
             result.raw_stderr_bytes = std::string{};
+            if (mixed_raw_output_) {
+                const auto directory = request.working_directory / request.job_id;
+                std::filesystem::create_directories(directory);
+                result.raw_stdout_path = directory / "stdout.txt";
+                result.raw_stderr_path = directory / "stderr.txt";
+                write_file(result.raw_stdout_path, stdout_bytes);
+                write_file(result.raw_stderr_path, "");
+            }
         } else {
             const auto directory = request.working_directory / request.job_id;
             std::filesystem::create_directories(directory);
@@ -232,6 +241,7 @@ private:
     const std::set<std::uint64_t>* known_primes_{};
     bool proof_{};
     bool disagree_{};
+    bool mixed_raw_output_{};
     std::size_t run_calls_{};
     std::size_t run_batch_calls_{};
     std::size_t last_batch_size_{};
@@ -339,6 +349,9 @@ int main(const int argc, char** argv) {
                   std::filesystem::is_regular_file(first.coverage_report_path) &&
                   std::filesystem::is_regular_file(first.manifest_path),
               "complete exact campaign output");
+        check(independent.recommended_parallelism() == 1U &&
+                  independent.run_batch_calls() > 0U && independent.run_calls() == 0U,
+              "independent verification uses run_batch even at recommended parallelism one");
         check(first.proven_prime_count == known_primes.size() &&
                   first.composite_count == 160U - known_primes.size(),
               "known classification totals");
@@ -609,19 +622,57 @@ int main(const int argc, char** argv) {
         empty_prefix_options.clean_stop_after_candidates = 0U;
         const auto empty_prefix = primeforge::mvp::execute_search(
             config, sha256, proof, independent, empty_prefix_options);
-        check(!empty_prefix.completed && read_file(empty_prefix.results_path).empty(),
-              "zero-length prefix creates a resumable checkpoint without processing candidates");
+        check(!empty_prefix.completed &&
+                  std::filesystem::is_regular_file(empty_prefix.results_path) &&
+                  read_file(empty_prefix.results_path).empty() &&
+                  !std::filesystem::exists(
+                      std::filesystem::path{empty_prefix.results_path.string() + ".new"}),
+              "zero-length prefix durably creates an empty resumable result ledger");
         const auto checkpoint_before_write_failure = read_file(empty_prefix.checkpoint_path);
         const auto empty_flint_prefix = read_file(empty_prefix.flint_evidence_path);
-        auto legacy_checkpoint = checkpoint_manager.load(empty_prefix.checkpoint_path);
+        primeforge::mvp::SearchExecutionOptions legacy_resume;
+        legacy_resume.resume_existing = true;
+        const auto canonical_checkpoint =
+            checkpoint_manager.load(empty_prefix.checkpoint_path);
+        auto uppercase_checkpoint = canonical_checkpoint;
+        constexpr std::string_view evidence_digest_marker{
+            "flint_evidence_sha256="};
+        const auto evidence_digest_position =
+            uppercase_checkpoint.opaque_payload.find(evidence_digest_marker);
+        check(evidence_digest_position != std::string::npos,
+              "checkpoint fixture contains FLINT evidence digest");
+        const auto evidence_digest_begin =
+            evidence_digest_position + evidence_digest_marker.size();
+        for (std::size_t index = evidence_digest_begin;
+             index < evidence_digest_begin + 64U; ++index) {
+            auto& character = uppercase_checkpoint.opaque_payload[index];
+            if (character >= 'a' && character <= 'f') {
+                character = static_cast<char>(character - 'a' + 'A');
+            }
+        }
+        check(uppercase_checkpoint.opaque_payload != canonical_checkpoint.opaque_payload,
+              "checkpoint fixture produced a noncanonical uppercase SHA-256");
+        checkpoint_manager.save(empty_prefix.checkpoint_path, uppercase_checkpoint);
+        const auto uppercase_checkpoint_bytes = read_file(empty_prefix.checkpoint_path);
+        expect_failure(
+            [&] {
+                static_cast<void>(primeforge::mvp::execute_search(
+                    config, sha256, proof, independent, legacy_resume));
+            },
+            "pipeline rejects uppercase checkpoint SHA-256 text");
+        check(read_file(empty_prefix.checkpoint_path) == uppercase_checkpoint_bytes &&
+                  read_file(empty_prefix.results_path).empty() &&
+                  read_file(empty_prefix.flint_evidence_path) == empty_flint_prefix,
+              "noncanonical SHA-256 rejection performs no campaign mutation");
+        write_file(empty_prefix.checkpoint_path, checkpoint_before_write_failure);
+
+        auto legacy_checkpoint = canonical_checkpoint;
         legacy_checkpoint.opaque_payload =
             "configuration_sha256=" + empty_prefix.plan.configuration_sha256 +
             ";results_bytes=0;results_sha256=" + hash_text("", sha256) +
             ";schema=primeforge.mvp.checkpoint.v1";
         checkpoint_manager.save(empty_prefix.checkpoint_path, legacy_checkpoint);
         const auto legacy_checkpoint_bytes = read_file(empty_prefix.checkpoint_path);
-        primeforge::mvp::SearchExecutionOptions legacy_resume;
-        legacy_resume.resume_existing = true;
         expect_failure(
             [&] {
                 static_cast<void>(primeforge::mvp::execute_search(
@@ -675,6 +726,23 @@ int main(const int argc, char** argv) {
                       recovered_after_write_failure.output_directory),
               "resume after parallel write failure reproduces the complete campaign exactly");
 
+        std::filesystem::remove_all(config.output_directory);
+        config.output_directory = "mvp-pipeline-mixed-evidence-output";
+        KnownEngine mixed_evidence{
+            "known-mixed-independent", known_primes, false, false, true};
+        expect_failure(
+            [&] {
+                static_cast<void>(primeforge::mvp::execute_search(
+                    config, sha256, proof, mixed_evidence));
+            },
+            "independent engine cannot mix inline bytes with raw-output paths");
+        check(std::filesystem::is_regular_file(
+                  config.output_directory / "campaign.checkpoint.json") &&
+                  read_file(config.output_directory / "results.jsonl").empty() &&
+                  read_file(config.output_directory / "external" / "flint" /
+                            "evidence.jsonl").empty() &&
+                  !std::filesystem::exists(config.output_directory / "MANIFEST.sha256"),
+              "mixed raw-output rejection leaves the initial durable prefix intact");
         std::filesystem::remove_all(config.output_directory);
         config.output_directory = "mvp-pipeline-disagreement-output";
         std::filesystem::remove_all(config.output_directory);

@@ -52,9 +52,18 @@ struct FlintEvidencePrefix {
 
 class FlintEvidenceLog {
 public:
-    // Creates and durably commits an empty file when the log does not exist;
-    // an existing log is never truncated or rewritten.
-    FlintEvidenceLog(std::filesystem::path path, const Sha256Provider& sha256_provider);
+    // create_if_missing durably creates a new empty journal but leaves an
+    // existing one untouched. open_existing is side-effect free and requires
+    // a regular file; it is suitable for verification and recovery checks.
+    enum class OpenMode {
+        create_if_missing,
+        open_existing
+    };
+
+    FlintEvidenceLog(
+        std::filesystem::path path,
+        const Sha256Provider& sha256_provider,
+        OpenMode mode = OpenMode::create_if_missing);
 
     [[nodiscard]] const std::filesystem::path& path() const noexcept;
     [[nodiscard]] std::uint64_t size() const;

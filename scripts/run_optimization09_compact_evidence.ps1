@@ -14,7 +14,8 @@ param(
     [ValidateRange(15, 15)][int]$Pairs = 15,
     [ValidateRange(1, 1)][int]$WarmupPairs = 1,
     [ValidateRange(1, 32767)][int]$StopAfterCandidates = 16384,
-    [int]$Seed = 20260805
+    [int]$Seed = 20260805,
+    [switch]$ValidateOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -46,6 +47,97 @@ function Assert-PathInside {
     if (-not $fullPath.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
         throw "$Role must remain inside $fullRoot"
     }
+}
+
+function Assert-NoReparseAncestor {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][string]$Role
+    )
+    Assert-PathInside $Path $Root $Role
+    $fullRoot = [IO.Path]::GetFullPath($Root).TrimEnd('\', '/')
+    $current = [IO.Path]::GetFullPath($Path)
+    while ($true) {
+        if (Test-Path -LiteralPath $current) {
+            $item = Get-Item -LiteralPath $current -Force
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "$Role traverses a reparse point: $current"
+            }
+        }
+        if ($current.Equals($fullRoot, [StringComparison]::OrdinalIgnoreCase)) { break }
+        $parent = [IO.Path]::GetDirectoryName($current)
+        if ([string]::IsNullOrEmpty($parent) -or
+            -not ($parent.Equals($fullRoot, [StringComparison]::OrdinalIgnoreCase) -or
+                  $parent.StartsWith(
+                      $fullRoot + [IO.Path]::DirectorySeparatorChar,
+                      [StringComparison]::OrdinalIgnoreCase))) {
+            throw "$Role escaped its trusted root while checking reparse points."
+        }
+        $current = $parent.TrimEnd('\', '/')
+    }
+}
+
+function Get-SafeCampaignFiles {
+    param(
+        [Parameter(Mandatory = $true)][string]$Campaign,
+        [Parameter(Mandatory = $true)][string]$Tree
+    )
+    Assert-NoReparseAncestor $Campaign $Tree 'Campaign directory'
+    if (-not (Test-Path -LiteralPath $Campaign -PathType Container)) {
+        throw "Campaign directory is absent: $Campaign"
+    }
+    $campaignRoot = [IO.Path]::GetFullPath($Campaign).TrimEnd('\', '/')
+    $pending = [Collections.Generic.Stack[string]]::new()
+    $files = [Collections.Generic.List[IO.FileInfo]]::new()
+    $pending.Push($campaignRoot)
+    while ($pending.Count -ne 0) {
+        $directory = $pending.Pop()
+        foreach ($item in Get-ChildItem -LiteralPath $directory -Force) {
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "Campaign contains a reparse point: $($item.FullName)"
+            }
+            if ($item.PSIsContainer) {
+                $pending.Push($item.FullName)
+            } else {
+                $files.Add([IO.FileInfo]$item)
+            }
+        }
+    }
+    foreach ($required in @(
+        'results.jsonl', 'campaign.checkpoint.json', 'MANIFEST.sha256',
+        'coverage_report.json', 'search.yaml'
+    )) {
+        $path = [IO.Path]::GetFullPath((Join-Path $campaignRoot $required))
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            throw "Required campaign artifact is absent: $required"
+        }
+    }
+    return @($files)
+}
+
+function Remove-ValidatedCampaign {
+    param(
+        [Parameter(Mandatory = $true)][string]$Campaign,
+        [Parameter(Mandatory = $true)][string]$Tree
+    )
+    [void](Get-SafeCampaignFiles $Campaign $Tree)
+    Remove-Item -LiteralPath ([IO.Path]::GetFullPath($Campaign)) -Recurse -Force
+}
+
+function Move-ValidatedCampaign {
+    param(
+        [Parameter(Mandatory = $true)][string]$Campaign,
+        [Parameter(Mandatory = $true)][string]$Tree,
+        [Parameter(Mandatory = $true)][string]$Destination,
+        [Parameter(Mandatory = $true)][string]$DestinationRoot
+    )
+    [void](Get-SafeCampaignFiles $Campaign $Tree)
+    Assert-PathInside $Destination $DestinationRoot 'Campaign archive destination'
+    if (Test-Path -LiteralPath $Destination) {
+        throw "Campaign archive destination already exists: $Destination"
+    }
+    Move-Item -LiteralPath ([IO.Path]::GetFullPath($Campaign)) -Destination $Destination
 }
 
 $baselineTreePath = [IO.Path]::GetFullPath($BaselineTree)
@@ -211,7 +303,7 @@ function Get-KeyValues {
 }
 
 function Get-BytesSha256 {
-    param([Parameter(Mandatory = $true)][byte[]]$Bytes)
+    param([Parameter(Mandatory = $true)][AllowEmptyCollection()][byte[]]$Bytes)
     $sha256 = [Security.Cryptography.SHA256]::Create()
     try {
         return ([BitConverter]::ToString($sha256.ComputeHash($Bytes))).Replace('-', '').ToLowerInvariant()
@@ -265,16 +357,26 @@ function Get-EngineProjection {
         if ([string]$rawLogPath -ne 'external/flint/evidence.jsonl') {
             throw "Unexpected FLINT journal path: $rawLogPath"
         }
+        if ($null -ne (Get-PropertyValue $Evidence 'raw_stdout_path') -or
+            $null -ne (Get-PropertyValue $Evidence 'raw_stderr_path')) {
+            throw 'FLINT journal evidence must not also reference per-result files.'
+        }
         $offsetText = Get-PropertyValue $Evidence 'raw_log_offset'
         $lengthText = Get-PropertyValue $Evidence 'raw_log_length'
         if ($null -eq $offsetText -or $null -eq $lengthText) {
             throw 'FLINT journal reference is incomplete.'
         }
+        foreach ($decimal in @([string]$offsetText, [string]$lengthText)) {
+            if ($decimal -notmatch '^(0|[1-9][0-9]*)$') {
+                throw 'FLINT journal offset or length is not canonical decimal.'
+            }
+        }
         $offset = [uint64]$offsetText
         $length = [uint64]$lengthText
         if ($length -eq 0 -or $offset -ne [uint64]$ExpectedJournalOffset.Value -or
             $offset -gt [uint64]$JournalBytes.Length -or
-            $length -gt [uint64]$JournalBytes.Length - $offset) {
+            $length -gt [uint64]$JournalBytes.Length - $offset -or
+            $length -gt [uint64][int]::MaxValue) {
             throw 'FLINT journal slices are not contiguous and bounded.'
         }
         $slice = [byte[]]::new([int]$length)
@@ -317,6 +419,11 @@ function Get-EngineProjection {
     if ($null -ne $artifactPath) {
         $artifact = Resolve-CampaignArtifact $Campaign ([string]$artifactPath)
         $artifactHash = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash.ToLowerInvariant()
+        $declaredArtifactHash = Get-PropertyValue $Evidence 'artifact_sha256'
+        if ($null -eq $declaredArtifactHash -or
+            $artifactHash -ne [string]$declaredArtifactHash) {
+            throw "Engine proof artifact hash mismatch: $artifact"
+        }
     }
     return [ordered]@{
         artifact_sha256 = $artifactHash
@@ -414,32 +521,49 @@ function Get-SemanticProjection {
 }
 
 function Get-CampaignPhysicalIdentity {
-    param([Parameter(Mandatory = $true)][string]$Campaign)
+    param(
+        [Parameter(Mandatory = $true)][string]$Campaign,
+        [Parameter(Mandatory = $true)][string]$Tree
+    )
+    $files = @(Get-SafeCampaignFiles $Campaign $Tree)
+    $campaignRoot = [IO.Path]::GetFullPath($Campaign).TrimEnd('\', '/')
+    $fileRows = @(
+        foreach ($file in $files) {
+            $relative = $file.FullName.Substring($campaignRoot.Length + 1).Replace('\', '/')
+            $digest = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            [pscustomobject][ordered]@{
+                path = $relative
+                bytes = [uint64]$file.Length
+                sha256 = $digest
+            }
+        }
+    ) | Sort-Object path
     $required = @(
         'results.jsonl', 'campaign.checkpoint.json', 'MANIFEST.sha256',
         'coverage_report.json', 'search.yaml'
     )
     $hashes = [ordered]@{}
     foreach ($relative in $required) {
-        $path = Resolve-CampaignArtifact $Campaign $relative
-        $hashes[$relative] =
-            (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+        $row = @($fileRows | Where-Object path -eq $relative)
+        if ($row.Count -ne 1) { throw "Physical identity is missing $relative" }
+        $hashes[$relative] = $row[0].sha256
     }
-    $journal = Join-Path $Campaign 'external\flint\evidence.jsonl'
-    $hashes['external/flint/evidence.jsonl'] = if (Test-Path -LiteralPath $journal -PathType Leaf) {
-        (Get-FileHash -LiteralPath $journal -Algorithm SHA256).Hash.ToLowerInvariant()
-    } else {
+    $journal = @($fileRows | Where-Object path -eq 'external/flint/evidence.jsonl')
+    $hashes['external/flint/evidence.jsonl'] = if ($journal.Count -eq 1) {
+        $journal[0].sha256
+    } elseif ($journal.Count -eq 0) {
         'ABSENT'
+    } else {
+        throw 'Physical identity found duplicate FLINT journals.'
     }
-    $files = @(Get-ChildItem -LiteralPath $Campaign -Recurse -File)
     $manifestLines = @([IO.File]::ReadAllLines((Join-Path $Campaign 'MANIFEST.sha256')))
     $identity = [ordered]@{
-        file_count = $files.Count
-        total_bytes = [uint64](($files | Measure-Object Length -Sum).Sum)
+        files = $fileRows
+        file_count = $fileRows.Count
+        total_bytes = [uint64](($fileRows | Measure-Object bytes -Sum).Sum)
         manifest_entries = $manifestLines.Count
-        hashes = $hashes
     }
-    $canonical = $identity | ConvertTo-Json -Depth 5 -Compress
+    $canonical = $identity | ConvertTo-Json -Depth 6 -Compress
     return [pscustomobject][ordered]@{
         token_sha256 = Get-BytesSha256 ([Text.Encoding]::UTF8.GetBytes($canonical))
         file_count = $identity.file_count
@@ -499,6 +623,64 @@ function Wait-ForSafeIdle {
     }
 }
 
+function Convert-ToNativeArgument {
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Argument)
+    if ($Argument.Length -ne 0 -and $Argument -notmatch '[\s"]') { return $Argument }
+    $builder = [Text.StringBuilder]::new()
+    [void]$builder.Append('"')
+    $backslashes = 0
+    foreach ($character in $Argument.ToCharArray()) {
+        if ($character -eq '\') {
+            ++$backslashes
+            continue
+        }
+        if ($character -eq '"') {
+            if ($backslashes -ne 0) {
+                [void]$builder.Append((('\' * (2 * $backslashes)) -join ''))
+            }
+            [void]$builder.Append('\"')
+            $backslashes = 0
+            continue
+        }
+        if ($backslashes -ne 0) {
+            [void]$builder.Append((('\' * $backslashes) -join ''))
+            $backslashes = 0
+        }
+        [void]$builder.Append($character)
+    }
+    if ($backslashes -ne 0) {
+        [void]$builder.Append((('\' * (2 * $backslashes)) -join ''))
+    }
+    [void]$builder.Append('"')
+    return $builder.ToString()
+}
+
+function Join-NativeArguments {
+    param([Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$Arguments)
+    return (($Arguments | ForEach-Object { Convert-ToNativeArgument $_ }) -join ' ')
+}
+
+function Assert-FrozenRunInputs {
+    param(
+        [Parameter(Mandatory = $true)][object]$Variant,
+        [Parameter(Mandatory = $true)][string]$RunId
+    )
+    foreach ($input in @(
+        @($Variant.executable, $Variant.executable_sha256, 'variant executable'),
+        @($Variant.profile, $Variant.profile_sha256, 'benchmark profile'),
+        @($watchdogPath, $watchdogSha256, 'watchdog executable'),
+        @($hardwareMonitorPath, $hardwareMonitorSha256, 'hardware monitor executable')
+    )) {
+        if (-not (Test-Path -LiteralPath $input[0] -PathType Leaf)) {
+            throw "$($input[2]) disappeared before or during $RunId"
+        }
+        $observed = (Get-FileHash -LiteralPath $input[0] -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($observed -ne $input[1]) {
+            throw "$($input[2]) changed before or during $RunId"
+        }
+    }
+}
+
 function Invoke-GuardedCommand {
     param(
         [Parameter(Mandatory = $true)][object]$Variant,
@@ -506,6 +688,7 @@ function Invoke-GuardedCommand {
         [Parameter(Mandatory = $true)][string]$RunDirectory,
         [Parameter(Mandatory = $true)][string]$RunId
     )
+    Assert-FrozenRunInputs $Variant $RunId
     New-Item -ItemType Directory -Path $RunDirectory | Out-Null
     $stdout = Join-Path $RunDirectory 'search.stdout.txt'
     $stderr = Join-Path $RunDirectory 'search.stderr.txt'
@@ -530,11 +713,13 @@ function Invoke-GuardedCommand {
     $primaryFailure = $null
     try {
         $timer.Start()
-        $worker = Start-Process -FilePath $Variant.executable -ArgumentList $Arguments `
+        $worker = Start-Process -FilePath $Variant.executable `
+            -ArgumentList (Join-NativeArguments $Arguments) `
             -WorkingDirectory $Variant.tree -RedirectStandardOutput $stdout `
             -RedirectStandardError $stderr -WindowStyle Hidden -PassThru
         $watchdogArguments[1] = [string]$worker.Id
-        $watchdog = Start-Process -FilePath $watchdogPath -ArgumentList $watchdogArguments `
+        $watchdog = Start-Process -FilePath $watchdogPath `
+            -ArgumentList (Join-NativeArguments $watchdogArguments) `
             -WorkingDirectory $candidateTreePath -RedirectStandardOutput $watchdogStdout `
             -RedirectStandardError $watchdogStderr -WindowStyle Hidden -PassThru
         while (-not $worker.WaitForExit(200)) {
@@ -582,6 +767,7 @@ function Invoke-GuardedCommand {
         (Get-Item -LiteralPath $watchdogStderr).Length -ne 0L) {
         throw "Successful guarded run wrote stderr: $RunId"
     }
+    Assert-FrozenRunInputs $Variant $RunId
     $events = @(Get-Content -LiteralPath $telemetryPath | ForEach-Object {
         $_ | ConvertFrom-Json
     })
@@ -596,11 +782,32 @@ function Invoke-GuardedCommand {
     $snapshots = @($events | Where-Object event_type -eq 'telemetry' |
         ForEach-Object { $_.payload.snapshot })
     if ($snapshots.Count -eq 0) { throw "No telemetry captured: $RunId" }
+    foreach ($snapshot in $snapshots) {
+        foreach ($metric in @(
+            'cpu_temperature_celsius', 'cpu_power_watts', 'gpu_temperature_celsius',
+            'gpu_power_watts', 'ram_available_bytes', 'vram_free_mib',
+            'whea_errors_recent'
+        )) {
+            if ($snapshot.$metric.status -ne 'DETECTED') {
+                throw "Telemetry metric became unavailable in ${RunId}: $metric"
+            }
+        }
+    }
     $whea = [double[]]@($snapshots | ForEach-Object {
         Convert-ToDouble $_.whea_errors_recent.value
     })
+    $cpuTemperatureMax = ($snapshots.cpu_temperature_celsius.value |
+        ForEach-Object { Convert-ToDouble $_ } | Measure-Object -Maximum).Maximum
+    $gpuTemperatureMax = ($snapshots.gpu_temperature_celsius.value |
+        ForEach-Object { Convert-ToDouble $_ } | Measure-Object -Maximum).Maximum
+    $ramAvailableMin = ($snapshots.ram_available_bytes.value |
+        ForEach-Object { Convert-ToDouble $_ } | Measure-Object -Minimum).Minimum
+    $vramFreeMin = ($snapshots.vram_free_mib.value |
+        ForEach-Object { Convert-ToDouble $_ } | Measure-Object -Minimum).Minimum
     if (@($snapshots | Where-Object throttling_detected).Count -ne 0 -or
-        ($whea | Measure-Object -Maximum).Maximum -ne 0.0) {
+        ($whea | Measure-Object -Maximum).Maximum -ne 0.0 -or
+        $cpuTemperatureMax -gt 92.0 -or $gpuTemperatureMax -gt 88.0 -or
+        $ramAvailableMin -lt 8589934592.0 -or $vramFreeMin -lt 2048.0) {
         throw "Hardware validity gate failed: $RunId"
     }
     return [pscustomobject][ordered]@{
@@ -608,18 +815,14 @@ function Invoke-GuardedCommand {
         key_values = Get-KeyValues $stdout
         wall_elapsed_ms = [uint64]$timer.ElapsedMilliseconds
         cpu_temperature_preflight_c = Convert-ToDouble $preflight.cpu_temperature_celsius.value
-        cpu_temperature_max_c = ($snapshots.cpu_temperature_celsius.value |
-            ForEach-Object { Convert-ToDouble $_ } | Measure-Object -Maximum).Maximum
+        cpu_temperature_max_c = $cpuTemperatureMax
         cpu_power_max_w = ($snapshots.cpu_power_watts.value |
             ForEach-Object { Convert-ToDouble $_ } | Measure-Object -Maximum).Maximum
-        gpu_temperature_max_c = ($snapshots.gpu_temperature_celsius.value |
-            ForEach-Object { Convert-ToDouble $_ } | Measure-Object -Maximum).Maximum
+        gpu_temperature_max_c = $gpuTemperatureMax
         gpu_power_max_w = ($snapshots.gpu_power_watts.value |
             ForEach-Object { Convert-ToDouble $_ } | Measure-Object -Maximum).Maximum
-        ram_available_min_bytes = [uint64](($snapshots.ram_available_bytes.value |
-            ForEach-Object { Convert-ToDouble $_ } | Measure-Object -Minimum).Minimum)
-        vram_free_min_mib = ($snapshots.vram_free_mib.value |
-            ForEach-Object { Convert-ToDouble $_ } | Measure-Object -Minimum).Minimum
+        ram_available_min_bytes = [uint64]$ramAvailableMin
+        vram_free_min_mib = $vramFreeMin
         whea_max = ($whea | Measure-Object -Maximum).Maximum
     }
 }
@@ -628,14 +831,14 @@ function Invoke-FullVerify {
     param(
         [Parameter(Mandatory = $true)][object]$Variant,
         [Parameter(Mandatory = $true)][string]$Campaign,
-        [Parameter(Mandatory = $true)][string]$Directory
+        [Parameter(Mandatory = $true)][string]$Directory,
+        [Parameter(Mandatory = $true)][string]$RunId
     )
-    $stdout = Join-Path $Directory 'verify.stdout.txt'
-    $stderr = Join-Path $Directory 'verify.stderr.txt'
-    & $Variant.executable verify --result (Join-Path $Campaign 'results.jsonl') `
-        1> $stdout 2> $stderr
-    if ($LASTEXITCODE -ne 0 -or (Get-Item -LiteralPath $stderr).Length -ne 0L -or
-        -not (Select-String -LiteralPath $stdout -SimpleMatch 'verify.status=PASS' -Quiet)) {
+    $verifyDirectory = Join-Path $Directory 'full-verify'
+    $guarded = Invoke-GuardedCommand $Variant @(
+        'verify', '--result', (Join-Path $Campaign 'results.jsonl')
+    ) $verifyDirectory ($RunId + '-full-verify')
+    if ($guarded.key_values['verify.status'] -ne 'PASS') {
         throw "Full campaign verification failed for $($Variant.name)"
     }
 }
@@ -655,9 +858,121 @@ function Shuffle-Items {
     return $copy
 }
 
+function New-O09Schedule {
+    param(
+        [Parameter(Mandatory = $true)][int]$MeasuredPairs,
+        [Parameter(Mandatory = $true)][int]$NumberOfWarmupPairs,
+        [Parameter(Mandatory = $true)][int]$ScheduleSeed
+    )
+    $random = [Random]::new($ScheduleSeed)
+    $schedule = [Collections.Generic.List[object]]::new()
+    $sequence = 0
+    for ($warmup = 1; $warmup -le $NumberOfWarmupPairs; ++$warmup) {
+        $direction = if ($random.Next(2) -eq 0) { @('baseline', 'candidate') } else {
+            @('candidate', 'baseline')
+        }
+        for ($order = 0; $order -lt 2; ++$order) {
+            ++$sequence
+            $schedule.Add([pscustomobject][ordered]@{
+                sequence = $sequence; phase = 'warmup'; pair = $warmup
+                order = $order + 1; variant = $direction[$order]
+            })
+        }
+    }
+    $directions = @()
+    for ($index = 0; $index -lt 8; ++$index) {
+        $directions += ,@('baseline', 'candidate')
+    }
+    for ($index = 0; $index -lt 7; ++$index) {
+        $directions += ,@('candidate', 'baseline')
+    }
+    if ($MeasuredPairs -ne $directions.Count) {
+        throw 'The O09 evidence protocol requires exactly 15 measured pairs.'
+    }
+    $directions = @(Shuffle-Items $directions $random)
+    for ($pair = 1; $pair -le $MeasuredPairs; ++$pair) {
+        for ($order = 0; $order -lt 2; ++$order) {
+            ++$sequence
+            $schedule.Add([pscustomobject][ordered]@{
+                sequence = $sequence; phase = 'measure'; pair = $pair
+                order = $order + 1; variant = $directions[$pair - 1][$order]
+            })
+        }
+    }
+    return @($schedule)
+}
+
+function Assert-O09Schedule {
+    param(
+        [Parameter(Mandatory = $true)][object[]]$Schedule,
+        [Parameter(Mandatory = $true)][int]$MeasuredPairs,
+        [Parameter(Mandatory = $true)][int]$NumberOfWarmupPairs
+    )
+    if ($Schedule.Count -ne 2 * ($MeasuredPairs + $NumberOfWarmupPairs)) {
+        throw 'O09 schedule row count is invalid.'
+    }
+    for ($index = 0; $index -lt $Schedule.Count; ++$index) {
+        if ([int]$Schedule[$index].sequence -ne $index + 1) {
+            throw 'O09 schedule sequence is not contiguous.'
+        }
+    }
+    foreach ($phase in @(
+        @('warmup', $NumberOfWarmupPairs), @('measure', $MeasuredPairs)
+    )) {
+        for ($pair = 1; $pair -le [int]$phase[1]; ++$pair) {
+            $rows = @($Schedule | Where-Object {
+                $_.phase -eq $phase[0] -and [int]$_.pair -eq $pair
+            } | Sort-Object order)
+            if ($rows.Count -ne 2 -or [int]$rows[0].order -ne 1 -or
+                [int]$rows[1].order -ne 2 -or
+                (@($rows.variant | Sort-Object) -join ',') -ne 'baseline,candidate') {
+                throw "O09 schedule pair is malformed: $($phase[0])/$pair"
+            }
+        }
+    }
+    $measure = @($Schedule | Where-Object phase -eq 'measure')
+    $ab = @($measure | Where-Object {
+        [int]$_.order -eq 1 -and $_.variant -eq 'baseline'
+    }).Count
+    $ba = @($measure | Where-Object {
+        [int]$_.order -eq 1 -and $_.variant -eq 'candidate'
+    }).Count
+    if ($ab -ne 8 -or $ba -ne 7) {
+        throw "O09 measured order balance is invalid: AB=$ab;BA=$ba"
+    }
+}
+
 if ([Math]::Abs((Convert-ToDouble '70.875') - 70.875) -gt 0.000001) {
     throw 'Invariant numeric conversion self-test failed.'
 }
+$emptyDigest = Get-BytesSha256 ([byte[]]::new(0))
+if ($emptyDigest -ne 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' -or
+    (Get-Median ([double[]]@(1.0, 5.0, 3.0))) -ne 3.0 -or
+    (Get-Mad ([double[]]@(1.0, 2.0, 3.0))) -ne 1.0 -or
+    (Convert-ToNativeArgument '') -ne '""' -or
+    (Convert-ToNativeArgument 'alpha beta') -ne '"alpha beta"') {
+    throw 'O09 helper self-test failed.'
+}
+$schedule = @(New-O09Schedule $Pairs $WarmupPairs $Seed)
+Assert-O09Schedule $schedule $Pairs $WarmupPairs
+if ($ValidateOnly) {
+    Write-Host 'validation.status=PASS'
+    Write-Host "validation.schedule_rows=$($schedule.Count)"
+    Write-Host 'validation.warmup_pairs=1'
+    Write-Host 'validation.measured_pairs=15'
+    Write-Host 'validation.order_balance=AB:8,BA:7'
+    Write-Host 'validation.external_inputs=NOT_EXECUTED'
+    return
+}
+
+if ($baselineTreePath.Equals($candidateTreePath, [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Baseline and candidate must be separate Git trees.'
+}
+Assert-NoReparseAncestor $baselineExePath $baselineTreePath 'Baseline executable'
+Assert-NoReparseAncestor $candidateExePath $candidateTreePath 'Candidate executable'
+Assert-NoReparseAncestor $watchdogPath $candidateTreePath 'Watchdog executable'
+Assert-NoReparseAncestor $hardwareMonitorPath $candidateTreePath 'Hardware monitor executable'
+Assert-NoReparseAncestor $outputRoot $repositoryRoot 'Optimization-09 output'
 
 $baselineGit = Get-GitTreeIdentity $baselineTreePath
 $candidateGit = Get-GitTreeIdentity $candidateTreePath
@@ -690,7 +1005,8 @@ foreach ($name in @('baseline', 'candidate')) {
             throw "Variant input absent: $path"
         }
     }
-    Assert-PathInside $variant.campaign $variant.tree "$name campaign"
+    Assert-NoReparseAncestor $variant.profile $variant.tree "$name profile"
+    Assert-NoReparseAncestor $variant.campaign $variant.tree "$name campaign"
     if (Test-Path -LiteralPath $variant.campaign) {
         throw "Archive existing fixed campaign before O09: $($variant.campaign)"
     }
@@ -699,6 +1015,16 @@ $baselineProfileHash = (Get-FileHash $variants.baseline.profile -Algorithm SHA25
 $candidateProfileHash = (Get-FileHash $variants.candidate.profile -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($baselineProfileHash -ne $candidateProfileHash) {
     throw 'Baseline and candidate profile bytes differ.'
+}
+$variants.baseline | Add-Member -NotePropertyName profile_sha256 -NotePropertyValue $baselineProfileHash
+$variants.candidate | Add-Member -NotePropertyName profile_sha256 -NotePropertyValue $candidateProfileHash
+$watchdogSha256 = (Get-FileHash $watchdogPath -Algorithm SHA256).Hash.ToLowerInvariant()
+$hardwareMonitorSha256 = (Get-FileHash $hardwareMonitorPath -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($baselineGit.commit -eq $candidateGit.commit) {
+    throw 'Baseline and candidate Git commits are identical.'
+}
+if ($variants.baseline.executable_sha256 -eq $variants.candidate.executable_sha256) {
+    throw 'Baseline and candidate executable bytes are identical.'
 }
 
 New-Item -ItemType Directory -Path $optimizationRoot -Force | Out-Null
@@ -716,34 +1042,6 @@ try {
     if (Test-Path -LiteralPath $outputRoot) { throw "Output appeared: $outputRoot" }
     New-Item -ItemType Directory -Path $outputRoot | Out-Null
 
-    $random = [Random]::new($Seed)
-    $schedule = [Collections.Generic.List[object]]::new()
-    $sequence = 0
-    for ($warmup = 1; $warmup -le $WarmupPairs; ++$warmup) {
-        $direction = if ($random.Next(2) -eq 0) { @('baseline', 'candidate') } else {
-            @('candidate', 'baseline')
-        }
-        for ($order = 0; $order -lt 2; ++$order) {
-            ++$sequence
-            $schedule.Add([pscustomobject][ordered]@{
-                sequence = $sequence; phase = 'warmup'; pair = $warmup
-                order = $order + 1; variant = $direction[$order]
-            })
-        }
-    }
-    $directions = @()
-    for ($index = 0; $index -lt 8; ++$index) { $directions += ,@('baseline', 'candidate') }
-    for ($index = 0; $index -lt 7; ++$index) { $directions += ,@('candidate', 'baseline') }
-    $directions = @(Shuffle-Items $directions $random)
-    for ($pair = 1; $pair -le $Pairs; ++$pair) {
-        for ($order = 0; $order -lt 2; ++$order) {
-            ++$sequence
-            $schedule.Add([pscustomobject][ordered]@{
-                sequence = $sequence; phase = 'measure'; pair = $pair
-                order = $order + 1; variant = $directions[$pair - 1][$order]
-            })
-        }
-    }
     Write-InvariantCsv (Join-Path $outputRoot 'schedule.csv') @($schedule)
 
     $environment = [ordered]@{
@@ -758,8 +1056,8 @@ try {
         campaign_relative_path = $CampaignRelativePath
         baseline = $variants.baseline
         candidate = $variants.candidate
-        watchdog_sha256 = (Get-FileHash $watchdogPath -Algorithm SHA256).Hash.ToLowerInvariant()
-        hardware_monitor_sha256 = (Get-FileHash $hardwareMonitorPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        watchdog_sha256 = $watchdogSha256
+        hardware_monitor_sha256 = $hardwareMonitorSha256
         script_sha256 = (Get-FileHash $PSCommandPath -Algorithm SHA256).Hash.ToLowerInvariant()
         command = 'primeforge search --config <profile> --prp-backend auto --prp-batch-candidates 8192 --proof-workers 4'
         primary_metric = 'metrics.total_ns'
@@ -798,6 +1096,7 @@ try {
         $guarded = Invoke-GuardedCommand $variant $arguments $runDirectory $runId
         $keyValues = $guarded.key_values
         if ($keyValues['search.status'] -ne 'PASS' -or
+            $keyValues['search.commit_sha'] -ne $variant.commit -or
             $keyValues['search.prp_backend'] -ne $expectedPrpBackend -or
             $keyValues['search.proof_workers'] -ne '4' -or
             $keyValues['search.candidates'] -ne '32768' -or
@@ -805,10 +1104,16 @@ try {
             $keyValues['search.composites'] -ne '31262') {
             throw "Search contract failed: $runId"
         }
-        $physical = Get-CampaignPhysicalIdentity $variant.campaign
+        $physical = Get-CampaignPhysicalIdentity $variant.campaign $variant.tree
         $semantic = Get-SemanticProjection $variant.campaign
+        $expectedRepresentation = if ($variant.format -eq 'v2') { 'V2_PATHS' } else {
+            'V3_JOURNAL'
+        }
         if ($semantic.records -ne 32768 -or $semantic.flint_records -ne 1506) {
             throw "Semantic projection coverage failed: $runId"
+        }
+        if ($semantic.representation -ne $expectedRepresentation) {
+            throw "Evidence representation mismatch for $runId"
         }
         if ($null -eq $expectedSemanticHash) {
             $expectedSemanticHash = $semantic.sha256
@@ -818,8 +1123,8 @@ try {
 
         $fullVerify = -not $references.ContainsKey([string]$item.variant)
         if ($fullVerify) {
-            Invoke-FullVerify $variant $variant.campaign $runDirectory
-            $postVerify = Get-CampaignPhysicalIdentity $variant.campaign
+            Invoke-FullVerify $variant $variant.campaign $runDirectory $runId
+            $postVerify = Get-CampaignPhysicalIdentity $variant.campaign $variant.tree
             if ($postVerify.token_sha256 -ne $physical.token_sha256) {
                 throw "Verifier mutated campaign: $runId"
             }
@@ -827,14 +1132,15 @@ try {
                 physical = $physical
                 semantic = $semantic
             }
-            Move-Item -LiteralPath $variant.campaign -Destination (Join-Path $runDirectory 'campaign')
+            Move-ValidatedCampaign $variant.campaign $variant.tree `
+                (Join-Path $runDirectory 'campaign') $outputRoot
             $verifyStatus = 'PASS_FULL_AND_ARCHIVED'
         } else {
             $reference = $references[[string]$item.variant]
             if ($physical.token_sha256 -ne $reference.physical.token_sha256) {
                 throw "Physical determinism failed within $($item.variant): $runId"
             }
-            Remove-Item -LiteralPath $variant.campaign -Recurse -Force
+            Remove-ValidatedCampaign $variant.campaign $variant.tree
             $verifyStatus = 'REFERENCE_PHYSICAL_AND_SEMANTIC_IDENTITY'
         }
 
@@ -911,6 +1217,8 @@ try {
         )
         $stopped = Invoke-GuardedCommand $variant $stopArguments $stopRun ("recovery-$name-stop")
         if ($stopped.key_values['search.status'] -ne 'STOPPED' -or
+            $stopped.key_values['search.commit_sha'] -ne $variant.commit -or
+            $stopped.key_values['search.prp_backend'] -ne $expectedPrpBackend -or
             -not (Test-Path -LiteralPath (Join-Path $variant.campaign 'campaign.checkpoint.json') -PathType Leaf)) {
             throw "Clean stop gate failed for $name"
         }
@@ -921,10 +1229,12 @@ try {
             '--proof-workers', '4', '--stop-file', (Join-Path $resumeRun 'worker.stop')
         )
         $resumed = Invoke-GuardedCommand $variant $resumeArguments $resumeRun ("recovery-$name-resume")
-        if ($resumed.key_values['search.status'] -ne 'PASS') {
+        if ($resumed.key_values['search.status'] -ne 'PASS' -or
+            $resumed.key_values['search.commit_sha'] -ne $variant.commit -or
+            $resumed.key_values['search.prp_backend'] -ne $expectedPrpBackend) {
             throw "Resume did not complete for $name"
         }
-        $physical = Get-CampaignPhysicalIdentity $variant.campaign
+        $physical = Get-CampaignPhysicalIdentity $variant.campaign $variant.tree
         $semantic = Get-SemanticProjection $variant.campaign
         $reference = $references[$name]
         if ($physical.token_sha256 -ne $reference.physical.token_sha256 -or
@@ -932,8 +1242,9 @@ try {
             $semantic.sha256 -ne $expectedSemanticHash) {
             throw "Stop/resume identity failed for $name"
         }
-        Invoke-FullVerify $variant $variant.campaign $resumeRun
-        Move-Item -LiteralPath $variant.campaign -Destination (Join-Path $recoveryRoot 'campaign')
+        Invoke-FullVerify $variant $variant.campaign $resumeRun ("recovery-$name")
+        Move-ValidatedCampaign $variant.campaign $variant.tree `
+            (Join-Path $recoveryRoot 'campaign') $outputRoot
         $recoveryRows.Add([pscustomobject][ordered]@{
             variant = $name; stop_after_candidates = $StopAfterCandidates
             stopped_status = 'PASS'; resumed_status = 'PASS'; verify_status = 'PASS'

@@ -188,6 +188,15 @@ void ensure_log_exists_durably(const std::filesystem::path& path) {
     if (error) {
         throw std::system_error(error, "inspect FLINT evidence log before creation");
     }
+    if (existed) {
+        if (!std::filesystem::is_regular_file(path, error) || error) {
+            if (error) {
+                throw std::system_error(error, "inspect existing FLINT evidence log");
+            }
+            throw std::runtime_error("FLINT evidence path is not a regular file");
+        }
+        return;
+    }
 #if defined(_WIN32)
     std::FILE* file{};
     if (_wfopen_s(&file, path.c_str(), L"ab") != 0 || file == nullptr) {
@@ -207,30 +216,42 @@ void ensure_log_exists_durably(const std::filesystem::path& path) {
     }
     close_file(file, "close FLINT evidence creation");
 #if !defined(_WIN32)
-    if (!existed) {
-        auto parent = path.parent_path();
-        if (parent.empty()) {
-            parent = ".";
-        }
-        const auto directory = ::open(parent.c_str(), O_RDONLY);
-        if (directory < 0) {
-            throw std::system_error(errno, std::generic_category(),
-                                    "open FLINT evidence parent directory");
-        }
-        if (::fsync(directory) != 0) {
-            const auto commit_error = errno;
-            static_cast<void>(::close(directory));
-            throw std::system_error(commit_error, std::generic_category(),
-                                    "commit FLINT evidence parent directory");
-        }
-        if (::close(directory) != 0) {
-            throw std::system_error(errno, std::generic_category(),
-                                    "close FLINT evidence parent directory");
-        }
+    auto parent = path.parent_path();
+    if (parent.empty()) {
+        parent = ".";
     }
-#else
-    static_cast<void>(existed);
+    const auto directory = ::open(parent.c_str(), O_RDONLY);
+    if (directory < 0) {
+        throw std::system_error(errno, std::generic_category(),
+                                "open FLINT evidence parent directory");
+    }
+    if (::fsync(directory) != 0) {
+        const auto commit_error = errno;
+        static_cast<void>(::close(directory));
+        throw std::system_error(commit_error, std::generic_category(),
+                                "commit FLINT evidence parent directory");
+    }
+    if (::close(directory) != 0) {
+        throw std::system_error(errno, std::generic_category(),
+                                "close FLINT evidence parent directory");
+    }
 #endif
+}
+
+void require_existing_log(const std::filesystem::path& path) {
+    std::error_code error;
+    if (!std::filesystem::exists(path, error) || error) {
+        if (error) {
+            throw std::system_error(error, "inspect existing FLINT evidence log");
+        }
+        throw std::runtime_error("FLINT evidence log does not exist");
+    }
+    if (!std::filesystem::is_regular_file(path, error) || error) {
+        if (error) {
+            throw std::system_error(error, "inspect existing FLINT evidence log");
+        }
+        throw std::runtime_error("FLINT evidence path is not a regular file");
+    }
 }
 
 void truncate_and_commit(const std::filesystem::path& path, const std::uint64_t size) {
@@ -309,13 +330,23 @@ FlintEvidenceRecord parse_canonical_flint_evidence_record(
 }
 
 FlintEvidenceLog::FlintEvidenceLog(
-    std::filesystem::path path, const Sha256Provider& sha256_provider)
+    std::filesystem::path path, const Sha256Provider& sha256_provider,
+    const OpenMode mode)
     : path_{std::move(path)}, sha256_provider_{&sha256_provider} {
     if (path_.empty() || path_.filename().empty()) {
         throw std::invalid_argument("FLINT evidence log must name a file");
     }
     const std::scoped_lock lock{journal_io_mutex()};
-    ensure_log_exists_durably(path_);
+    switch (mode) {
+        case OpenMode::create_if_missing:
+            ensure_log_exists_durably(path_);
+            break;
+        case OpenMode::open_existing:
+            require_existing_log(path_);
+            break;
+        default:
+            throw std::invalid_argument("invalid FLINT evidence log open mode");
+    }
     static_cast<void>(file_size_or_zero(path_));
 }
 

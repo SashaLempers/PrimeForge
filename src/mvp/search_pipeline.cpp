@@ -239,10 +239,21 @@ template <typename Callable>
     const EngineRequest &request, const EngineResult &result) {
     const bool has_inline_stdout = result.raw_stdout_bytes.has_value();
     const bool has_inline_stderr = result.raw_stderr_bytes.has_value();
+    const bool has_stdout_path = !result.raw_stdout_path.empty();
+    const bool has_stderr_path = !result.raw_stderr_path.empty();
     if (has_inline_stdout != has_inline_stderr) {
         throw std::runtime_error("independent engine returned incomplete inline raw output");
     }
-    if (has_inline_stdout) {
+    if (has_stdout_path != has_stderr_path) {
+        throw std::runtime_error("independent engine returned incomplete raw-output paths");
+    }
+    const bool has_inline_pair = has_inline_stdout && has_inline_stderr;
+    const bool has_path_pair = has_stdout_path && has_stderr_path;
+    if (has_inline_pair == has_path_pair) {
+        throw std::runtime_error(
+            "independent engine must return exactly one raw-output representation");
+    }
+    if (has_inline_pair) {
         return {request.job_id, request.canonical_input, *result.raw_stdout_bytes,
                 *result.raw_stderr_bytes};
     }
@@ -268,7 +279,8 @@ void append_durably(const std::filesystem::path &path, const std::string_view co
     std::FILE *file = std::fopen(path.c_str(), "ab");
     if (file == nullptr) throw std::runtime_error("cannot append search result");
 #endif
-    const bool written = std::fwrite(content.data(), 1U, content.size(), file) == content.size();
+    const bool written = content.empty() ||
+                         std::fwrite(content.data(), 1U, content.size(), file) == content.size();
     const bool flushed = written && std::fflush(file) == 0;
 #if defined(_WIN32)
     const bool committed = flushed && _commit(_fileno(file)) == 0;
@@ -359,10 +371,17 @@ struct ProgressPayload {
     result.results_sha256 = std::string{
         payload.substr(digest_position + digest_marker.size(),
                        payload.size() - digest_position - digest_marker.size() - suffix.size())};
-    if (!sha256_from_hex(result.configuration_sha256).has_value() ||
-        !sha256_from_hex(result.flint_evidence_sha256).has_value() ||
-        !sha256_from_hex(result.results_sha256).has_value()) {
+    const auto configuration_digest = sha256_from_hex(result.configuration_sha256);
+    const auto evidence_digest = sha256_from_hex(result.flint_evidence_sha256);
+    const auto results_digest = sha256_from_hex(result.results_sha256);
+    if (!configuration_digest.has_value() || !evidence_digest.has_value() ||
+        !results_digest.has_value()) {
         throw std::runtime_error("checkpoint payload contains invalid SHA-256");
+    }
+    if (sha256_to_hex(*configuration_digest) != result.configuration_sha256 ||
+        sha256_to_hex(*evidence_digest) != result.flint_evidence_sha256 ||
+        sha256_to_hex(*results_digest) != result.results_sha256) {
+        throw std::runtime_error("checkpoint payload contains noncanonical SHA-256");
     }
     if (progress_payload(result) != payload) {
         throw std::runtime_error("checkpoint payload is not canonical");
@@ -554,10 +573,9 @@ void await_prp_batch(PreparedPrpBatch &batch, SearchSummary &summary) {
 }
 
 void submit_independent_batch(PreparedPrpBatch &batch, const SearchConfig &config,
-                              EngineAdapter &independent_engine,
-                              const std::filesystem::path &output_directory) {
-    const auto parallelism = independent_engine.recommended_parallelism();
-    if (parallelism <= 1U || batch.survivor_values.empty()) return;
+                               EngineAdapter &independent_engine,
+                               const std::filesystem::path &output_directory) {
+    if (batch.survivor_values.empty()) return;
     batch.independent_results.resize(batch.verdicts.size());
     batch.independent_evidence_slices.resize(batch.verdicts.size());
     batch.independent_started = Clock::now();
@@ -865,7 +883,9 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
         if (!std::filesystem::is_regular_file(summary.flint_evidence_path)) {
             throw std::runtime_error("checkpoint FLINT evidence journal is missing");
         }
-        flint_log = std::make_unique<FlintEvidenceLog>(summary.flint_evidence_path, sha256);
+        flint_log = std::make_unique<FlintEvidenceLog>(
+            summary.flint_evidence_path, sha256,
+            FlintEvidenceLog::OpenMode::open_existing);
         {
             const ScopedTrace trace{"checkpoint"};
             const auto [duration, restored] =
@@ -885,13 +905,10 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
                 write_atomic(summary.output_directory / "search.yaml",
                              render_search_config_yaml(config));
                 std::filesystem::create_directories(summary.flint_evidence_path.parent_path());
-                flint_log =
-                    std::make_unique<FlintEvidenceLog>(summary.flint_evidence_path, sha256);
-                std::ofstream empty_results{summary.results_path,
-                                            std::ios::binary | std::ios::trunc};
-                if (!empty_results) {
-                    throw std::runtime_error("cannot create empty results ledger");
-                }
+                flint_log = std::make_unique<FlintEvidenceLog>(
+                    summary.flint_evidence_path, sha256,
+                    FlintEvidenceLog::OpenMode::create_if_missing);
+                append_durably(summary.results_path, {});
             });
         }
         {

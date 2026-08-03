@@ -108,7 +108,8 @@ void test_canonical_encoding() {
 void test_journal_recovery(const filesystem::path& directory) {
     const primeforge::PortableSha256Provider sha256;
     const auto path = directory / "flint-evidence.jsonl";
-    mvp::FlintEvidenceLog log{path, sha256};
+    mvp::FlintEvidenceLog log{
+        path, sha256, mvp::FlintEvidenceLog::OpenMode::create_if_missing};
     check(filesystem::is_regular_file(path) && log.size() == 0U,
           "constructor durably creates an empty journal");
 
@@ -214,15 +215,74 @@ void test_journal_recovery(const filesystem::path& directory) {
     check_throws(
         [&] {
             static_cast<void>(
-                mvp::FlintEvidenceLog{directory / "missing" / "log.jsonl", sha256});
+                mvp::FlintEvidenceLog{
+                    directory / "missing" / "log.jsonl", sha256,
+                    mvp::FlintEvidenceLog::OpenMode::create_if_missing});
         },
         "constructor does not invent a missing parent directory");
+}
+
+void test_open_modes(const filesystem::path& directory) {
+    const primeforge::PortableSha256Provider sha256;
+    const auto absent = directory / "absent-existing.jsonl";
+    check_throws(
+        [&] {
+            static_cast<void>(mvp::FlintEvidenceLog{
+                absent, sha256, mvp::FlintEvidenceLog::OpenMode::open_existing});
+        },
+        "open_existing rejects a missing journal");
+    check(!filesystem::exists(absent), "open_existing never creates a missing journal");
+
+    check_throws(
+        [&] {
+            static_cast<void>(mvp::FlintEvidenceLog{
+                directory, sha256, mvp::FlintEvidenceLog::OpenMode::open_existing});
+        },
+        "open_existing requires a regular file");
+
+    const auto path = directory / "read-only-existing.jsonl";
+    const mvp::FlintEvidenceRecord record{"read-only", "31", "prime\n", ""};
+    {
+        mvp::FlintEvidenceLog created{
+            path, sha256, mvp::FlintEvidenceLog::OpenMode::create_if_missing};
+        static_cast<void>(created.append(record));
+    }
+    const auto expected = read_file(path);
+    const auto original_permissions = filesystem::status(path).permissions();
+    std::error_code permission_error;
+    filesystem::permissions(
+        path, filesystem::perms::owner_read | filesystem::perms::group_read |
+                  filesystem::perms::others_read,
+        filesystem::perm_options::replace, permission_error);
+    check(!permission_error, "read-only journal fixture permissions applied");
+    try {
+        mvp::FlintEvidenceLog opened{
+            path, sha256, mvp::FlintEvidenceLog::OpenMode::open_existing};
+        check(opened.size() == expected.size() && read_file(path) == expected,
+              "open_existing reads without append access or byte mutation");
+    } catch (...) {
+        std::error_code ignored;
+        filesystem::permissions(
+            path, original_permissions, filesystem::perm_options::replace, ignored);
+        throw;
+    }
+    filesystem::permissions(
+        path, original_permissions, filesystem::perm_options::replace, permission_error);
+    check(!permission_error, "read-only journal fixture permissions restored");
+
+    const auto before_create_mode = read_file(path);
+    mvp::FlintEvidenceLog existing_create_mode{
+        path, sha256, mvp::FlintEvidenceLog::OpenMode::create_if_missing};
+    check(existing_create_mode.size() == before_create_mode.size() &&
+              read_file(path) == before_create_mode,
+          "create_if_missing never rewrites an existing journal");
 }
 
 void test_batch_append(const filesystem::path& directory) {
     const primeforge::PortableSha256Provider sha256;
     const auto path = directory / "flint-evidence-batch.jsonl";
-    mvp::FlintEvidenceLog log{path, sha256};
+    mvp::FlintEvidenceLog log{
+        path, sha256, mvp::FlintEvidenceLog::OpenMode::create_if_missing};
     const std::vector<mvp::FlintEvidenceRecord> records{
         {"batch-0", "23", "prime\n", ""}, binary_record(),
         {"batch-2", "29", "", std::string{"diagnostic\0bytes", 16U}}};
@@ -241,7 +301,8 @@ void test_batch_append(const filesystem::path& directory) {
     check(read_file(path) == expected, "batch is one canonical contiguous append");
     check(log.validate_complete_log(slices).size == expected.size(),
           "batch slices validate as the complete journal");
-    mvp::FlintEvidenceLog reopened{path, sha256};
+    mvp::FlintEvidenceLog reopened{
+        path, sha256, mvp::FlintEvidenceLog::OpenMode::open_existing};
     check(read_file(path) == expected && reopened.validate_complete_log(slices).size == expected.size(),
           "reopening an existing journal never truncates or rewrites it");
     const auto before_empty = read_file(path);
@@ -260,6 +321,7 @@ int main() {
         filesystem::create_directories(directory);
         try {
             test_journal_recovery(directory);
+            test_open_modes(directory);
             test_batch_append(directory);
         } catch (...) {
             std::error_code ignored;

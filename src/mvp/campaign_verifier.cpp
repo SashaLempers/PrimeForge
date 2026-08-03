@@ -255,7 +255,8 @@ VerificationSummary verify_campaign(
         !std::filesystem::is_regular_file(flint_journal_path)) {
         throw std::runtime_error("campaign FLINT evidence journal is missing");
     }
-    FlintEvidenceLog flint_journal{flint_journal_path, sha256};
+    FlintEvidenceLog flint_journal{
+        flint_journal_path, sha256, FlintEvidenceLog::OpenMode::open_existing};
     const auto config = load_search_config(campaign_directory / "search.yaml");
     const auto plan = build_campaign_plan(config, sha256);
     if (std::filesystem::absolute(config.output_directory).lexically_normal() !=

@@ -30,4 +30,4 @@ engines:
     sha256: 518ea54d23832211356c99d1bb58b74a3f0acd354a965543e7bcca9b34030119
   flint:
     path: out/oracles/flint/flint-primality-oracle.exe
-    sha256: 5e62bcac0e324d14914979e4f565eab2080da0e215cfff5c97e3fb48368facd4
+    sha256: bd0150840cc268b9cd88400535d4474c73260114ee221d2131a93586bb4cc804

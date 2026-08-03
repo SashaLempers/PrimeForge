@@ -35,7 +35,7 @@ These ignored local files match the pinned, previously reproduced hashes:
 | Role | Path | SHA-256 | Distribution |
 |---|---|---|---|
 | Rigorous proof/certificate | `out/oracles/pari-gp64-2.17.4.exe` | `518EA54D23832211356C99D1BB58B74A3F0ACD354A965543E7BCCA9B34030119` | not redistributed |
-| Independent primality decision | `out/oracles/flint/flint-primality-oracle.exe` | `5E62BCAC0E324D14914979E4F565EAB2080DA0E215CFFF5C97E3FB48368FACD4` | not redistributed |
+| Independent primality decision | `out/oracles/flint/flint-primality-oracle.exe` | `BD0150840CC268B9CD88400535D4474C73260114EE221D2131A93586BB4CC804` | not redistributed |
 | Additional Proth oracle | `out/oracles/proth20/proth20.exe` | `41BBFE6FBCA8976AF9D00C9FC58926BF51FF460D20B9C739B9EF8870FC752C23` | not required by the MVP path |
 
 The first two tools are necessary for the fully accepted local campaign. Tests and

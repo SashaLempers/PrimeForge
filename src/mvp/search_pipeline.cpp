@@ -22,7 +22,6 @@
 #include <fstream>
 #include <future>
 #include <memory>
-#include <semaphore>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -342,9 +341,9 @@ struct PreparedPrpBatch {
     std::vector<prp::Base2StrongPrpVerdict> verdicts;
     std::uint64_t packing_ns{};
     std::future<prp::Base2StrongPrpBatchMetrics> completion;
-    std::vector<std::future<EngineResult>> independent_completions;
+    std::future<std::vector<EngineResult>> independent_completion;
+    std::vector<std::size_t> independent_survivors;
     std::vector<EngineResult> independent_results;
-    std::unique_ptr<std::counting_semaphore<>> independent_limiter;
     Clock::time_point independent_started{};
     bool independent_submitted{};
     bool independent_completed{};
@@ -399,12 +398,10 @@ void submit_independent_batch(PreparedPrpBatch &batch, const SearchConfig &confi
                               const std::filesystem::path &output_directory) {
     const auto parallelism = independent_engine.recommended_parallelism();
     if (parallelism <= 1U || batch.survivor_values.empty()) return;
-    batch.independent_completions.resize(batch.verdicts.size());
     batch.independent_results.resize(batch.verdicts.size());
-    batch.independent_limiter =
-        std::make_unique<std::counting_semaphore<>>(static_cast<std::ptrdiff_t>(parallelism));
     batch.independent_started = Clock::now();
     batch.independent_submitted = true;
+    std::vector<EngineRequest> requests;
     for (std::size_t survivor = 0U; survivor < batch.verdicts.size(); ++survivor) {
         if (batch.verdicts[survivor] != prp::Base2StrongPrpVerdict::probable_prime) continue;
         const auto index = batch.begin + batch.survivor_offsets[survivor];
@@ -416,29 +413,26 @@ void submit_independent_batch(PreparedPrpBatch &batch, const SearchConfig &confi
             throw std::runtime_error(
                 "configured independent engine does not support the MVP family");
         }
-        auto *const limiter = batch.independent_limiter.get();
-        auto *const engine = &independent_engine;
-        batch.independent_completions[survivor] =
-            std::async(std::launch::async, [limiter, engine, request = std::move(request)]() mutable {
-                limiter->acquire();
-                try {
-                    const ScopedTrace trace{"verification"};
-                    auto result = engine->run(request);
-                    limiter->release();
-                    return result;
-                } catch (...) {
-                    limiter->release();
-                    throw;
-                }
-            });
+        batch.independent_survivors.push_back(survivor);
+        requests.push_back(std::move(request));
     }
+    auto *const engine = &independent_engine;
+    batch.independent_completion = std::async(
+        std::launch::async, [engine, requests = std::move(requests)]() mutable {
+            const ScopedTrace trace{"verification"};
+            return engine->run_batch(requests);
+        });
 }
 
 void await_independent_batch(PreparedPrpBatch &batch, SearchSummary &summary) {
     if (!batch.independent_submitted) return;
-    for (std::size_t index = 0U; index < batch.independent_completions.size(); ++index) {
-        auto &completion = batch.independent_completions[index];
-        if (completion.valid()) batch.independent_results[index] = completion.get();
+    auto results = batch.independent_completion.get();
+    if (results.size() != batch.independent_survivors.size()) {
+        throw std::logic_error("independent batch returned the wrong result count");
+    }
+    for (std::size_t index = 0U; index < results.size(); ++index) {
+        batch.independent_results[batch.independent_survivors[index]] =
+            std::move(results[index]);
     }
     summary.metrics.verification_ns += elapsed_ns(batch.independent_started);
     batch.independent_submitted = false;

@@ -40,7 +40,7 @@ constexpr std::string_view valid_yaml =
     "    sha256: 518ea54d23832211356c99d1bb58b74a3f0acd354a965543e7bcca9b34030119\n"
     "  flint:\n"
     "    path: out/oracles/flint/flint-primality-oracle.exe\n"
-    "    sha256: 5e62bcac0e324d14914979e4f565eab2080da0e215cfff5c97e3fb48368facd4\n";
+    "    sha256: bd0150840cc268b9cd88400535d4474c73260114ee221d2131a93586bb4cc804\n";
 
 void check(const bool condition, const std::string& message) {
     if (!condition) throw std::runtime_error(message);
@@ -86,7 +86,7 @@ int main() {
               "last candidate mapping");
         const auto plan = primeforge::mvp::build_campaign_plan(config, sha256);
         check(plan.configuration_sha256 ==
-                  "b72d1b3f2bfc5bdd3f3ee651d04735b20f0957c415b9afd412d40e3eb24591e0",
+                  "2e3391671b95db8bf78ae5769d62cd92ba4f77803ed9c225fbf3c8674af0372b",
               "known campaign canonical SHA-256");
         const auto rendered = primeforge::mvp::render_search_config_yaml(config);
         const auto rendered_config = primeforge::mvp::parse_search_config(rendered);

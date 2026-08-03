@@ -34,6 +34,13 @@ namespace {
     return {std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
 }
 
+void write_file(const std::filesystem::path& path, const std::string_view content) {
+    std::ofstream output{path, std::ios::binary | std::ios::trunc};
+    if (!output) throw std::runtime_error("cannot write artifact: " + path.string());
+    output.write(content.data(), static_cast<std::streamsize>(content.size()));
+    if (!output) throw std::runtime_error("cannot write artifact: " + path.string());
+}
+
 [[nodiscard]] std::string hash_file(
     const std::filesystem::path& path, const Sha256Provider& sha256) {
     const auto content = read_file(path);
@@ -476,6 +483,108 @@ EngineResult ExternalEngineAdapter::run(const EngineRequest& request) {
         result.proof_artifact_paths.push_back(certificate);
     }
     return result;
+}
+
+std::vector<EngineResult> ExternalEngineAdapter::run_batch(
+    const std::span<const EngineRequest> requests) {
+    if (requests.empty()) return {};
+    if (config_.kind != ExternalEngineKind::flint || requests.size() == 1U) {
+        return EngineAdapter::run_batch(requests);
+    }
+
+    std::string verified_executable_sha256;
+    {
+        const std::scoped_lock lock{installation_mutex_};
+        if (!installation_checked_) {
+            installation_verification_ = verify_installation(config_, *sha256_);
+            installation_checked_ = true;
+        }
+        if (!installation_verification_.valid) {
+            const auto executable_error = std::ranges::any_of(
+                installation_verification_.errors, [](const std::string& error) {
+                    return error.starts_with("EXECUTABLE_") ||
+                           error.starts_with("ARTIFACT_ERROR:");
+                });
+            std::vector<EngineResult> failed;
+            failed.reserve(requests.size());
+            for (std::size_t index = 0U; index < requests.size(); ++index) {
+                failed.push_back(parsed(
+                    PrimalityStatus::untested,
+                    executable_error ? "EXECUTABLE_PREFLIGHT_FAILED"
+                                     : "RUNTIME_FILE_PREFLIGHT_FAILED"));
+            }
+            return failed;
+        }
+        verified_executable_sha256 = installation_verification_.executable_sha256;
+    }
+
+    std::vector<PreparedExternalRun> prepared;
+    std::vector<std::string> arguments;
+    prepared.reserve(requests.size());
+    arguments.reserve(requests.size());
+    for (const auto& request : requests) {
+        prepared.push_back(prepare(request));
+        arguments.push_back(request.canonical_input);
+    }
+    std::vector<EngineResult> results;
+    results.reserve(requests.size());
+    constexpr std::size_t maximum_argument_characters = 24'000U;
+    for (std::size_t begin = 0U; begin < requests.size();) {
+        std::vector<std::string> chunk_arguments;
+        std::size_t argument_characters = 0U;
+        std::size_t end = begin;
+        while (end < requests.size()) {
+            const auto estimated_characters = arguments[end].size() + 3U;
+            if (end != begin &&
+                argument_characters + estimated_characters > maximum_argument_characters) {
+                break;
+            }
+            argument_characters += estimated_characters;
+            chunk_arguments.push_back(arguments[end]);
+            ++end;
+        }
+        const auto process = invoke_process(
+            std::filesystem::absolute(config_.executable), chunk_arguments,
+            prepared[begin].working_directory, config_.timeout, config_.memory_limit_bytes);
+        const auto combined_stdout = read_file(process.raw_stdout_path);
+        const auto combined_stderr = read_file(process.raw_stderr_path);
+
+        std::vector<std::string> lines;
+        std::size_t offset = 0U;
+        while (offset < combined_stdout.size()) {
+            const auto newline = combined_stdout.find('\n', offset);
+            if (newline == std::string::npos) break;
+            lines.push_back(combined_stdout.substr(offset, newline - offset + 1U));
+            offset = newline + 1U;
+        }
+        const auto chunk_size = end - begin;
+        const bool output_shape_valid = offset == combined_stdout.size() &&
+                                        lines.size() == chunk_size;
+        for (std::size_t index = begin; index < end; ++index) {
+            const auto stdout_path = prepared[index].working_directory / "stdout.txt";
+            const auto stderr_path = prepared[index].working_directory / "stderr.txt";
+            const auto line = output_shape_valid ? lines[index - begin] : combined_stdout;
+            write_file(stdout_path, line);
+            write_file(stderr_path, combined_stderr);
+            EngineResult result;
+            if (process.timed_out) {
+                result = parsed(PrimalityStatus::untested, "PROCESS_TIMEOUT");
+            } else if (process.exit_code != 0) {
+                result = parsed(PrimalityStatus::untested, "PROCESS_EXIT_NONZERO");
+            } else if (!output_shape_valid) {
+                result = parsed(PrimalityStatus::untested, "BATCH_OUTPUT_COUNT_MISMATCH");
+            } else {
+                result = parse_external_output(
+                    config_.kind, config_.parser_version, line, combined_stderr);
+            }
+            result.engine_executable_sha256 = verified_executable_sha256;
+            result.raw_stdout_path = stdout_path;
+            result.raw_stderr_path = stderr_path;
+            results.push_back(std::move(result));
+        }
+        begin = end;
+    }
+    return results;
 }
 
 std::size_t ExternalEngineAdapter::recommended_parallelism() const noexcept {

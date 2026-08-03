@@ -37,9 +37,13 @@ int main(int argc, char** argv) {
         std::cout << "FLINT " << flint_version << '\n';
         return 0;
     }
-    if (argc != 2) {
-        std::cerr << "usage: flint-primality-oracle <unsigned-decimal-integer>\n";
+    if (argc < 2) {
+        std::cerr << "usage: flint-primality-oracle <unsigned-decimal-integer>...\n";
         return 2;
     }
-    return classify(argv[1]);
+    for (int index = 1; index < argc; ++index) {
+        const auto status = classify(argv[index]);
+        if (status != 0) return status;
+    }
+    return 0;
 }

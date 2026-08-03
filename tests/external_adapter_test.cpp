@@ -3,6 +3,7 @@
 #include "primeforge/core/sha256.hpp"
 #include "primeforge/engine/external_adapter.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -156,6 +157,25 @@ int main(const int argc, char** argv) {
                   installation_hash_bytes != 0U && counting_sha256.bytes() == installation_hash_bytes,
               "unchanged installation is hashed exactly once per adapter instance");
 
+        auto flint_batch_config = config;
+        flint_batch_config.kind = engine::ExternalEngineKind::flint;
+        flint_batch_config.stable_id = "primeforge.fixture.flint-batch.v1";
+        engine::ExternalEngineAdapter flint_batch{flint_batch_config, sha256};
+        const std::array batch_requests{
+            primeforge::EngineRequest{"batch-0", "fixture", "PROVEN_PRIME", work_root},
+            primeforge::EngineRequest{"batch-1", "fixture", "COMPOSITE", work_root},
+            primeforge::EngineRequest{"batch-2", "fixture", "PROVEN_PRIME", work_root}};
+        const auto batch_results = flint_batch.run_batch(batch_requests);
+        check(batch_results.size() == batch_requests.size() &&
+                  batch_results[0].status.primality == primeforge::PrimalityStatus::proven_prime &&
+                  batch_results[1].status.primality == primeforge::PrimalityStatus::composite &&
+                  batch_results[2].status.primality == primeforge::PrimalityStatus::proven_prime,
+              "FLINT batch output retains request ordering and exact classifications");
+        check(flint_batch.recommended_parallelism() == 8U &&
+                  std::filesystem::is_regular_file(batch_results[0].raw_stdout_path) &&
+                  std::filesystem::is_regular_file(batch_results[1].raw_stdout_path),
+              "FLINT batch retains deterministic per-request raw evidence");
+
         auto timeout_config = config;
         timeout_config.stable_id = "primeforge.fixture.timeout.v1";
         timeout_config.timeout = std::chrono::milliseconds{20};
@@ -200,6 +220,7 @@ int main(const int argc, char** argv) {
                   << "memory_limit_configured=YES\n"
                   << "raw_outputs_retained=YES\n"
                   << "installation_hash_cache=YES\n"
+                  << "flint_batch_ordering=YES\n"
                   << "PrimeForge external adapter tests: PASS\n";
         return 0;
     } catch (const std::exception& error) {

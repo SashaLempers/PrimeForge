@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <string>
 #include <string_view>
+#include <span>
 #include <vector>
 
 namespace primeforge {
@@ -43,6 +44,13 @@ public:
     [[nodiscard]] virtual EngineCapabilities capabilities() const = 0;
     [[nodiscard]] virtual bool supports(const EngineRequest& request) const noexcept = 0;
     [[nodiscard]] virtual EngineResult run(const EngineRequest& request) = 0;
+    [[nodiscard]] virtual std::vector<EngineResult> run_batch(
+        const std::span<const EngineRequest> requests) {
+        std::vector<EngineResult> results;
+        results.reserve(requests.size());
+        for (const auto& request : requests) results.push_back(run(request));
+        return results;
+    }
     [[nodiscard]] virtual std::size_t recommended_parallelism() const noexcept { return 1U; }
 };
 

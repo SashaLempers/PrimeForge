@@ -90,6 +90,8 @@ public:
     [[nodiscard]] EngineCapabilities capabilities() const override;
     [[nodiscard]] bool supports(const EngineRequest& request) const noexcept override;
     [[nodiscard]] EngineResult run(const EngineRequest& request) override;
+    [[nodiscard]] std::vector<EngineResult> run_batch(
+        std::span<const EngineRequest> requests) override;
     [[nodiscard]] std::size_t recommended_parallelism() const noexcept override;
 
     [[nodiscard]] bool supports(

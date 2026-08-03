@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="660" viewBox="0 0 1120 660">
+  <rect width="1120" height="660" fill="#ffffff"/>
+  <style>
+    text { font-family: "Segoe UI", Arial, sans-serif; fill: #17202a; }
+    .grid { stroke: #dfe6e9; stroke-width: 1; }
+    .axis { stroke: #2d3436; stroke-width: 1.5; }
+    .tick { font-size: 13px; }
+    .legend { font-size: 15px; font-weight: 600; }
+  </style>
+  <text x="70" y="38" font-size="24" font-weight="700">OPTIMIZATION-07 — PRP batch routing crossover</text>
+  <text x="70" y="64" font-size="14" fill="#636e72">65,536 candidates · median of 7 randomized paired repetitions · logarithmic time axis</text>
+  <line x1="110" y1="110" x2="1010" y2="110" class="grid"/><text x="55" y="115" class="tick">250 ms</text>
+  <line x1="110" y1="174.9" x2="1010" y2="174.9" class="grid"/><text x="55" y="180" class="tick">100 ms</text>
+  <line x1="110" y1="223.9" x2="1010" y2="223.9" class="grid"/><text x="62" y="229" class="tick">50 ms</text>
+  <line x1="110" y1="288.8" x2="1010" y2="288.8" class="grid"/><text x="62" y="294" class="tick">20 ms</text>
+  <line x1="110" y1="337.9" x2="1010" y2="337.9" class="grid"/><text x="62" y="343" class="tick">10 ms</text>
+  <line x1="110" y1="387" x2="1010" y2="387" class="grid"/><text x="69" y="392" class="tick">5 ms</text>
+  <line x1="110" y1="451.8" x2="1010" y2="451.8" class="grid"/><text x="69" y="457" class="tick">2 ms</text>
+  <line x1="110" y1="500.9" x2="1010" y2="500.9" class="grid"/><text x="69" y="506" class="tick">1 ms</text>
+  <line x1="110" y1="550" x2="1010" y2="550" class="grid"/><text x="62" y="555" class="tick">0.5 ms</text>
+  <line x1="110" y1="110" x2="110" y2="550" class="axis"/><line x1="110" y1="550" x2="1010" y2="550" class="axis"/>
+  <g class="tick" text-anchor="middle">
+    <text x="110" y="576">32</text><text x="210" y="576">64</text><text x="310" y="576">128</text>
+    <text x="410" y="576">256</text><text x="510" y="576">512</text><text x="610" y="576">1,024</text>
+    <text x="710" y="576">2,048</text><text x="810" y="576">4,096</text><text x="910" y="576">8,192</text>
+    <text x="1010" y="576">16,384</text>
+  </g>
+  <text x="560" y="610" text-anchor="middle" font-size="15">Candidates per PRP sub-batch</text>
+  <polyline points="110,326.5 210,326.8 310,327.3 410,325.2 510,278.9 610,305.4 710,320.3 810,327.8 910,331.2 1010,379.0" fill="none" stroke="#e17055" stroke-width="3"/>
+  <polyline points="110,110.1 210,164.0 310,208.1 410,256.7 510,305.1 610,357.1 710,405.8 810,455.6 910,506.0 1010,542.1" fill="none" stroke="#0984e3" stroke-width="3"/>
+  <polyline points="110,326.5 210,326.9 310,327.2 410,326.8 510,308.9 610,354.5 710,402.5 810,451.4 910,486.5 1010,541.7" fill="none" stroke="#00b894" stroke-width="3" stroke-dasharray="7 5"/>
+  <g fill="#e17055"><circle cx="110" cy="326.5" r="4"/><circle cx="210" cy="326.8" r="4"/><circle cx="310" cy="327.3" r="4"/><circle cx="410" cy="325.2" r="4"/><circle cx="510" cy="278.9" r="4"/><circle cx="610" cy="305.4" r="4"/><circle cx="710" cy="320.3" r="4"/><circle cx="810" cy="327.8" r="4"/><circle cx="910" cy="331.2" r="4"/><circle cx="1010" cy="379" r="4"/></g>
+  <g fill="#0984e3"><circle cx="110" cy="110.1" r="4"/><circle cx="210" cy="164" r="4"/><circle cx="310" cy="208.1" r="4"/><circle cx="410" cy="256.7" r="4"/><circle cx="510" cy="305.1" r="4"/><circle cx="610" cy="357.1" r="4"/><circle cx="710" cy="405.8" r="4"/><circle cx="810" cy="455.6" r="4"/><circle cx="910" cy="506" r="4"/><circle cx="1010" cy="542.1" r="4"/></g>
+  <line x1="510" y1="95" x2="510" y2="550" stroke="#6c5ce7" stroke-width="2" stroke-dasharray="4 4"/>
+  <text x="520" y="98" font-size="14" fill="#6c5ce7">retained crossover: 512</text>
+  <g transform="translate(785 78)">
+    <line x1="0" y1="0" x2="32" y2="0" stroke="#e17055" stroke-width="3"/><text x="42" y="5" class="legend">CPU</text>
+    <line x1="100" y1="0" x2="132" y2="0" stroke="#0984e3" stroke-width="3"/><text x="142" y="5" class="legend">CUDA</text>
+    <line x1="220" y1="0" x2="252" y2="0" stroke="#00b894" stroke-width="3" stroke-dasharray="7 5"/><text x="262" y="5" class="legend">auto</text>
+  </g>
+  <text x="110" y="642" font-size="12" fill="#636e72">Source: batch/summary.csv. CPU and CUDA cross between 256 and 512 candidates; automatic routing passed the regret gate.</text>
+</svg>

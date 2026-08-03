@@ -1,0 +1,2 @@
+Time (%),Total Time (ns),Instances,Avg (ns),Med (ns),Min (ns),Max (ns),StdDev (ns),Name
+100.0,29665,4,7416.3,7328.5,7264,7744,222.2,"primeforge::cuda_backend::<unnamed>::base2_strong_prp_kernel(const unsigned long long *, primeforge::prp::Base2StrongPrpVerdict *, unsigned long long)"

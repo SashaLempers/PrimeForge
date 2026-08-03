@@ -18,3 +18,8 @@ is retained under `baselines/`.
 The commit-A baseline compares three u64 PRP routes and three complete-pipeline
 routes in randomized order. It never compares a PRP result with a proof result,
 and it makes no performance claim from fewer than seven retained repetitions.
+
+`baselines/optimization-07/` is the first retained evidence set that combines
+the corrected steady-state PRP routing sweep, an end-to-end paired proof-worker
+sweep, before/after Nsight Systems profiles and an explicitly rejected protocol.
+Its local `README.md` records commit provenance and verification depth.

@@ -1,0 +1,11 @@
+stage,median_ns,mad_ns,notes
+independent_flint_verification,1884215900,54658600,overlaps_native_proof
+native_proth_proof,1546061000,46868600,overlaps_independent_verification
+result_io,401113800,6136300,
+checkpoint,139004100,2383400,
+sieve,86463300,791200,
+congruence_compile,47771500,569400,
+candidate_pack,7702800,179600,
+cuda_h2d,267744,10240,
+cuda_kernel,145856,19296,
+cuda_d2h,220288,13792,

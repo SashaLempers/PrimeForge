@@ -516,3 +516,30 @@ Each future entry must include:
 - **Failure criterion:** an optimization may not weaken or intermittently fail the ordered durable ledger.
 - **Conclusion:** the overlap-with-write variant is rejected. The retained candidate executes the same bounded parallel verification wave but joins every process before proof/result serialization begins, preventing inherited-handle/process-launch races with the ledger.
 - **Retry condition:** do not overlap Windows external-process creation with a durable append unless process handle inheritance is restricted explicitly and the complete recovery gate proves the change.
+
+## NR-0056 - Cold CUDA initialization invalidated the first auto-routing sweep
+
+- **Date:** 2026-08-03
+- **Change tested:** first OPTIMIZATION-07 CPU/CUDA/auto batch sweep at commit `d06baaf`.
+- **Evidence:** every timed sample used a fresh process and did not execute an untimed backend call first. At batch 16,384, auto reported 62.343 ms instead of the corrected 0.5623 ms, an inflation of 110.871x, while the schedule and result hash remained identical.
+- **Failure criterion:** a steady-state routing comparison may not charge one backend's lazy context initialization to the routing decision while excluding equivalent setup from the direct alternatives.
+- **Conclusion:** the entire first timing sweep is rejected. The protocol now executes one untimed selected-backend call per process before the randomized measured blocks; the corrected 210/210 measurements support threshold 512.
+- **Retry condition:** retain the per-process warmup contract and fail the benchmark if the warmup result differs from the measured result hash.
+
+## NR-0057 - Windows PowerShell did not expose redirected process ExitCode reliably
+
+- **Date:** 2026-08-03
+- **Change tested:** first proof-worker sweep harness using `Start-Process -PassThru` with redirected stdout and stderr.
+- **Evidence:** successful workers produced complete outputs but PowerShell 5.1 returned a null `ExitCode` after the redirected process completed.
+- **Failure criterion:** a benchmark harness must fail closed and must not infer successful completion from output files alone.
+- **Conclusion:** the harness now validates the watchdog's exact `worker_exited exit_code=0` event, absence of stop/forced events, empty stderr and the terminal `WORKER_EXITED` marker; a native nonzero exit code remains an additional failure when available.
+- **Retry condition:** keep the process-contract fixtures and reject any run missing one of these independent completion signals.
+
+## NR-0058 - Locale-dependent decimal formatting made the first proof CSV noncanonical
+
+- **Date:** 2026-08-03
+- **Change tested:** proof-worker evidence serialization under French Windows locale.
+- **Evidence:** PowerShell formatted floating-point telemetry and confidence intervals with decimal commas in the first CSV files, while invariant JSONL retained the correct numeric values.
+- **Failure criterion:** benchmark evidence must have stable numeric bytes across Windows locales and remain unambiguous to standard CSV readers.
+- **Conclusion:** JSONL remains authoritative. The CSV writer now formats `double`, `single` and `decimal` values with invariant culture; the final OPTIMIZATION-07 CSV files were regenerated from the authoritative JSONL and verified to contain decimal points.
+- **Retry condition:** retain the invariant-conversion self-test and reject a generated evidence CSV containing locale-formatted numeric fields.

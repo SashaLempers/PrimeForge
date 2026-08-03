@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="650" viewBox="0 0 1000 650">
+  <rect width="1000" height="650" fill="#ffffff"/>
+  <style>text{font-family:"Segoe UI",Arial,sans-serif;fill:#17202a}.grid{stroke:#dfe6e9}.tick{font-size:13px}</style>
+  <text x="60" y="38" font-size="24" font-weight="700">OPTIMIZATION-07 — end-to-end time by proof-worker count</text>
+  <text x="60" y="64" font-size="14" fill="#636e72">32,768 candidates · median ± MAD · 15 paired randomized repetitions per variant</text>
+  <g class="grid"><line x1="100" y1="560" x2="930" y2="560"/><line x1="100" y1="455" x2="930" y2="455"/><line x1="100" y1="350" x2="930" y2="350"/><line x1="100" y1="245" x2="930" y2="245"/><line x1="100" y1="140" x2="930" y2="140"/></g>
+  <g class="tick" text-anchor="end"><text x="88" y="565">0 s</text><text x="88" y="460">1 s</text><text x="88" y="355">2 s</text><text x="88" y="250">3 s</text><text x="88" y="145">4 s</text></g>
+  <line x1="100" y1="140" x2="100" y2="560" stroke="#2d3436" stroke-width="1.5"/><line x1="100" y1="560" x2="930" y2="560" stroke="#2d3436" stroke-width="1.5"/>
+  <rect x="150" y="190.7" width="110" height="369.3" fill="#74b9ff"/><rect x="310" y="237.2" width="110" height="322.8" fill="#74b9ff"/>
+  <rect x="470" y="248.0" width="110" height="312.0" fill="#00b894" stroke="#00695c" stroke-width="3"/><rect x="630" y="249.2" width="110" height="310.8" fill="#74b9ff"/><rect x="790" y="252.1" width="110" height="307.9" fill="#74b9ff"/>
+  <g stroke="#2d3436" stroke-width="2"><line x1="205" y1="182.0" x2="205" y2="199.4"/><line x1="190" y1="182.0" x2="220" y2="182.0"/><line x1="190" y1="199.4" x2="220" y2="199.4"/><line x1="365" y1="233.0" x2="365" y2="241.4"/><line x1="350" y1="233.0" x2="380" y2="233.0"/><line x1="350" y1="241.4" x2="380" y2="241.4"/><line x1="525" y1="242.9" x2="525" y2="253.1"/><line x1="510" y1="242.9" x2="540" y2="242.9"/><line x1="510" y1="253.1" x2="540" y2="253.1"/><line x1="685" y1="244.5" x2="685" y2="253.9"/><line x1="670" y1="244.5" x2="700" y2="244.5"/><line x1="670" y1="253.9" x2="700" y2="253.9"/><line x1="845" y1="249.7" x2="845" y2="254.5"/><line x1="830" y1="249.7" x2="860" y2="249.7"/><line x1="830" y1="254.5" x2="860" y2="254.5"/></g>
+  <g text-anchor="middle"><text x="205" y="590" font-size="16">1</text><text x="365" y="590" font-size="16">2</text><text x="525" y="590" font-size="16" font-weight="700">4 retained</text><text x="685" y="590" font-size="16">8</text><text x="845" y="590" font-size="16">16</text></g>
+  <g text-anchor="middle" font-size="13"><text x="205" y="181">3.517 s</text><text x="365" y="228">3.074 s</text><text x="525" y="238" font-weight="700">2.972 s</text><text x="685" y="239">2.960 s</text><text x="845" y="244">2.932 s</text></g>
+  <text x="515" y="620" text-anchor="middle" font-size="15">Native Proth proof workers</text>
+  <text x="100" y="640" font-size="12" fill="#636e72">4 workers save 545.451 ms (15.508%) vs 1; 4/8/16 form the corrected Bonferroni noise plateau.</text>
+</svg>

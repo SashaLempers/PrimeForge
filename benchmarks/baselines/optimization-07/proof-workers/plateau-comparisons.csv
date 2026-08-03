@@ -1,0 +1,5 @@
+candidate_workers,fastest_workers,fastest_paired_wins,fastest_median_gain_percent,bootstrap_family_tail_probability,fastest_bootstrap_low_percent,fastest_bootstrap_high_percent,fastest_significantly_faster
+16,16,15,0,0.0025,0,0,NO_SAME_VARIANT
+8,16,12,1.36843029504328,0.0025,-0.441175122738538,4.63047672281865,NO
+4,16,7,-0.0495325470409858,0.0025,-1.37714027757009,4.3738866971836,NO
+2,16,14,5.12984106309945,0.0025,2.76814924772527,7.41778224171629,YES

@@ -462,3 +462,12 @@ Each future entry must include:
 - **Failure criterion:** an elapsed-time or energy claim additionally requires reproducible held-out end-to-end measurements and validated CPU stability telemetry.
 - **Conclusion:** the operation reduction is retained as an algorithmic optimization; wall-time, energy and fastest claims remain `INCONCLUSIVE`/`NONE` because CPU temperature and package power are `UNKNOWN`.
 - **Retry condition:** instrument a representative large-number proof workload, obtain validated CPU telemetry, preregister held-out repetitions and compare complete-pipeline results.
+
+## NR-0050 - Official LibreHardwareMonitor probe returned invalid CPU sensor zeros
+
+- **Date:** 2026-08-03
+- **Change tested:** quarantined LibreHardwareMonitor v0.9.6 library probe against the Ryzen 9 9950X3D, using official archive SHA-256 `086D9F1B5A99E643EDC2CFAAAC16051685B551E4C5AC0B32A57C58C0E529C001`.
+- **Evidence:** the library enumerated `Core (Tctl/Tdie)` and package-power sensors but returned `0` for value/minimum/maximum. Existing WMI, ACPI and running-monitor probes also returned no validated CPU sensor.
+- **Failure criterion:** zero or absent readings cannot be treated as real temperature/power, and a prolonged campaign requires enforceable CPU thermal stop thresholds.
+- **Conclusion:** CPU temperature and package power remain `UNKNOWN`; LibreHardwareMonitor is not integrated. No privileged driver, BIOS setting, voltage, power limit or fan control was changed.
+- **Retry condition:** the owner may explicitly authorize a separately reviewed privileged sensor provider/driver, or provide an already running trustworthy sensor source with a stable documented API.

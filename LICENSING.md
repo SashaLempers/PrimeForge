@@ -67,3 +67,14 @@ from release packaging. The ordinary
 binary, toolkit header, library or NVIDIA license material. This is a conservative
 component decision and does not infer any license conclusion from a process or
 link boundary.
+
+## Prolonged-campaign CPU sensor probe
+
+LibreHardwareMonitor v0.9.6 was downloaded only from its official GitHub release
+and evaluated under ignored `out/` storage as a local sensor probe. Its archive,
+MPL-2.0 license and upstream third-party notices are hash-pinned as `TOOL-0009`.
+It is not linked, copied into PrimeForge, redistributed, or covered by
+PrimeForge's Apache-2.0 grant. The unprivileged probe returned invalid zero CPU
+temperature/power values, so it is not an accepted telemetry provider. Installing
+or enabling a privileged hardware-access driver remains a separate system action
+requiring explicit owner authorization and a new component-specific review.

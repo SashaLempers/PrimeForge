@@ -86,7 +86,7 @@ int main() {
               "last candidate mapping");
         const auto plan = primeforge::mvp::build_campaign_plan(config, sha256);
         check(plan.configuration_sha256 ==
-                  "32964b70c8c51c230b5fdfe776edf5c0531a8963d002ca63b209c86b1b015c41",
+                  "b72d1b3f2bfc5bdd3f3ee651d04735b20f0957c415b9afd412d40e3eb24591e0",
               "known campaign canonical SHA-256");
         const auto rendered = primeforge::mvp::render_search_config_yaml(config);
         const auto rendered_config = primeforge::mvp::parse_search_config(rendered);

@@ -623,3 +623,20 @@ not a ranking: the shared domain is tiny, one fresh process per candidate includ
 startup, and CPU temperature and package power are unavailable. Every row is
 therefore `performance_valid=NO` and `performance_claim=NONE`. Optimization must
 now target a measured complete-pipeline bottleneck after native proof integration.
+
+## D-0077 - Native Proth proof is the primary bounded campaign path
+
+**Status:** Accepted - 2026-08-03
+
+For a positive base-2 PRP in the bounded `uint64_t` Proth family, the campaign
+first runs PrimeForge's exact native witness search. A successful congruence is
+stored as canonical `primeforge.proth.certificate.u64.v1`, parsed and replayed
+from disk, then checked by the separately pinned FLINT process. Exhausting the
+native witness limit remains `UNTESTED`; PARI/GP is retained only as the rigorous
+fallback before the same independent FLINT boundary. No PRP is promoted by the
+fallback decision to use it.
+
+The canonical campaign identity now includes `primeforge.mvp.pipeline.v2` and
+the exact proof-policy identifier. This prevents a checkpoint from silently
+mixing records produced by the former PARI-primary path with records from the
+native-primary path.

@@ -5,6 +5,7 @@
 #include "primeforge/mvp/campaign_verifier.hpp"
 #include "primeforge/mvp/search_config.hpp"
 #include "primeforge/mvp/search_pipeline.hpp"
+#include "primeforge/proth/proth.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -225,6 +226,7 @@ int main(const int argc, char** argv) {
               "known classification totals");
         check(first.externally_classified_count >= known_primes.size(),
               "every known prime reaches both external contracts");
+        std::uint64_t native_certificates = 0U;
         for (const auto& record : first.records) {
             const bool expected_prime =
                 known_primes.contains(record.candidate.value);
@@ -234,9 +236,21 @@ int main(const int argc, char** argv) {
                 check(record.status.primality == primeforge::PrimalityStatus::proven_prime &&
                           record.status.verification ==
                               primeforge::VerificationStatus::independently_verified &&
-                          record.primary_engine.has_value() &&
-                          !record.primary_engine->proof_artifact_sha256.empty(),
-                      "prime has proof artifact and independent agreement");
+                          record.classification_method == "PROTH_CERTIFICATE_VALIDATED" &&
+                          record.native_proth_certificate.has_value() &&
+                          !record.primary_engine.has_value() &&
+                          record.independent_engine.has_value(),
+                      "prime has native proof artifact and independent agreement");
+                const auto certificate_bytes =
+                    read_file(record.native_proth_certificate->artifact_path);
+                const auto certificate =
+                    primeforge::proth::parse_canonical_certificate(certificate_bytes);
+                check(certificate.has_value() &&
+                          certificate->k == record.candidate.k &&
+                          certificate->n == record.candidate.n &&
+                          certificate->value == record.candidate.value,
+                      "stored native certificate binds exact candidate coordinates");
+                ++native_certificates;
             } else {
                 check(record.status.primality == primeforge::PrimalityStatus::composite,
                       "known composite remains composite");
@@ -244,6 +258,8 @@ int main(const int argc, char** argv) {
             check(record.status.primality != primeforge::PrimalityStatus::probable_prime,
                   "completed search never presents a PRP as proven by implication");
         }
+        check(native_certificates == known_primes.size(),
+              "every known prime uses the native Proth proof boundary");
         const auto first_bytes = read_file(first.results_path);
         check(std::ranges::count(first_bytes, '\n') == 160,
               "one canonical JSONL record per candidate");
@@ -280,12 +296,18 @@ int main(const int argc, char** argv) {
                   std::filesystem::is_regular_file(interrupted.checkpoint_path) &&
                   !std::filesystem::exists(interrupted.manifest_path),
               "clean interruption leaves an exact resumable prefix");
+        const auto orphan = config.output_directory / "proofs" / "proth" /
+                            "proth-37.json";
+        std::filesystem::create_directories(orphan.parent_path());
+        { std::ofstream output{orphan, std::ios::binary}; output << "ORPHAN"; }
         primeforge::mvp::SearchExecutionOptions resume_options;
         resume_options.resume_existing = true;
         const auto resumed = primeforge::mvp::execute_search(
             config, sha256, proof, independent, resume_options);
         check(resumed.completed && read_file(resumed.results_path) == first_bytes,
               "interruption and resume reproduce uninterrupted logical results");
+        check(!std::filesystem::exists(orphan) || read_file(orphan) != "ORPHAN",
+              "resume removes unauthenticated native proof suffix artifacts");
 
         std::filesystem::remove_all(config.output_directory);
         config.output_directory = "mvp-pipeline-disagreement-output";
@@ -307,6 +329,7 @@ int main(const int argc, char** argv) {
 
         std::cout << "known_candidates=160\n"
                   << "known_proven_primes=" << known_primes.size() << '\n'
+                  << "native_proth_certificates=" << native_certificates << '\n'
                   << "deterministic_results=YES\n"
                   << "interruption_resume_identical=YES\n"
                   << "manifest_mutation_rejected=YES\n"

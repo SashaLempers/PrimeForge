@@ -11,6 +11,7 @@ A campaign directory contains:
 - `campaign.checkpoint.json`: atomic authenticated recovery point;
 - `coverage_report.json`: exact final domain and status counts;
 - `MANIFEST.sha256`: sorted SHA-256 inventory of every other regular file;
+- `proofs/proth/`: canonical native Proth certificates;
 - `external/`: request scripts, raw stdout/stderr and proof certificates.
 
 The manifest does not contain itself. Paths use `/`, are relative to the campaign
@@ -37,7 +38,8 @@ On resume, PrimeForge reloads the campaign-owned `search.yaml`, validates the
 checkpoint hash and identity, authenticates the ledger prefix and verifies that
 its records are contiguous and campaign-consistent. A suffix written after the
 last checkpoint is outside the committed state: only that suffix and its exact
-campaign-owned external job directories may be rolled back before replay.
+campaign-owned external job directories and native proof artifacts may be rolled
+back before replay.
 
 ```powershell
 & .\out\build\msvc-release\primeforge.exe resume `
@@ -62,11 +64,12 @@ Verification is not a manifest-only check. It also:
 4. reproduces every negative base-2 strong witness;
 5. rejects a completed positive PRP that was not promoted by proof;
 6. checks configured engine identities and executable SHA-256 values;
-7. parses stored PARI/GP and FLINT raw outputs again;
-8. validates each stored PARI certificate in a fresh process and binds it to N;
-9. reruns the independently pinned FLINT decision for each externally classified
-   candidate;
-10. validates final checkpoint progress and exact coverage totals.
+7. parses every stored FLINT raw output and any fallback PARI/GP output again;
+8. parses each native certificate from disk, requires its exact canonical bytes,
+   replays its Proth congruence and binds `k`, `n`, and `N` to the ledger;
+9. validates any fallback PARI certificate in a fresh process and binds it to N;
+10. reruns the independently pinned FLINT decision for each surviving candidate;
+11. validates final checkpoint progress and exact coverage totals.
 
 Any unknown output, engine disagreement, changed artifact, hole, duplicate or
 unexpected file fails the command. This verifier performs no novelty check;

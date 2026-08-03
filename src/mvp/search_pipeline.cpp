@@ -5,6 +5,7 @@
 #include "primeforge/adaptive_bound/adaptive_bound.hpp"
 #include "primeforge/congruence/compiler.hpp"
 #include "primeforge/family_sieve/family_sieve.hpp"
+#include "primeforge/proth/proth.hpp"
 #include "primeforge/runtime/checkpoint_manager.hpp"
 #include "primeforge/sieve/sieve.hpp"
 #include "primeforge/work/work_unit.hpp"
@@ -111,6 +112,16 @@ namespace {
            quote_json(portable_relative(evidence->raw_stderr_path, output_directory)) +
            ",\"raw_stdout_path\":" +
            quote_json(portable_relative(evidence->raw_stdout_path, output_directory)) + "}";
+}
+
+[[nodiscard]] std::string native_proof_json(
+    const std::optional<NativeProofEvidence>& evidence,
+    const std::filesystem::path& output_directory) {
+    if (!evidence.has_value()) return "null";
+    return "{\"artifact_path\":" +
+           quote_json(portable_relative(evidence->artifact_path, output_directory)) +
+           ",\"artifact_sha256\":" + quote_json(evidence->artifact_sha256) +
+           ",\"format_version\":" + quote_json(evidence->format_version) + "}";
 }
 
 [[nodiscard]] EngineEvidence collect_evidence(
@@ -311,15 +322,18 @@ void account_existing_line(SearchSummary& summary, const std::string_view line) 
     validate_result_prefix(prefix, state.sequence, summary.plan.campaign_id);
     if (payload.results_bytes != results.size()) {
         write_atomic(summary.results_path, prefix);
-        for (std::uint64_t index = state.sequence;
-             index < summary.plan.candidate_count; ++index) {
-            std::filesystem::remove_all(
-                summary.output_directory / "external" / "pari" /
-                ("pari-" + std::to_string(index)));
-            std::filesystem::remove_all(
-                summary.output_directory / "external" / "flint" /
-                ("flint-" + std::to_string(index)));
-        }
+    }
+    for (std::uint64_t index = state.sequence;
+         index < summary.plan.candidate_count; ++index) {
+        std::filesystem::remove_all(
+            summary.output_directory / "external" / "pari" /
+            ("pari-" + std::to_string(index)));
+        std::filesystem::remove_all(
+            summary.output_directory / "external" / "flint" /
+            ("flint-" + std::to_string(index)));
+        std::filesystem::remove(
+            summary.output_directory / "proofs" / "proth" /
+            ("proth-" + std::to_string(index) + ".json"));
     }
     std::size_t offset = 0U;
     for (std::uint64_t index = 0U; index < state.sequence; ++index) {
@@ -480,28 +494,49 @@ SearchSummary execute_search(
             record.status.verification = VerificationStatus::unverified;
             record.prp_status = "PASSED";
             const auto decimal = std::to_string(record.candidate.value);
-            const EngineRequest primary_request{
-                "pari-" + std::to_string(index), "primeforge.proth.uint64.v1", decimal,
-                summary.output_directory / "external" / "pari"};
-            if (!proof_engine.supports(primary_request)) {
-                throw std::runtime_error(
-                    "configured proof engine does not support the MVP family");
+            constexpr std::uint64_t native_witness_limit = 65'535U;
+            const auto native = proth::try_prove_u64(
+                record.candidate.k, static_cast<std::uint32_t>(record.candidate.n),
+                native_witness_limit);
+            bool prime = false;
+            if (native.certificate.has_value()) {
+                const auto certificate_bytes =
+                    proth::canonical_certificate(*native.certificate);
+                const auto certificate_path =
+                    summary.output_directory / "proofs" / "proth" /
+                    ("proth-" + std::to_string(index) + ".json");
+                std::filesystem::create_directories(certificate_path.parent_path());
+                write_atomic(certificate_path, certificate_bytes);
+                record.native_proth_certificate = NativeProofEvidence{
+                    proth::certificate_format, certificate_path,
+                    hash_file(certificate_path, sha256)};
+                record.status.primality = PrimalityStatus::proven_prime;
+                record.status.verification = VerificationStatus::self_verified;
+                record.classification_method = "PROTH_CERTIFICATE_VALIDATED";
+                prime = true;
+            } else {
+                const EngineRequest primary_request{
+                    "pari-" + std::to_string(index), "primeforge.proth.uint64.v1",
+                    decimal, summary.output_directory / "external" / "pari"};
+                if (!proof_engine.supports(primary_request)) {
+                    throw std::runtime_error(
+                        "configured proof engine does not support the MVP family");
+                }
+                const auto primary = proof_engine.run(primary_request);
+                if (primary.status.primality != PrimalityStatus::proven_prime &&
+                    primary.status.primality != PrimalityStatus::composite) {
+                    throw std::runtime_error("proof engine failed closed: " +
+                                             primary.diagnostics);
+                }
+                prime = primary.status.primality == PrimalityStatus::proven_prime;
+                record.primary_engine = collect_evidence(
+                    proof_engine, primary, sha256, prime);
+                record.status.primality = primary.status.primality;
+                record.status.verification = prime ? VerificationStatus::self_verified
+                                                   : VerificationStatus::unverified;
+                record.classification_method = prime ? "PARI_PRIMECERT_VALIDATED"
+                                                     : "PARI_COMPOSITE";
             }
-            const auto primary = proof_engine.run(primary_request);
-            if (primary.status.primality != PrimalityStatus::proven_prime &&
-                primary.status.primality != PrimalityStatus::composite) {
-                throw std::runtime_error("proof engine failed closed: " +
-                                         primary.diagnostics);
-            }
-            const bool prime =
-                primary.status.primality == PrimalityStatus::proven_prime;
-            record.primary_engine = collect_evidence(
-                proof_engine, primary, sha256, prime);
-            record.status.primality = primary.status.primality;
-            record.status.verification = prime ? VerificationStatus::self_verified
-                                               : VerificationStatus::unverified;
-            record.classification_method = prime ? "PARI_PRIMECERT_VALIDATED"
-                                                 : "PARI_COMPOSITE";
 
             const EngineRequest independent_request{
                 "flint-" + std::to_string(index), "primeforge.proth.uint64.v1",
@@ -559,6 +594,8 @@ std::string canonical_search_record(
            evidence_json(record.independent_engine, output_directory) +
            ",\"k\":" + decimal(record.candidate.k) +
            ",\"n\":" + decimal(record.candidate.n) +
+           ",\"native_proth_certificate\":" +
+           native_proof_json(record.native_proth_certificate, output_directory) +
            ",\"novelty_status\":" + quote_json(to_string(record.status.novelty)) +
            ",\"primality_status\":" + quote_json(to_string(record.status.primality)) +
            ",\"primary_engine\":" +

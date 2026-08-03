@@ -16,13 +16,15 @@ The fixed correctness-first path is:
 3. retain the smallest proper factor during that same sieve traversal and
    revalidate it at the result boundary;
 4. run the internal base-2 strong probable-prime filter on survivors;
-5. for every positive PRP, invoke the hash-pinned PARI/GP wrapper;
-6. accept `PROVEN_PRIME` only after `primecert` is written and
-   `primecertisvalid` succeeds in the wrapper;
-7. require the separately hash-pinned FLINT process to return the same exact
-   primality status.
+5. for every positive PRP, run the bounded native Proth witness search;
+6. accept native `PROVEN_PRIME` only after the exact Proth congruence replays,
+   then persist its canonical certificate without a final newline;
+7. if the native witness bound is exhausted, retain `UNTESTED` and invoke the
+   hash-pinned PARI/GP proof/classification fallback;
+8. require the separately hash-pinned FLINT process to return the same exact
+   primality status for every survivor.
 
-Both external executables are hashed before process creation. A missing or
+Both fallback/independent executables are hashed before process creation. A missing or
 mismatched binary, timeout, nonzero exit, unknown output, missing proof or engine
 disagreement stops the search without a completed ledger. Raw stdout/stderr and
 proof files remain under the campaign directory for audit. External tools remain
@@ -39,8 +41,9 @@ number appears. Each line contains:
   fields;
 - PRP status and the exact classification method;
 - a reconstructed factor when the congruence sieve supplied one;
-- primary and independent engine ids, preflight executable hashes, raw-output
-  paths, and proof path/hash when applicable.
+- native certificate format, path and hash when native proof succeeds;
+- fallback primary and independent engine ids, preflight executable hashes,
+  raw-output paths, and external proof path/hash when applicable.
 
 Sieve factors and negative base-2 witnesses are `COMPOSITE` and
 `SELF_VERIFIED`. A positive base-2 test is only an intermediate

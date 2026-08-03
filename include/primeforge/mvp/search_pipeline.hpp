@@ -25,6 +25,12 @@ struct EngineEvidence {
     std::string proof_artifact_sha256;
 };
 
+struct NativeProofEvidence {
+    std::string format_version;
+    std::filesystem::path artifact_path;
+    std::string artifact_sha256;
+};
+
 struct SearchRecord {
     std::string campaign_id;
     CandidateCoordinates candidate;
@@ -33,6 +39,7 @@ struct SearchRecord {
     std::string classification_method;
     std::string prp_status;
     std::optional<std::uint64_t> factor;
+    std::optional<NativeProofEvidence> native_proth_certificate;
     std::optional<EngineEvidence> primary_engine;
     std::optional<EngineEvidence> independent_engine;
 };

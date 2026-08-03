@@ -103,6 +103,21 @@ int main(int argc, char** argv) {
               "certificate hash is deterministic");
         check(digest == "7172a2acdbae79bc90671dacafa01761d5bc632f2650ad4a4674d213efccfd22",
               "certificate golden hash");
+        const auto parsed = primeforge::proth::parse_canonical_certificate(canonical);
+        check(parsed.has_value() && *parsed == *sample.certificate,
+              "canonical certificate parser round trip");
+        check(!primeforge::proth::parse_canonical_certificate(canonical + "\n").has_value(),
+              "certificate parser rejects trailing bytes");
+        auto padded = canonical;
+        const auto k_marker = padded.find("\"k\":\"");
+        padded.insert(k_marker + 5U, "0");
+        check(!primeforge::proth::parse_canonical_certificate(padded).has_value(),
+              "certificate parser rejects noncanonical decimal");
+        auto corrupted = canonical;
+        corrupted.replace(corrupted.find("\"witness\":\"3\""), 13U,
+                          "\"witness\":\"4\"");
+        check(!primeforge::proth::parse_canonical_certificate(corrupted).has_value(),
+              "certificate parser rejects false congruence");
         ++certificate.value;
         check(!primeforge::proth::verify_u64(certificate), "mutated value rejected");
         certificate = *sample.certificate;

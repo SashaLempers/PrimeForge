@@ -19,6 +19,13 @@ ZIP SHA-256 is
 The asset was downloaded again and passed the closed package verifier. The
 repository and release remain private.
 
+PIVOT-10 now routes surviving Proth candidates through PrimeForge's native exact
+certificate path before independent FLINT verification. The pinned PARI/GP path
+is retained only as a fail-closed fallback when the bounded native witness search
+returns `UNTESTED`. The first limited known-range gate stopped cleanly at 37/160,
+resumed to 160/160 and independently verified 34 proven primes plus 126
+composites. Novelty remains `NOT_CHECKED`; this is not a discovery campaign.
+
 Post-release PIVOT-03 work now keeps proper-factor evidence in the original
 sieve traversal and lets aligned k-major segments write disjoint canonical
 bitset words directly. That same path now enumerates the compiled forbidden
@@ -52,6 +59,10 @@ MVP-02 search/proof path is now available:
 ```powershell
 & .\out\build\msvc-release\primeforge.exe search `
   --config examples\mvp\search.yaml
+
+# Deterministic cooperative-stop gate (useful for recovery testing):
+& .\out\build\msvc-release\primeforge.exe search `
+  --config benchmarks\pivot10\known_proth_small.yaml --stop-after 37
 ```
 
 The output/status contract is in `docs/mvp/RESULTS.md`. MVP-03 adds durable

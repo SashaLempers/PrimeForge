@@ -29,6 +29,12 @@ those exact bytes. `verify_u64` reconstructs the candidate and exponent and
 recomputes the congruence; mutated form, coordinates, value, witness or residue
 fail closed.
 
+`parse_canonical_certificate` is the persisted-artifact boundary. It accepts only
+the exact v1 key order, canonical unsigned decimals, no trailing byte, and a
+certificate whose congruence verifies. The campaign pipeline stores that object
+under `proofs/proth/`, hashes it, and requires a separate FLINT verdict before
+serializing `INDEPENDENTLY_VERIFIED`.
+
 The proof API sets only the primality axis. It does not infer independent
 verification or novelty. The CLI reports `SELF_VERIFIED` after its internal
 replay and always reports `NOT_CHECKED` for novelty.
@@ -65,7 +71,8 @@ canonical hashing and mutations of every certificate field.
 - no value wider than 64 bits;
 - deterministic ascending witness search, not a tuned witness policy;
 - no batch CPU SIMD or CUDA exponentiation;
-- no persistent on-disk certificate parser yet;
+- the bounded witness limit may return `UNTESTED`, in which case the current MVP
+  uses its pinned PARI/GP fallback;
 - no novelty check and no external assignment;
 - no performance statement until the committed implementation is compared under
   the preregistered protocol.
@@ -76,5 +83,6 @@ This module replaces a generic-primality placeholder with the first native proof
 operation for the selected production family. It gives the future batched CPU and
 CUDA engines an exact scalar oracle and an immutable certificate contract. The
 64-bit implementation is complete as a reference path; multi-precision
-arithmetic, batching, independent external replay and end-to-end integration
-remain necessary for the final large-number engine.
+arithmetic and batching remain necessary for the final large-number engine. The
+bounded path's persisted parsing, end-to-end integration and independent FLINT
+replay are complete.

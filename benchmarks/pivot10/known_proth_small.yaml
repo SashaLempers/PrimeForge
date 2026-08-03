@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: Apache-2.0
+# PIVOT-10 bounded known-range campaign; novelty remains NOT_CHECKED.
+schema: primeforge.search.v1
+campaign_name: pivot10-known-proth-small
+family: proth
+expression: k*2^n+1
+parameters:
+  k:
+    start: 1
+    stop: 31
+    step: 2
+  n:
+    start: 5
+    stop: 14
+    step: 1
+constraints:
+  odd_k: true
+  k_less_than_2_pow_n: true
+work_units:
+  candidates_per_unit: 32
+sieve:
+  maximum_prime: 43
+checkpoint:
+  every_candidates: 16
+output:
+  directory: out/campaigns/pivot10-gated-run
+engines:
+  pari_gp:
+    path: out/oracles/pari-gp64-2.17.4.exe
+    sha256: 518ea54d23832211356c99d1bb58b74a3f0acd354a965543e7bcca9b34030119
+  flint:
+    path: out/oracles/flint/flint-primality-oracle.exe
+    sha256: 5e62bcac0e324d14914979e4f565eab2080da0e215cfff5c97e3fb48368facd4

@@ -5,6 +5,7 @@
 #include "primeforge/adaptive_bound/adaptive_bound.hpp"
 #include "primeforge/engine/external_adapter.hpp"
 #include "primeforge/mvp/search_config.hpp"
+#include "primeforge/proth/proth.hpp"
 #include "primeforge/runtime/checkpoint_manager.hpp"
 
 #include <algorithm>
@@ -258,6 +259,48 @@ VerificationSummary verify_campaign(
                 throw std::runtime_error("stored base-2 composite witness does not reproduce");
             }
             ++summary.composite_count;
+        } else if (method == "PROTH_CERTIFICATE_VALIDATED") {
+            if (primality != "PROVEN_PRIME" ||
+                verification != "INDEPENDENTLY_VERIFIED" ||
+                string_field(line, "prp_status") != "PASSED" ||
+                object_field(line, "primary_engine").has_value()) {
+                throw std::runtime_error("native Proth proof obligations are incomplete");
+            }
+            const auto proof = object_field(line, "native_proth_certificate");
+            const auto independent = object_field(line, "independent_engine");
+            if (!proof.has_value() || !independent.has_value() ||
+                string_field(*proof, "format_version") != proth::certificate_format ||
+                string_field(*independent, "executable_sha256") !=
+                    config.flint.expected_sha256) {
+                throw std::runtime_error("native Proth proof provenance mismatch");
+            }
+            verify_stored_engine_verdict(
+                *independent, campaign_directory, engine::ExternalEngineKind::flint,
+                PrimalityStatus::proven_prime);
+            const auto artifact_text = string_field(*proof, "artifact_path");
+            const auto artifact_digest = string_field(*proof, "artifact_sha256");
+            if (!artifact_text.has_value() || !artifact_digest.has_value()) {
+                throw std::runtime_error("native Proth certificate artifact is missing");
+            }
+            const auto artifact = safe_artifact_path(campaign_directory, *artifact_text);
+            const auto artifact_bytes = read_file(artifact);
+            if (hash_text(artifact_bytes, sha256) != *artifact_digest) {
+                throw std::runtime_error("native Proth certificate hash mismatch");
+            }
+            const auto certificate = proth::parse_canonical_certificate(artifact_bytes);
+            if (!certificate.has_value() || certificate->k != expected.k ||
+                certificate->n != expected.n || certificate->value != expected.value) {
+                throw std::runtime_error("native Proth certificate does not bind the candidate");
+            }
+            const EngineRequest independent_request{
+                "independent-" + std::to_string(index),
+                "primeforge.proth.uint64.v1", std::to_string(expected.value),
+                temporary.path / "flint"};
+            const auto independent_result = independent_engine.run(independent_request);
+            if (independent_result.status.primality != PrimalityStatus::proven_prime) {
+                throw std::runtime_error("independent engine did not reproduce prime verdict");
+            }
+            ++summary.proven_prime_count;
         } else if (method == "PARI_PRIMECERT_VALIDATED") {
             if (primality != "PROVEN_PRIME" ||
                 verification != "INDEPENDENTLY_VERIFIED" ||

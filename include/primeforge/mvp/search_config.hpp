@@ -14,6 +14,10 @@
 
 namespace primeforge::mvp {
 
+inline constexpr char pipeline_version[] = "primeforge.mvp.pipeline.v2";
+inline constexpr char pipeline_proof_policy[] =
+    "native_proth_then_flint_with_pari_fallback";
+
 struct EngineExecutable {
     std::filesystem::path path;
     std::string expected_sha256;

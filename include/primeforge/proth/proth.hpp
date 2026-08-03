@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 
 namespace primeforge::proth {
 
@@ -39,6 +40,10 @@ struct ProofAttempt {
     std::uint64_t k, std::uint32_t n, std::uint64_t maximum_witness);
 [[nodiscard]] bool verify_u64(const Certificate& certificate) noexcept;
 [[nodiscard]] std::string canonical_certificate(const Certificate& certificate);
+// Accepts only the exact canonical v1 byte representation. Malformed, noncanonical,
+// or mathematically invalid certificates are rejected without throwing.
+[[nodiscard]] std::optional<Certificate> parse_canonical_certificate(
+    std::string_view bytes) noexcept;
 [[nodiscard]] std::string certificate_sha256(
     const Certificate& certificate, const Sha256Provider& sha256);
 

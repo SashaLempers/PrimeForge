@@ -435,3 +435,12 @@ Each future entry must include:
 - **Failure criterion:** orchestration must not mistake a display timeout for benchmark failure or launch duplicate work.
 - **Conclusion:** mathematical and artifact gates passed, but the wrapper duration was too short for the protocol. Evidence is retained and the incident is not hidden.
 - **Retry condition:** use an explicitly yielded long-running cell or a wrapper timeout above the preregistered worst-case duration; always inspect owned processes before retrying.
+
+## NR-0047 - The first native campaign write omitted proof-directory creation
+
+- **Date:** 2026-08-03
+- **Change tested:** first Debug CTest execution of the persisted native Proth certificate path.
+- **Evidence:** compilation completed with zero warnings, then `primeforge.mvp_pipeline` failed immediately with `checkpoint parent directory does not exist`; the other 33 Debug tests passed.
+- **Failure criterion:** a proof artifact must be committed atomically under a campaign-owned directory without relying on pre-existing filesystem state.
+- **Conclusion:** the pipeline now creates the exact `proofs/proth` parent before atomic write. The complete Debug, Release and CUDA suites then passed, including interruption/recovery and strict on-disk parsing.
+- **Retry condition:** none for this defect; retain the fresh-directory test and fail if it regresses.

@@ -8,10 +8,13 @@
 #include "primeforge/mvp/search_pipeline.hpp"
 
 #include <chrono>
+#include <charconv>
 #include <csignal>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -57,6 +60,36 @@ void print_engine(
         throw std::invalid_argument("usage: primeforge <inspect|search> --config search.yaml");
     }
     return argv[3];
+}
+
+struct SearchArguments {
+    std::filesystem::path config_path;
+    std::optional<std::uint64_t> stop_after;
+};
+
+[[nodiscard]] SearchArguments search_arguments(const int argc, char** argv) {
+    if ((argc != 4 && argc != 6) || std::string_view{argv[2]} != "--config") {
+        throw std::invalid_argument(
+            "usage: primeforge search --config search.yaml [--stop-after count]");
+    }
+    SearchArguments result{argv[3], std::nullopt};
+    if (argc == 6) {
+        if (std::string_view{argv[4]} != "--stop-after") {
+            throw std::invalid_argument(
+                "usage: primeforge search --config search.yaml [--stop-after count]");
+        }
+        const std::string_view decimal{argv[5]};
+        std::uint64_t count{};
+        const auto parsed = std::from_chars(
+            decimal.data(), decimal.data() + decimal.size(), count);
+        if (decimal.empty() || (decimal.size() > 1U && decimal.front() == '0') ||
+            parsed.ec != std::errc{} || parsed.ptr != decimal.data() + decimal.size() ||
+            count == 0U) {
+            throw std::invalid_argument("--stop-after requires a positive canonical integer");
+        }
+        result.stop_after = count;
+    }
+    return result;
 }
 
 [[nodiscard]] std::filesystem::path named_path_argument(
@@ -182,13 +215,16 @@ void print_search_summary(const primeforge::mvp::SearchSummary& summary) {
               << "search.status=" << (summary.completed ? "PASS" : "STOPPED") << '\n';
 }
 
-void run_search(const std::filesystem::path& config_path) {
+void run_search(
+    const std::filesystem::path& config_path,
+    const std::optional<std::uint64_t> stop_after) {
     const primeforge::PortableSha256Provider sha256;
     const auto config = primeforge::mvp::load_search_config(config_path);
     primeforge::engine::ExternalEngineAdapter proof_engine{pari_config(config), sha256};
     primeforge::engine::ExternalEngineAdapter independent_engine{
         flint_config(config), sha256};
     primeforge::mvp::SearchExecutionOptions options;
+    options.clean_stop_after_candidates = stop_after;
     options.stop_requested = [] { return graceful_stop_requested != 0; };
     const auto summary = primeforge::mvp::execute_search(
         config, sha256, proof_engine, independent_engine, options);
@@ -255,7 +291,8 @@ int main(const int argc, char** argv) {
         } else if (command == "inspect") {
             run_inspect(config_argument(argc, argv));
         } else if (command == "search") {
-            run_search(config_argument(argc, argv));
+            const auto arguments = search_arguments(argc, argv);
+            run_search(arguments.config_path, arguments.stop_after);
         } else if (command == "resume") {
             run_resume(named_path_argument(
                 argc, argv, "--checkpoint",

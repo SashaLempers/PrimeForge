@@ -5,6 +5,7 @@
 #include "primeforge/math/mul128.hpp"
 
 #include <algorithm>
+#include <charconv>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -33,6 +34,31 @@ namespace {
 
 [[nodiscard]] std::span<const std::byte> bytes_of(const std::string& text) noexcept {
     return std::as_bytes(std::span{text.data(), text.size()});
+}
+
+[[nodiscard]] bool consume_prefix(
+    std::string_view& input, const std::string_view prefix) noexcept {
+    if (!input.starts_with(prefix)) return false;
+    input.remove_prefix(prefix.size());
+    return true;
+}
+
+[[nodiscard]] std::optional<std::uint64_t> consume_decimal(
+    std::string_view& input) noexcept {
+    const auto end = input.find('"');
+    if (end == std::string_view::npos) return std::nullopt;
+    const auto decimal = input.substr(0U, end);
+    if (decimal.empty() || (decimal.size() > 1U && decimal.front() == '0')) {
+        return std::nullopt;
+    }
+    std::uint64_t value{};
+    const auto parsed = std::from_chars(
+        decimal.data(), decimal.data() + decimal.size(), value);
+    if (parsed.ec != std::errc{} || parsed.ptr != decimal.data() + decimal.size()) {
+        return std::nullopt;
+    }
+    input.remove_prefix(end);
+    return value;
 }
 
 }  // namespace
@@ -105,6 +131,49 @@ std::string canonical_certificate(const Certificate& certificate) {
            "\",\"residue\":\"" + std::to_string(certificate.residue) +
            "\",\"value\":\"" + std::to_string(certificate.value) +
            "\",\"witness\":\"" + std::to_string(certificate.witness) + "\"}";
+}
+
+std::optional<Certificate> parse_canonical_certificate(
+    const std::string_view bytes) noexcept {
+    try {
+        std::string_view remaining = bytes;
+        constexpr std::string_view prefix =
+            "{\"format_version\":\"primeforge.proth.certificate.u64.v1\",\"k\":\"";
+        if (!consume_prefix(remaining, prefix)) return std::nullopt;
+        const auto k = consume_decimal(remaining);
+        if (!k.has_value() || !consume_prefix(remaining, "\",\"n\":\"")) {
+            return std::nullopt;
+        }
+        const auto n = consume_decimal(remaining);
+        if (!n.has_value() || *n > std::numeric_limits<std::uint32_t>::max() ||
+            !consume_prefix(remaining, "\",\"residue\":\"")) {
+            return std::nullopt;
+        }
+        const auto residue = consume_decimal(remaining);
+        if (!residue.has_value() ||
+            !consume_prefix(remaining, "\",\"value\":\"")) {
+            return std::nullopt;
+        }
+        const auto value = consume_decimal(remaining);
+        if (!value.has_value() ||
+            !consume_prefix(remaining, "\",\"witness\":\"")) {
+            return std::nullopt;
+        }
+        const auto witness = consume_decimal(remaining);
+        if (!witness.has_value() || !consume_prefix(remaining, "\"}") ||
+            !remaining.empty()) {
+            return std::nullopt;
+        }
+        Certificate certificate{
+            certificate_format, *k, static_cast<std::uint32_t>(*n),
+            *value, *witness, *residue};
+        if (!verify_u64(certificate) || canonical_certificate(certificate) != bytes) {
+            return std::nullopt;
+        }
+        return certificate;
+    } catch (...) {
+        return std::nullopt;
+    }
 }
 
 std::string certificate_sha256(

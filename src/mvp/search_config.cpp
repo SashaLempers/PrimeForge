@@ -358,6 +358,8 @@ std::string canonical_search_config(const SearchConfig& config) {
            ",\"step\":" + decimal(config.k_step) + ",\"stop\":" + decimal(config.k_stop) +
            "},\"n\":{\"start\":" + decimal(config.n_start) +
            ",\"step\":" + decimal(config.n_step) + ",\"stop\":" + decimal(config.n_stop) + "}}" +
+           ",\"pipeline_version\":" + quote_json(pipeline_version) +
+           ",\"proof_policy\":" + quote_json(pipeline_proof_policy) +
            ",\"schema\":" + quote_json(config.schema) +
            ",\"sieve_maximum_prime\":" + decimal(config.sieve_maximum_prime) +
            ",\"work_unit_candidates\":" + decimal(config.work_unit_candidates) + "}";
@@ -462,7 +464,7 @@ CampaignPlan build_campaign_plan(
     prototype.constraints = {"gcd(k,2)=1", "k<2^n", "k%2=1"};
     prototype.residue_compiler_version = "primeforge-congruence-v1";
     prototype.sieve_bounds = {2U, config.sieve_maximum_prime};
-    prototype.proof_policy = "pari_primecert_then_flint";
+    prototype.proof_policy = pipeline_proof_policy;
     result.work_units = work::partition_work_units(
         prototype, 0U, result.candidate_count, config.work_unit_candidates, sha256);
     result.coverage = work::verify_coverage(

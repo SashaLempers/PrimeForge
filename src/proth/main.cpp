@@ -45,7 +45,9 @@ int main(int argc, char** argv) {
         std::cout << "proth.k=" << k << '\n'
                   << "proth.n=" << n << '\n'
                   << "proth.value=" << value << '\n'
-                  << "proth.bases_tested=" << attempt.bases_tested << '\n';
+                  << "proth.bases_tested=" << attempt.bases_tested << '\n'
+                  << "proth.modular_exponentiations="
+                  << attempt.modular_exponentiations << '\n';
         if (attempt.certificate.has_value()) {
             primeforge::PortableSha256Provider sha256;
             std::cout << "proth.primality_status=PROVEN_PRIME\n"

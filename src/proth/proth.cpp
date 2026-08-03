@@ -32,6 +32,23 @@ namespace {
     return result;
 }
 
+[[nodiscard]] int jacobi_symbol(std::uint64_t numerator, std::uint64_t denominator) noexcept {
+    if (denominator == 0U || (denominator & 1U) == 0U) return 0;
+    numerator %= denominator;
+    int sign = 1;
+    while (numerator != 0U) {
+        while ((numerator & 1U) == 0U) {
+            numerator >>= 1U;
+            const auto residue = denominator & 7U;
+            if (residue == 3U || residue == 5U) sign = -sign;
+        }
+        std::swap(numerator, denominator);
+        if ((numerator & 3U) == 3U && (denominator & 3U) == 3U) sign = -sign;
+        numerator %= denominator;
+    }
+    return denominator == 1U ? sign : 0;
+}
+
 [[nodiscard]] std::span<const std::byte> bytes_of(const std::string& text) noexcept {
     return std::as_bytes(std::span{text.data(), text.size()});
 }
@@ -92,6 +109,14 @@ ProofAttempt try_prove_u64(
     ProofAttempt result;
     for (std::uint64_t witness = 2U;; ++witness) {
         ++result.bases_tested;
+        // A valid Proth witness implies primality; for a prime N, Euler's
+        // criterion requires Jacobi(a,N)=-1. Other bases cannot be the needed
+        // witness and do not need the expensive modular exponentiation.
+        if (jacobi_symbol(witness, value) != -1) {
+            if (witness == final_witness) break;
+            continue;
+        }
+        ++result.modular_exponentiations;
         const auto residue = power_mod(witness, (value - 1U) / 2U, value);
         if (residue == value - 1U) {
             result.primality = PrimalityStatus::proven_prime;

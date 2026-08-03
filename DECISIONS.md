@@ -640,3 +640,15 @@ The canonical campaign identity now includes `primeforge.mvp.pipeline.v2` and
 the exact proof-policy identifier. This prevents a checkpoint from silently
 mixing records produced by the former PARI-primary path with records from the
 native-primary path.
+
+## D-0078 - Jacobi filtering may skip impossible Proth witness bases
+
+**Status:** Accepted - 2026-08-03
+
+The bounded prover computes `Jacobi(a,N)` before modular exponentiation and skips
+bases whose symbol is not `-1`. If a base satisfied the Proth congruence then
+Proth's theorem would make `N` prime; Euler's criterion would consequently make
+that base's Jacobi symbol `-1`. The filter therefore cannot remove a successful
+witness. Exact counters are retained separately from elapsed time: fewer modular
+exponentiations is a reproduced algorithmic result, not by itself a performance
+or energy claim.

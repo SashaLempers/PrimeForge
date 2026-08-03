@@ -143,6 +143,12 @@ Profile the complete pipeline, identify the dominant measured bottleneck, change
 only that component and repeat the reference comparison. Gate: reproducible
 end-to-end benefit with unchanged correctness; otherwise record a negative result.
 
+**Gate:** `COMPLETE-ALGORITHMIC / INCONCLUSIVE END-TO-END`. The native Proth
+kernel now uses a Jacobi prefilter: the known campaign proofs require 34 modular
+exponentiations instead of 132, with identical certificates and all correctness
+gates green. CPU stability sensors remain unavailable, so no elapsed-time or
+energy claim is retained. PIVOT-12 remains an explicit prolonged-campaign gate.
+
 ## PIVOT-12 — Prolonged campaign
 
 Duration has no arbitrary maximum: hours, nights or days are allowed after the

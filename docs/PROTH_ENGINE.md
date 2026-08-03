@@ -12,7 +12,10 @@ multi-precision CPU/CUDA implementation and carries no throughput claim.
 ## Proof contract
 
 `try_prove_u64(k,n,max_witness)` checks bases in ascending deterministic order.
-It emits a certificate only if it computes
+It first computes the inexpensive Jacobi symbol and performs modular
+exponentiation only for bases with `Jacobi(a,N)=-1`. This cannot discard a valid
+Proth witness: a valid witness implies that `N` is prime, and Euler's criterion
+then requires exactly that Jacobi value. It emits a certificate only if it computes
 
 `a^((N-1)/2) mod N = N-1`.
 

@@ -453,3 +453,12 @@ Each future entry must include:
 - **Failure criterion:** recovery must never combine an authenticated prefix produced under one proof policy with a suffix produced under another policy.
 - **Conclusion:** no final evidence campaign used that identity. `primeforge.mvp.pipeline.v2` and the exact proof-policy identifier now enter canonical campaign hashing; the old partial checkpoint was rejected, then a fresh v2 stop/resume gate passed.
 - **Retry condition:** increment the pipeline identity whenever a result-affecting implicit policy changes, and retain the old-checkpoint rejection gate.
+
+## NR-0049 - PIVOT-11 cannot retain an end-to-end performance rank
+
+- **Date:** 2026-08-03
+- **Change tested:** Jacobi prefilter before bounded Proth modular exponentiation.
+- **Evidence:** deterministic work counters fall from 132 to 34 exponentiations for the 34 campaign proofs and from 31,469 to 10,576 over the full 160-candidate prover corpus. All certificates and correctness gates remain exact.
+- **Failure criterion:** an elapsed-time or energy claim additionally requires reproducible held-out end-to-end measurements and validated CPU stability telemetry.
+- **Conclusion:** the operation reduction is retained as an algorithmic optimization; wall-time, energy and fastest claims remain `INCONCLUSIVE`/`NONE` because CPU temperature and package power are `UNKNOWN`.
+- **Retry condition:** instrument a representative large-number proof workload, obtain validated CPU telemetry, preregister held-out repetitions and compare complete-pipeline results.

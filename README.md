@@ -26,6 +26,11 @@ returns `UNTESTED`. The first limited known-range gate stopped cleanly at 37/160
 resumed to 160/160 and independently verified 34 proven primes plus 126
 composites. Novelty remains `NOT_CHECKED`; this is not a discovery campaign.
 
+PIVOT-11 adds a Jacobi prefilter to the bounded native prover. On the 34 native
+proofs used by the known campaign, the exact modular-exponentiation count falls
+from 132 to 34 with byte-identical certificates. This is an algorithmic operation
+reduction only; no wall-time or fastest-engine claim is made.
+
 Post-release PIVOT-03 work now keeps proper-factor evidence in the original
 sieve traversal and lets aligned k-major segments write disjoint canonical
 bitset words directly. That same path now enumerates the compiled forbidden

@@ -28,6 +28,7 @@ struct Certificate {
 struct ProofAttempt {
     PrimalityStatus primality{PrimalityStatus::untested};
     std::uint64_t bases_tested{};
+    std::uint64_t modular_exponentiations{};
     std::optional<Certificate> certificate;
 };
 

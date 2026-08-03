@@ -65,6 +65,10 @@ int main(int argc, char** argv) {
         std::uint64_t proven = 0U;
         std::uint64_t composite = 0U;
         std::uint64_t maximum_bases_tested = 0U;
+        std::uint64_t unfiltered_modular_exponentiations = 0U;
+        std::uint64_t filtered_modular_exponentiations = 0U;
+        std::uint64_t proven_unfiltered_modular_exponentiations = 0U;
+        std::uint64_t proven_filtered_modular_exponentiations = 0U;
         for (std::uint64_t k = 1U; k <= 31U; k += 2U) {
             for (std::uint32_t n = 5U; n <= 14U; ++n) {
                 const auto value = primeforge::proth::candidate_value_u64(k, n);
@@ -73,11 +77,20 @@ int main(int argc, char** argv) {
                       "deterministic u64 reference disagrees with corpus");
                 const auto attempt = primeforge::proth::try_prove_u64(k, n, 255U);
                 maximum_bases_tested = std::max(maximum_bases_tested, attempt.bases_tested);
+                unfiltered_modular_exponentiations += attempt.bases_tested;
+                filtered_modular_exponentiations += attempt.modular_exponentiations;
+                check(attempt.modular_exponentiations <= attempt.bases_tested,
+                      "Jacobi filter cannot add modular exponentiations");
                 if (expected_prime) {
                     ++proven;
+                    proven_unfiltered_modular_exponentiations += attempt.bases_tested;
+                    proven_filtered_modular_exponentiations +=
+                        attempt.modular_exponentiations;
                     check(attempt.primality == primeforge::PrimalityStatus::proven_prime &&
                               attempt.certificate.has_value(),
                           "known prime lacks bounded Proth certificate");
+                    check(attempt.modular_exponentiations >= 1U,
+                          "known prime performs its proving exponentiation");
                     check(primeforge::proth::verify_u64(*attempt.certificate),
                           "generated Proth certificate does not verify");
                 } else {
@@ -89,9 +102,13 @@ int main(int argc, char** argv) {
             }
         }
         check(proven == 34U && composite == 126U, "complete campaign classification");
+        check(filtered_modular_exponentiations < unfiltered_modular_exponentiations,
+              "Jacobi filter reduces exact modular exponentiation count");
 
         const auto sample = primeforge::proth::try_prove_u64(43U, 32U, 255U);
         check(sample.certificate.has_value(), "proth20 shared prime fixture proves");
+        check(sample.bases_tested == 2U && sample.modular_exponentiations == 1U,
+              "shared fixture skips base two before one proving exponentiation");
         auto certificate = *sample.certificate;
         const auto canonical = primeforge::proth::canonical_certificate(certificate);
         primeforge::PortableSha256Provider sha256;
@@ -160,6 +177,14 @@ int main(int argc, char** argv) {
                   << "proth.proven=34\n"
                   << "proth.composite=126\n"
                   << "proth.maximum_bases_tested=" << maximum_bases_tested << '\n'
+                  << "proth.unfiltered_modular_exponentiations="
+                  << unfiltered_modular_exponentiations << '\n'
+                  << "proth.filtered_modular_exponentiations="
+                  << filtered_modular_exponentiations << '\n'
+                  << "proth.proven_unfiltered_modular_exponentiations="
+                  << proven_unfiltered_modular_exponentiations << '\n'
+                  << "proth.proven_filtered_modular_exponentiations="
+                  << proven_filtered_modular_exponentiations << '\n'
                   << "proth.sample_certificate_sha256=" << digest << '\n'
                   << "PrimeForge Proth tests: PASS\n";
         return 0;

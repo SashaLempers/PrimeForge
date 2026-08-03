@@ -213,6 +213,11 @@ The retained raw evidence and conclusions are in
 [`docs/reports/COMMIT_A.md`](docs/reports/COMMIT_A.md) and
 [`benchmarks/baselines/commit-a/`](benchmarks/baselines/commit-a/).
 
+The first retained optimization removes redundant external-installation hashes.
+Its before/after evidence is in
+[`docs/reports/OPTIMIZATION_01.md`](docs/reports/OPTIMIZATION_01.md) and
+[`benchmarks/baselines/optimization-01/`](benchmarks/baselines/optimization-01/).
+
 Run a focused CPU PRP sample:
 
 ```powershell

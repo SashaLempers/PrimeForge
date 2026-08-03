@@ -685,3 +685,20 @@ On Windows the process controller retains its handle from construction through
 exit, logs the exact exit code and invalidates any nonzero result. CUDA failures
 must propagate to the worker exit code and stderr; the watchdog does not infer a
 successful CUDA computation from process disappearance.
+
+## D-0081 - External installation hashes are stable for one adapter lifetime
+
+**Status:** Accepted - 2026-08-03
+
+An external adapter computes and compares the executable and runtime-file
+SHA-256 values once before its first process invocation. The verified digest is
+then bound to every result produced by that adapter instance. Per-request raw
+stdout and stderr remain mandatory. A resumed campaign constructs fresh
+adapters and repeats the complete installation check.
+
+This replaces two complete installation hash passes per candidate. On the
+retained 160-candidate profile it reduces median end-to-end time by 85.760 % to
+85.904 % across the three requested backends while preserving exact result and
+recovery hashes. PrimeForge does not mutate an external installation during an
+adapter lifetime; supporting hot replacement would require explicit cache
+invalidation before it could be enabled.

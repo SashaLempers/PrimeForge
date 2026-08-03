@@ -344,6 +344,12 @@ struct PreparedPrpBatch {
     std::future<std::vector<EngineResult>> independent_completion;
     std::vector<std::size_t> independent_survivors;
     std::vector<EngineResult> independent_results;
+    struct NativeProofBatch {
+        std::vector<proth::ProofAttempt> results;
+        std::uint64_t elapsed_ns{};
+    };
+    std::future<NativeProofBatch> native_proof_completion;
+    std::vector<proth::ProofAttempt> native_proof_results;
     Clock::time_point independent_started{};
     bool independent_submitted{};
     bool independent_completed{};
@@ -437,6 +443,31 @@ void await_independent_batch(PreparedPrpBatch &batch, SearchSummary &summary) {
     summary.metrics.verification_ns += elapsed_ns(batch.independent_started);
     batch.independent_submitted = false;
     batch.independent_completed = true;
+}
+
+void submit_native_proof_batch(PreparedPrpBatch &batch, const SearchConfig &config) {
+    batch.native_proof_completion = std::async(std::launch::async, [&batch, &config] {
+        const ScopedTrace trace{"proof"};
+        const auto started = Clock::now();
+        PreparedPrpBatch::NativeProofBatch completed;
+        completed.results.resize(batch.verdicts.size());
+        constexpr std::uint64_t native_witness_limit = 65'535U;
+        for (std::size_t survivor = 0U; survivor < batch.verdicts.size(); ++survivor) {
+            if (batch.verdicts[survivor] != prp::Base2StrongPrpVerdict::probable_prime) continue;
+            const auto candidate = candidate_at(
+                config, batch.begin + batch.survivor_offsets[survivor]);
+            completed.results[survivor] = proth::try_prove_u64(
+                candidate.k, static_cast<std::uint32_t>(candidate.n), native_witness_limit);
+        }
+        completed.elapsed_ns = elapsed_ns(started);
+        return completed;
+    });
+}
+
+void await_native_proof_batch(PreparedPrpBatch &batch, SearchSummary &summary) {
+    auto completed = batch.native_proof_completion.get();
+    batch.native_proof_results = std::move(completed.results);
+    summary.metrics.proof_ns += completed.elapsed_ns;
 }
 
 [[nodiscard]] std::uint64_t restore_progress(SearchSummary &summary, const Sha256Provider &sha256) {
@@ -662,7 +693,9 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
         await_prp_batch(*current_batch, summary);
         submit_independent_batch(*current_batch, config, independent_engine,
                                  summary.output_directory);
+        submit_native_proof_batch(*current_batch, config);
         await_independent_batch(*current_batch, summary);
+        await_native_proof_batch(*current_batch, summary);
         if (next_batch != nullptr) {
             submit_prp_batch(*next_batch, prp_backend, summary);
         }
@@ -705,14 +738,12 @@ SearchSummary execute_search(const SearchConfig &config, const Sha256Provider &s
                     record.status.verification = VerificationStatus::unverified;
                     record.prp_status = "PASSED";
                     const auto decimal = std::to_string(record.candidate.value);
-                    constexpr std::uint64_t native_witness_limit = 65'535U;
                     bool prime = false;
                     {
                         const ScopedTrace trace{"proof"};
                         const auto proof_started = Clock::now();
-                        const auto native = proth::try_prove_u64(
-                            record.candidate.k, static_cast<std::uint32_t>(record.candidate.n),
-                            native_witness_limit);
+                        const auto &native =
+                            current_batch->native_proof_results[survivor_index - 1U];
                         if (native.certificate.has_value()) {
                             const auto certificate_bytes =
                                 proth::canonical_certificate(*native.certificate);

@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cerrno>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -12,6 +13,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <system_error>
 #include <thread>
 #include <utility>
 
@@ -20,10 +22,14 @@
 #else
 #include <csignal>
 #include <fcntl.h>
-#include <sys/resource.h>
+#include <spawn.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#endif
+
+#if !defined(_WIN32)
+extern char** environ;
 #endif
 
 namespace primeforge::engine {
@@ -209,8 +215,10 @@ void validate_job_id(const std::string_view value) {
     const std::filesystem::path& working_directory,
     const std::chrono::milliseconds timeout,
     const std::uint64_t memory_limit_bytes) {
-    const auto stdout_path = working_directory / "stdout.txt";
-    const auto stderr_path = working_directory / "stderr.txt";
+    const auto absolute_working_directory =
+        std::filesystem::absolute(working_directory);
+    const auto stdout_path = absolute_working_directory / "stdout.txt";
+    const auto stderr_path = absolute_working_directory / "stderr.txt";
 #if defined(_WIN32)
     const auto executable_wide = executable.wstring();
     std::wstring command = quote_windows(executable_wide);
@@ -249,7 +257,8 @@ void validate_job_id(const std::string_view value) {
     SetInformationJobObject(job, JobObjectExtendedLimitInformation, &limits, sizeof(limits));
     const auto created = CreateProcessW(
         executable_wide.c_str(), mutable_command.data(), nullptr, nullptr, TRUE,
-        CREATE_NO_WINDOW | CREATE_SUSPENDED, nullptr, working_directory.c_str(), &startup, &process);
+        CREATE_NO_WINDOW | CREATE_SUSPENDED, nullptr,
+        absolute_working_directory.c_str(), &startup, &process);
     CloseHandle(stdout_handle);
     CloseHandle(stderr_handle);
     if (created == FALSE) {
@@ -275,29 +284,62 @@ void validate_job_id(const std::string_view value) {
     CloseHandle(job);
     return {static_cast<int>(exit_code), timed_out, stdout_path, stderr_path};
 #else
-    const auto child = fork();
-    if (child < 0) throw std::runtime_error("fork failed");
-    if (child == 0) {
-        static_cast<void>(chdir(working_directory.c_str()));
-        const auto stdout_fd = open(stdout_path.c_str(), O_CREAT | O_WRONLY | O_TRUNC, 0600);
-        const auto stderr_fd = open(stderr_path.c_str(), O_CREAT | O_WRONLY | O_TRUNC, 0600);
-        if (stdout_fd < 0 || stderr_fd < 0) _exit(126);
-        dup2(stdout_fd, STDOUT_FILENO);
-        dup2(stderr_fd, STDERR_FILENO);
-        close(stdout_fd);
-        close(stderr_fd);
-        if (memory_limit_bytes != 0U) {
-            rlimit limit{memory_limit_bytes, memory_limit_bytes};
-            setrlimit(RLIMIT_AS, &limit);
-        }
-        std::vector<std::string> storage;
-        storage.push_back(executable.string());
-        storage.insert(storage.end(), arguments.begin(), arguments.end());
-        std::vector<char*> argv;
-        for (auto& item : storage) argv.push_back(item.data());
-        argv.push_back(nullptr);
-        execv(executable.c_str(), argv.data());
-        _exit(127);
+    // The adapter may be invoked while another pipeline thread is active.
+    // posix_spawn avoids executing allocating C++ code in a post-fork child.
+    // The constant shell program receives every dynamic value positionally,
+    // applies the per-process address-space limit, changes directory, and then
+    // replaces itself with the requested engine without text interpolation.
+    constexpr char posix_wrapper[] =
+        "if [ \"$1\" != 0 ]; then ulimit -v \"$1\" || exit 125; fi; "
+        "cd \"$2\" || exit 126; shift 2; exec \"$@\"";
+    const auto memory_limit_kibibytes =
+        memory_limit_bytes / 1'024U +
+        (memory_limit_bytes % 1'024U == 0U ? 0U : 1U);
+    std::vector<std::string> storage;
+    storage.reserve(arguments.size() + 7U);
+    storage.emplace_back("/bin/sh");
+    storage.emplace_back("-c");
+    storage.emplace_back(posix_wrapper);
+    storage.emplace_back("primeforge-posix-spawn");
+    storage.push_back(std::to_string(memory_limit_kibibytes));
+    storage.push_back(absolute_working_directory.string());
+    storage.push_back(executable.string());
+    storage.insert(storage.end(), arguments.begin(), arguments.end());
+    std::vector<char*> argv;
+    argv.reserve(storage.size() + 1U);
+    for (auto& item : storage) argv.push_back(item.data());
+    argv.push_back(nullptr);
+
+    posix_spawn_file_actions_t file_actions{};
+    const auto actions_error = posix_spawn_file_actions_init(&file_actions);
+    if (actions_error != 0) {
+        throw std::system_error(
+            actions_error, std::generic_category(),
+            "cannot initialize posix_spawn file actions");
+    }
+    const auto throw_actions_error = [&](const int error, const char* const message) {
+        static_cast<void>(posix_spawn_file_actions_destroy(&file_actions));
+        throw std::system_error(error, std::generic_category(), message);
+    };
+    auto action_error = posix_spawn_file_actions_addopen(
+        &file_actions, STDOUT_FILENO, stdout_path.c_str(),
+        O_CREAT | O_WRONLY | O_TRUNC, 0600);
+    if (action_error != 0) {
+        throw_actions_error(action_error, "cannot redirect posix_spawn stdout");
+    }
+    action_error = posix_spawn_file_actions_addopen(
+        &file_actions, STDERR_FILENO, stderr_path.c_str(),
+        O_CREAT | O_WRONLY | O_TRUNC, 0600);
+    if (action_error != 0) {
+        throw_actions_error(action_error, "cannot redirect posix_spawn stderr");
+    }
+    pid_t child = -1;
+    const auto spawn_error = posix_spawn(
+        &child, "/bin/sh", &file_actions, nullptr, argv.data(), ::environ);
+    static_cast<void>(posix_spawn_file_actions_destroy(&file_actions));
+    if (spawn_error != 0) {
+        throw std::system_error(
+            spawn_error, std::generic_category(), "posix_spawn failed");
     }
     const auto started = std::chrono::steady_clock::now();
     int status = 0;
@@ -305,11 +347,24 @@ void validate_job_id(const std::string_view value) {
     for (;;) {
         const auto waited = waitpid(child, &status, WNOHANG);
         if (waited == child) break;
-        if (waited < 0) throw std::runtime_error("waitpid failed");
+        if (waited < 0) {
+            if (errno == EINTR) continue;
+            const auto wait_error = errno;
+            static_cast<void>(kill(child, SIGKILL));
+            while (waitpid(child, &status, 0) < 0 && errno == EINTR) {
+            }
+            throw std::system_error(
+                wait_error, std::generic_category(), "waitpid failed");
+        }
         if (std::chrono::steady_clock::now() - started >= timeout) {
             timed_out = true;
-            kill(child, SIGKILL);
-            waitpid(child, &status, 0);
+            static_cast<void>(kill(child, SIGKILL));
+            while (waitpid(child, &status, 0) < 0) {
+                if (errno == EINTR) continue;
+                throw std::system_error(
+                    errno, std::generic_category(),
+                    "waitpid after timeout failed");
+            }
             break;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds{2});

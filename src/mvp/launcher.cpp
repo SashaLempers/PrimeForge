@@ -6,6 +6,7 @@
 #include "primeforge/work/work_unit.hpp"
 
 #include <stdexcept>
+#include <string_view>
 #include <system_error>
 #include <utility>
 
@@ -97,6 +98,27 @@ std::vector<std::string> make_launcher_arguments(
         return {"verify", "--result", paths.results.string()};
     }
     throw std::invalid_argument("unknown launcher action");
+}
+
+std::filesystem::path archive_incompatible_campaign(
+    const LauncherCampaignPaths& paths,
+    const std::string_view unique_suffix) {
+    if (!std::filesystem::is_directory(paths.output_directory)) {
+        throw std::runtime_error("incompatible campaign directory is absent");
+    }
+    if (unique_suffix.empty() ||
+        unique_suffix.find_first_not_of("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_") !=
+            std::string_view::npos) {
+        throw std::invalid_argument("campaign archive suffix is invalid");
+    }
+    const auto archived = paths.output_directory.parent_path() /
+                          (paths.output_directory.filename().string() + ".incompatible-" +
+                           std::string{unique_suffix});
+    if (std::filesystem::exists(archived)) {
+        throw std::runtime_error("campaign archive target already exists");
+    }
+    std::filesystem::rename(paths.output_directory, archived);
+    return archived;
 }
 
 StopRequestFile::StopRequestFile(std::filesystem::path path) : path_{std::move(path)} {

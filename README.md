@@ -71,6 +71,12 @@ engine finishes its current bounded work, durably commits the result prefix and
 checkpoint, and exits with `search.status=STOPPED`. The next launch clears the
 one-shot stop request and resumes that exact checkpoint automatically.
 
+After a successful search or resume, final verification runs automatically in
+the same window. If verification identifies the exact legacy campaign-identity
+mismatch caused by an older PrimeForge pipeline, the launcher preserves that
+directory as `<campaign>.incompatible-<UTC timestamp>`, starts a clean campaign,
+and verifies the new result. Other verification failures remain fail-closed.
+
 ```powershell
 & .\out\build\msvc-cuda-release\primeforge-launcher.exe
 

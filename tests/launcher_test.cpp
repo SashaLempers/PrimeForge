@@ -82,6 +82,22 @@ int main(const int argc, char** argv) {
                   verify[2] == paths.results.string(),
               "completed campaign verifies its exact ledger");
 
+        const auto archived = primeforge::mvp::archive_incompatible_campaign(
+            paths, "20260803T200000Z");
+        check(!std::filesystem::exists(paths.output_directory) &&
+                  std::filesystem::is_regular_file(archived / "results.jsonl") &&
+                  primeforge::mvp::select_launcher_action(paths) ==
+                      primeforge::mvp::LauncherAction::search,
+              "incompatible campaign is preserved and a clean search becomes selectable");
+        expect_failure(
+            [&] {
+                static_cast<void>(primeforge::mvp::archive_incompatible_campaign(
+                    paths, "../unsafe"));
+            },
+            "unsafe archive suffix is rejected");
+
+        std::filesystem::rename(archived, paths.output_directory);
+
         std::filesystem::remove(paths.results);
         expect_failure(
             [&] { static_cast<void>(primeforge::mvp::select_launcher_action(paths)); },

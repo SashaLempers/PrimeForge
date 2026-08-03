@@ -44,6 +44,12 @@ the request. A subsequent launch selects `resume` when the checkpoint and ledger
 exist, `verify` when the final manifest exists, and `search` only when no campaign
 output exists. Ambiguous partial states fail closed.
 
+A successful `search` or `resume` is followed immediately by `verify`. The only
+automatic compatibility recovery is the exact legacy campaign-identity mismatch:
+the complete old directory is renamed with an `.incompatible-<UTC timestamp>`
+suffix, never deleted, before a clean search begins. Hash failures, missing files,
+unexpected outputs and all other verification errors still fail closed.
+
 On resume, PrimeForge reloads the campaign-owned `search.yaml`, validates the
 checkpoint hash and identity, authenticates the ledger prefix and verifies that
 its records are contiguous and campaign-consistent. A suffix written after the

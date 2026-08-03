@@ -7,6 +7,7 @@
 
 #include <array>
 #include <atomic>
+#include <cstdio>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
@@ -31,6 +32,7 @@ constexpr int control_stop = 1004;
 struct ChildCompletion {
     DWORD exit_code{};
     primeforge::mvp::LauncherAction action{};
+    std::string output;
 };
 
 struct AppState {
@@ -45,7 +47,29 @@ struct AppState {
     std::jthread worker;
     std::atomic_bool running{false};
     bool close_when_finished{};
+    bool compatibility_recovery_attempted{};
 };
+
+[[nodiscard]] bool is_known_campaign_incompatibility(const ChildCompletion& completion) {
+    return completion.action == primeforge::mvp::LauncherAction::verify &&
+           completion.output.find("result coordinates or campaign identity mismatch") !=
+               std::string::npos;
+}
+
+[[nodiscard]] std::string utc_archive_suffix() {
+    SYSTEMTIME time{};
+    GetSystemTime(&time);
+    std::array<char, 32U> buffer{};
+    const int written = std::snprintf(
+        buffer.data(), buffer.size(), "%04u%02u%02uT%02u%02u%02uZ",
+        static_cast<unsigned int>(time.wYear), static_cast<unsigned int>(time.wMonth),
+        static_cast<unsigned int>(time.wDay), static_cast<unsigned int>(time.wHour),
+        static_cast<unsigned int>(time.wMinute), static_cast<unsigned int>(time.wSecond));
+    if (written <= 0 || static_cast<std::size_t>(written) >= buffer.size()) {
+        throw std::runtime_error("cannot format campaign archive timestamp");
+    }
+    return {buffer.data(), static_cast<std::size_t>(written)};
+}
 
 [[nodiscard]] std::wstring windows_error(const DWORD code) {
     wchar_t* buffer = nullptr;
@@ -184,7 +208,7 @@ void run_child(const HWND window, AppState* const state,
     if (CreatePipe(&read_pipe, &write_pipe, &attributes, 0U) == FALSE) {
         post_log(window, L"Impossible de créer le canal de journal : " +
                              windows_error(GetLastError()) + L"\r\n");
-        auto result = new ChildCompletion{GetLastError(), action};
+        auto result = new ChildCompletion{GetLastError(), action, {}};
         static_cast<void>(PostMessageW(window, message_finished, 0U,
                                        reinterpret_cast<LPARAM>(result)));
         return;
@@ -213,7 +237,7 @@ void run_child(const HWND window, AppState* const state,
         CloseHandle(read_pipe);
         post_log(window, L"Impossible de lancer primeforge.exe : " + windows_error(error) +
                              L"\r\n");
-        auto result = new ChildCompletion{error, action};
+        auto result = new ChildCompletion{error, action, {}};
         static_cast<void>(PostMessageW(window, message_finished, 0U,
                                        reinterpret_cast<LPARAM>(result)));
         return;
@@ -221,9 +245,11 @@ void run_child(const HWND window, AppState* const state,
 
     CloseHandle(process.hThread);
     std::array<char, 4'096U> buffer{};
+    std::string complete_output;
     DWORD bytes_read = 0U;
     while (ReadFile(read_pipe, buffer.data(), static_cast<DWORD>(buffer.size()),
                     &bytes_read, nullptr) != FALSE && bytes_read != 0U) {
+        complete_output.append(buffer.data(), static_cast<std::size_t>(bytes_read));
         post_log(window, decode_output(buffer.data(), bytes_read));
     }
     CloseHandle(read_pipe);
@@ -231,7 +257,7 @@ void run_child(const HWND window, AppState* const state,
     DWORD exit_code = 1U;
     static_cast<void>(GetExitCodeProcess(process.hProcess, &exit_code));
     CloseHandle(process.hProcess);
-    auto result = new ChildCompletion{exit_code, action};
+    auto result = new ChildCompletion{exit_code, action, std::move(complete_output)};
     static_cast<void>(PostMessageW(window, message_finished, 0U,
                                    reinterpret_cast<LPARAM>(result)));
 }
@@ -382,6 +408,44 @@ LRESULT CALLBACK window_procedure(const HWND window, const UINT message,
                                       decode_output(error.what(),
                                                     static_cast<DWORD>(std::char_traits<char>::length(error.what()))) +
                                       L"\r\n");
+        }
+        if (completion->exit_code != 0U &&
+            !state->compatibility_recovery_attempted &&
+            is_known_campaign_incompatibility(*completion)) {
+            try {
+                const auto archived = primeforge::mvp::archive_incompatible_campaign(
+                    state->campaign, utc_archive_suffix());
+                state->compatibility_recovery_attempted = true;
+                append_log(
+                    state->log,
+                    L"[launcher] Ancienne campagne incompatible conservée dans :\r\n" +
+                        archived.wstring() +
+                        L"\r\n[launcher] Démarrage automatique d'une campagne neuve.\r\n");
+                set_status(*state,
+                           L"Ancienne campagne sauvegardée — nouvelle recherche en cours…");
+                EnableWindow(state->start, FALSE);
+                EnableWindow(state->stop, FALSE);
+                PostMessageW(window, message_start, 0U, 0U);
+                return 0;
+            } catch (const std::exception& error) {
+                append_log(state->log,
+                           L"[launcher] Récupération impossible : " +
+                               decode_output(
+                                   error.what(),
+                                   static_cast<DWORD>(std::char_traits<char>::length(error.what()))) +
+                               L"\r\n");
+            }
+        }
+        if (completion->exit_code == 0U &&
+            completion->action != primeforge::mvp::LauncherAction::verify &&
+            std::filesystem::is_regular_file(state->campaign.manifest)) {
+            append_log(state->log,
+                       L"[launcher] Recherche terminée ; vérification finale automatique.\r\n");
+            set_status(*state, L"Recherche terminée — vérification finale…");
+            EnableWindow(state->start, FALSE);
+            EnableWindow(state->stop, FALSE);
+            PostMessageW(window, message_start, 0U, 0U);
+            return 0;
         }
         EnableWindow(state->start, TRUE);
         EnableWindow(state->stop, FALSE);

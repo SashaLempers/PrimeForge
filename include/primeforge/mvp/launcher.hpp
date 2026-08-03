@@ -4,6 +4,7 @@
 
 #include <filesystem>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace primeforge::mvp {
@@ -36,6 +37,10 @@ struct LauncherCampaignPaths {
     LauncherAction action,
     const LauncherCampaignPaths& paths,
     std::string prp_backend = "auto");
+
+[[nodiscard]] std::filesystem::path archive_incompatible_campaign(
+    const LauncherCampaignPaths& paths,
+    std::string_view unique_suffix);
 
 class StopRequestFile final {
 public:

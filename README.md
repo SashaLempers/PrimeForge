@@ -218,6 +218,11 @@ Its before/after evidence is in
 [`docs/reports/OPTIMIZATION_01.md`](docs/reports/OPTIMIZATION_01.md) and
 [`benchmarks/baselines/optimization-01/`](benchmarks/baselines/optimization-01/).
 
+The second retained optimization runs independent FLINT checks in a bounded
+eight-process wave. See
+[`docs/reports/OPTIMIZATION_02.md`](docs/reports/OPTIMIZATION_02.md) and
+[`benchmarks/baselines/optimization-02/`](benchmarks/baselines/optimization-02/).
+
 Run a focused CPU PRP sample:
 
 ```powershell

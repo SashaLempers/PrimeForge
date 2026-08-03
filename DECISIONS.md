@@ -702,3 +702,17 @@ retained 160-candidate profile it reduces median end-to-end time by 85.760 % to
 recovery hashes. PrimeForge does not mutate an external installation during an
 adapter lifetime; supporting hot replacement would require explicit cache
 invalidation before it could be enabled.
+
+## D-0082 - Independent FLINT processes use a bounded parallel wave
+
+**Status:** Accepted - 2026-08-03
+
+The target Ryzen 9 9950X3D submits independent FLINT classifications with a
+maximum concurrency of eight. PrimeForge joins the entire wave before proof and
+ordered durable serialization. This boundary avoids process-handle inheritance
+races with the ledger and keeps record order, checkpoints and certificates
+unchanged. Adapters that do not explicitly recommend parallelism remain serial.
+
+Compared with the retained hash-cache baseline, complete-pipeline medians fall
+by 46.055 % to 49.791 %. A variant that overlapped process creation with durable
+writes is rejected in `NR-0055`; it is not part of this decision.

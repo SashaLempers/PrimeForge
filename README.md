@@ -209,6 +209,10 @@ kernel, D2H, CPU PRP, proof, independent verification, result I/O, checkpoint,
 and total time as integer nanoseconds. Raw rows follow
 `benchmarks/schemas/raw-v1.md`.
 
+The retained raw evidence and conclusions are in
+[`docs/reports/COMMIT_A.md`](docs/reports/COMMIT_A.md) and
+[`benchmarks/baselines/commit-a/`](benchmarks/baselines/commit-a/).
+
 Run a focused CPU PRP sample:
 
 ```powershell

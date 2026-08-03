@@ -36,6 +36,17 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
+    },
+    {
+      "name": "msvc-cuda-release",
+      "displayName": "MSVC x64 Release with pinned CUDA 13.3 validation",
+      "inherits": "msvc-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CUDA_ARCHITECTURES": "120",
+        "PRIMEFORGE_CUDA_ROOT": "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.3",
+        "PRIMEFORGE_ENABLE_CUDA": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -46,6 +57,10 @@
     {
       "name": "msvc-release",
       "configurePreset": "msvc-release"
+    },
+    {
+      "name": "msvc-cuda-release",
+      "configurePreset": "msvc-cuda-release"
     }
   ],
   "testPresets": [
@@ -62,6 +77,16 @@
     {
       "name": "msvc-release",
       "configurePreset": "msvc-release",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error"
+      }
+    },
+    {
+      "name": "msvc-cuda-release",
+      "configurePreset": "msvc-cuda-release",
       "output": {
         "outputOnFailure": true
       },

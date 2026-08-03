@@ -11,6 +11,9 @@ project(
 
 include(CTest)
 
+option(PRIMEFORGE_ENABLE_CUDA "Build the local CUDA validation target" OFF)
+set(PRIMEFORGE_CUDA_ROOT "" CACHE PATH "Pinned local CUDA Toolkit root")
+
 # CMake 4.3 can double-encode a non-breaking space while detecting localized
 # MSVC /showIncludes output. Ninja then records zero header dependencies. Repair
 # only that byte sequence and preserve every correctly detected locale prefix.
@@ -312,6 +315,52 @@ target_link_libraries(primeforge-cpu-topology-tests PRIVATE PrimeForge::core)
 target_compile_features(primeforge-cpu-topology-tests PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge-cpu-topology-tests)
 
+if(PRIMEFORGE_ENABLE_CUDA)
+    if(PRIMEFORGE_CUDA_ROOT STREQUAL "")
+        message(FATAL_ERROR "PRIMEFORGE_CUDA_ROOT is required when CUDA validation is enabled")
+    endif()
+    find_program(
+        primeforge_nvcc
+        NAMES nvcc nvcc.exe
+        HINTS "${PRIMEFORGE_CUDA_ROOT}/bin"
+        NO_DEFAULT_PATH
+        REQUIRED
+    )
+    set(CMAKE_CUDA_COMPILER "${primeforge_nvcc}" CACHE FILEPATH "Pinned nvcc" FORCE)
+    enable_language(CUDA)
+    set(CUDAToolkit_ROOT "${PRIMEFORGE_CUDA_ROOT}")
+    find_package(CUDAToolkit 13.3 REQUIRED)
+    if(CUDAToolkit_VERSION VERSION_LESS 13.3 OR
+       NOT CUDAToolkit_VERSION VERSION_LESS 13.4)
+        message(FATAL_ERROR "PrimeForge PIVOT-04 requires CUDA Toolkit 13.3.x")
+    endif()
+
+    add_executable(primeforge-cuda-validation src/cuda/validation.cu)
+    target_link_libraries(primeforge-cuda-validation PRIVATE CUDA::cudart)
+    target_compile_features(primeforge-cuda-validation PRIVATE cuda_std_20)
+    target_compile_options(
+        primeforge-cuda-validation
+        PRIVATE
+            $<$<COMPILE_LANGUAGE:CUDA>:--Werror=all-warnings>
+            $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/W4>
+            $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/WX>
+            # NVCC 13.3 emits C4211 in its generated registration stub. Keep
+            # the suppression inside this CUDA target; every other warning
+            # and all CUDA frontend warnings remain errors.
+            $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/wd4211>
+            $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/permissive->
+            $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/EHsc>
+            $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/utf-8>
+    )
+    set_target_properties(
+        primeforge-cuda-validation
+        PROPERTIES
+            CUDA_ARCHITECTURES 120
+            CUDA_EXTENSIONS OFF
+            CUDA_SEPARABLE_COMPILATION OFF
+    )
+endif()
+
 if(BUILD_TESTING)
     add_test(NAME primeforge.unit COMMAND primeforge-tests)
     add_test(NAME primeforge.selftest COMMAND primeforge-selftest)
@@ -371,6 +420,9 @@ if(BUILD_TESTING)
     add_test(NAME primeforge.runtime COMMAND primeforge-runtime-tests)
     add_test(NAME primeforge.cpu_topology COMMAND primeforge-cpu-topology-tests)
     add_test(NAME primeforge.cpu_topology_cli COMMAND primeforge-cpu-topology)
+    if(PRIMEFORGE_ENABLE_CUDA)
+        add_test(NAME primeforge.cuda_validation COMMAND primeforge-cuda-validation)
+    endif()
     add_test(
         NAME primeforge.watchdog_process
         COMMAND primeforge-watchdog-process-tests

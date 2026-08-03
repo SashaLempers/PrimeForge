@@ -36,6 +36,24 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/run_all.ps1 -Cle
 
 The script locates Visual Studio with `vswhere`, loads its developer environment, deletes only the two known build directories when `-Clean` is supplied, and stops at the first failure. During CMake generation, PrimeForge repairs the specific double-encoded non-breaking-space sequence observed in CMake 4.3's detection of localized MSVC `/showIncludes` output. Correctly detected locale prefixes are left unchanged. This stabilizes Ninja header dependency metadata; it does not suppress or downgrade diagnostics.
 
+## Optional local CUDA validation
+
+The ordinary presets do not require CUDA. On the target machine only, the pinned
+official CUDA 13.3 installation can be validated with:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File scripts\run_cuda_validation.ps1 -Clean
+```
+
+The preset requires `C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.3`
+and compiles only for compute capability 12.0. The CUDA target is local-only,
+uses CUDA C++20 because that is the validated NVCC language level, and is never
+included in `scripts/package_mvp.ps1`; all CPU PrimeForge targets remain C++23.
+The script discovers Visual Studio with `vswhere`, loads Developer PowerShell,
+runs configure/build/CTest, executes the validator explicitly and repeats it
+under Compute Sanitizer memcheck.
+
 ## Smart App Control / Application Control
 
 On a Windows host with Smart App Control or an enterprise Application Control policy in enforcement mode, a freshly linked unsigned development executable can be blocked before its main function runs. CTest then reports BAD_COMMAND or “Process not started”; the CodeIntegrity/Operational log records event 3077.

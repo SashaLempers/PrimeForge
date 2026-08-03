@@ -15,7 +15,9 @@ single-pass factor evidence. Aligned canonical segments eliminate per-worker
 full bitsets and their merge, while compiled residue classes eliminate the full
 rule-by-candidate scan. Its disjoint 630-execution CPU study closed
 `INCONCLUSIVE`, so the safe product profile remains selected and no fastest
-configuration is claimed. PIVOT-04 is next.
+configuration is claimed. PIVOT-04 has validated the optional local CUDA 13.3
+toolchain, exact target device, transfers, deterministic kernel, sanitizer and
+non-redistribution boundary. PIVOT-05 is next.
 
 ## PIVOT-00 — Audit and reorientation
 
@@ -54,6 +56,11 @@ Only now install a compatible official toolkit after pinning version, source and
 license. Compile a minimal program, query the device, test transfers and a trivial
 kernel, and compare results with CPU. Gate: optional CMake CUDA configuration,
 clean non-CUDA build, exact vectors and no distribution ambiguity.
+
+Gate: `COMPLETE`. The existing official 13.3.1 installation was pinned rather
+than reinstalled. All 4096 fixed vectors matched, Compute Sanitizer reported zero
+errors, ordinary Debug/Release remained clean and the private package verifier
+confirmed that no CUDA/NVIDIA binary is shipped.
 
 ## PIVOT-05 — Modular CUDA backend
 

@@ -169,6 +169,18 @@ Complete clean verification from any PowerShell prompt:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/run_all.ps1 -Clean
 ```
 
+Optional target-machine CUDA 13.3 validation (not part of the product package):
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File scripts\run_cuda_validation.ps1 -Clean
+```
+
+This preset requires the pinned local official toolkit and RTX 5080. CUDA stays
+disabled in the normal Debug/Release and Linux paths. The validation executable
+is local-only and excluded from release packaging. The script discovers Visual
+Studio, loads its developer environment and stops on the first failed command.
+
 Regenerate the stable local hardware profile after a Release build:
 
 ```powershell

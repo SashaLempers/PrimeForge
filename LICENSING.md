@@ -49,3 +49,20 @@ Any clean-room reimplementation follows docs/PROVENANCE_POLICY.md and is entered
 FLINT 3.6.0, GMP 6.3.0, MPFR 4.2.2, pthreads4w 3.0.0, PARI/GP 2.17.4, and proth20 0.9.1 are used only as local correctness oracles. Their binaries and DLLs live under ignored `out/oracles`, are not linked into PrimeForge targets, and are not redistributed.
 
 The pinned FLINT upstream source identifies the library as LGPL-3.0-or-later, while the generated vcpkg package SPDX record declares GPL-3.0-only. This discrepancy is unresolved for binary distribution. PrimeForge therefore applies the conservative common result: the local FLINT oracle and every transitive DLL are prohibited from release packaging. An external or development-only process boundary is not treated as a license exemption.
+
+## PIVOT-04 CUDA validation quarantine
+
+The official local NVIDIA CUDA Toolkit is governed by its own NVIDIA CUDA
+Toolkit EULA, not by PrimeForge's Apache-2.0 grant. The exact local EULA hash,
+compiler hash, toolkit/runtime versions, provenance and non-redistribution
+decision are recorded as `TOOL-0008` in `SOURCES.lock`.
+
+CUDA is disabled by default. The optional `msvc-cuda-release` preset builds a
+target-machine validation executable only under the ignored build tree. Binary
+dependency inspection shows no dynamic CUDA runtime DLL: the local validator
+contains the statically linked runtime selected by `CUDA::cudart`. PrimeForge
+therefore excludes that entire executable from release packaging. The ordinary
+`primeforge.exe`, source distribution scope and private MVP ZIP contain no CUDA
+binary, toolkit header, library or NVIDIA license material. This is a conservative
+component decision and does not infer any license conclusion from a process or
+link boundary.

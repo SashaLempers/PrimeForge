@@ -532,3 +532,18 @@ does not infer an optimum from elapsed time. The product keeps one thread,
 8192-candidate segments, static scheduling and Windows scheduler management.
 The topology, direct-word and compiled-residue engine improvements remain because
 their correctness and structural work reductions do not depend on a timing rank.
+
+## D-0070 - CUDA validation is optional, target-specific and local-only
+
+**Status:** Accepted - 2026-08-03
+
+The ordinary Debug/Release product continues to configure without CUDA. A separate
+`msvc-cuda-release` preset pins the installed official CUDA Toolkit 13.3.x, the
+RTX 5080 compute capability 12.0 target and a minimal local validation executable.
+The CUDA translation unit uses C++20 because that is the validated NVIDIA compiler
+language level; every non-CUDA PrimeForge target remains C++23. The validation
+binary links the CUDA runtime statically, is never copied into the private product
+package and is not an accepted redistribution component. C4211 is disabled only
+for this NVCC-host-compiled target because NVCC 13.3 generates that diagnostic in
+its registration stub. All CUDA frontend warnings and every other host warning
+remain errors; every ordinary PrimeForge target retains the unmodified strict gate.

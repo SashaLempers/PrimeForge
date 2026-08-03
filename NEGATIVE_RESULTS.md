@@ -345,3 +345,57 @@ Each future entry must include:
 - **Failure criterion:** PIVOT-03 may retain a target profile only after disjoint validation, complete stability telemetry and a stable selection; timing rank alone is insufficient.
 - **Conclusion:** PIVOT-03 closes `INCONCLUSIVE`. The one-thread, 8192-candidate, scheduler-managed static profile remains the conservative product default. No timing or fastest claim is made.
 - **Retry condition:** a validated CPU temperature provider, complete stability interval and a preregistered larger representative workload may reopen profile selection without reopening the completed engine primitives.
+
+## NR-0037 - FindCUDAToolkit was initially forced into the wrong search mode
+
+- **Date:** 2026-08-03
+- **Change tested:** first optional CUDA 13.3 configuration using an explicit toolkit path.
+- **Evidence:** CMake rejected `find_package(CUDAToolkit ... PATHS ... NO_DEFAULT_PATH)` because those arguments selected config mode, while NVIDIA's local toolkit is discovered by CMake's `FindCUDAToolkit` module.
+- **Failure criterion:** the pinned local toolkit must configure without falling back to another installation.
+- **Conclusion:** CMake now pins `CMAKE_CUDA_COMPILER` and `CUDAToolkit_ROOT`, then uses the module and independently requires version 13.3.x.
+- **Retry condition:** any toolkit upgrade must pass the same explicit compiler, root and version checks.
+
+## NR-0038 - Strict CUDA warnings rejected an unused validation accessor
+
+- **Date:** 2026-08-03
+- **Change tested:** first compilation of the minimal transfer/kernel validator.
+- **Evidence:** NVCC 13.3 stopped on an unused const overload under `--Werror=all-warnings`.
+- **Failure criterion:** original PrimeForge CUDA code must compile warning-free; warning policy may not be weakened to obtain a build.
+- **Conclusion:** the unused accessor was removed. CUDA warnings remain errors.
+- **Retry condition:** every new CUDA source must pass the unchanged warning gate.
+
+## NR-0039 - NVCC generated host stub triggers MSVC C4211 under /WX
+
+- **Date:** 2026-08-03
+- **Change tested:** MSVC `/W4 /WX` host compilation of the CUDA validation target.
+- **Evidence:** original `validation.cu` compiled cleanly, but NVCC's generated registration stub emitted C4211 for a generated nonstandard extension and `/WX` stopped the build.
+- **Failure criterion:** future third-party/generated diagnostics must not disable strict warnings for original PrimeForge code.
+- **Conclusion:** `/wd4211` is limited to the NVCC-host-compiled validation target, where the generated stub and original host portions share a compiler invocation. CUDA warnings-as-errors and all other MSVC warnings-as-errors remain active; ordinary PrimeForge targets receive no suppression.
+- **Retry condition:** remove the targeted suppression if a future toolkit no longer emits the generated construct.
+
+## NR-0040 - Direct developer-shell loading was blocked by PowerShell policy
+
+- **Date:** 2026-08-03
+- **Change tested:** launch the optional CUDA preset from an ordinary PowerShell process.
+- **Evidence:** direct dot invocation of `Launch-VsDevShell.ps1` was denied by the host execution policy before CMake or CUDA ran.
+- **Failure criterion:** the documented command path must enter the installed MSVC environment without changing machine policy.
+- **Conclusion:** the existing per-process `powershell.exe -NoProfile -ExecutionPolicy Bypass` pattern loads the official developer shell without changing system settings. The subsequent configure, build and 32-test gate passed.
+- **Retry condition:** retain the per-process wrapper for automation launched outside Developer PowerShell.
+
+## NR-0041 - Nested PowerShell command variables were expanded by the outer shell
+
+- **Date:** 2026-08-03
+- **Change tested:** one inline retry that embedded `$ErrorActionPreference` and `$LASTEXITCODE` inside a double-quoted nested command.
+- **Evidence:** the outer shell consumed those variables, causing post-command parser diagnostics even though configure, no-op rebuild and 32/32 CTest completed successfully.
+- **Failure criterion:** orchestration output must be unambiguous and must preserve child exit-code checks.
+- **Conclusion:** repository automation remains file-based (`scripts/run_all.ps1`), and manual nested invocations use a single-quoted command body or Developer PowerShell. No source, binary or test result was changed by this shell-only error.
+- **Retry condition:** do not place PowerShell variables in a double-quoted command passed through another PowerShell process.
+
+## NR-0042 - CUDA cache reconfigure was attempted outside the MSVC environment
+
+- **Date:** 2026-08-03
+- **Change tested:** direct full-path CMake reconfigure after an optional CMake-file comment changed.
+- **Evidence:** without Developer PowerShell, CMake saw `cl.exe` and Ninja disappear from the environment, invalidated the CUDA cache and stopped before build or test.
+- **Failure criterion:** the optional CUDA workflow must be safe from an ordinary PowerShell prompt and must never fall back to another compiler or generator.
+- **Conclusion:** `scripts/run_cuda_validation.ps1` now owns this workflow. It discovers Visual Studio with `vswhere`, loads its developer environment, pins the toolkit root and propagates every command failure. The damaged ignored cache is deleted only through its exact known build path before the clean retry.
+- **Retry condition:** clean script execution must rebuild the CUDA configuration and pass all tests, explicit validation and Compute Sanitizer.

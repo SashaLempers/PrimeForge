@@ -417,3 +417,21 @@ Each future entry must include:
 - **Failure criterion:** a novelty campaign must prove its interval does not duplicate known or assigned work before launch; absence of a local record is not evidence of absence.
 - **Conclusion:** PIVOT-08 selects the mathematical family but no novelty interval. Development, PIVOT-09 comparison and PIVOT-10 known/local validation ranges remain permitted with `novelty_status=NOT_CHECKED`.
 - **Retry condition:** archive and hash authoritative coverage snapshots, reconcile their interval semantics, check the proposed range twice and obtain separate authorization before any external assignment or publication.
+
+## NR-0045 - The first proth20 parser missed one composite output form
+
+- **Date:** 2026-08-03
+- **Change tested:** validation parser for the pinned proth20 oracle.
+- **Evidence:** the preliminary validation recognized `is composite,` but treated four `is divisible by ...` results as `UNKNOWN`.
+- **Failure criterion:** every fixed reference case must have an unambiguous expected classification before a measured run.
+- **Conclusion:** no measured run started with the faulty parser. The parser now accepts both explicit proth20 composite forms and validation classifies all 16 cases.
+- **Retry condition:** extend parser fixtures whenever a newly pinned oracle version adds an output form; reject unknown output rather than infer a result.
+
+## NR-0046 - The outer PIVOT-09 display timed out before its worker finished
+
+- **Date:** 2026-08-03
+- **Change tested:** one sequential seven-repetition reference run launched through the desktop shell wrapper.
+- **Evidence:** the wrapper returned timeout status 124 after about 184 seconds while its owned PowerShell process remained active. The run was not relaunched; that same process completed the 224 rows, 14 telemetry records and 462-entry verified manifest, then exited. A follow-up found zero owned benchmark processes.
+- **Failure criterion:** orchestration must not mistake a display timeout for benchmark failure or launch duplicate work.
+- **Conclusion:** mathematical and artifact gates passed, but the wrapper duration was too short for the protocol. Evidence is retained and the incident is not hidden.
+- **Retry condition:** use an explicitly yielded long-running cell or a wrapper timeout above the preregistered worst-case duration; always inspect owned processes before retrying.

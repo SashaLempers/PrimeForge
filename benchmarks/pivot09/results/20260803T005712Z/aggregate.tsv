@@ -1,0 +1,15 @@
+schema	engine	repetition	cases	total_nanoseconds	correction_status	performance_valid	performance_claim
+primeforge.pivot09.aggregate.v1	primeforge	1	16	16189707900	EXACT_AGREEMENT	NO	NONE
+primeforge.pivot09.aggregate.v1	primeforge	2	16	16135424700	EXACT_AGREEMENT	NO	NONE
+primeforge.pivot09.aggregate.v1	primeforge	3	16	16171632400	EXACT_AGREEMENT	NO	NONE
+primeforge.pivot09.aggregate.v1	primeforge	4	16	16172119700	EXACT_AGREEMENT	NO	NONE
+primeforge.pivot09.aggregate.v1	primeforge	5	16	16155159400	EXACT_AGREEMENT	NO	NONE
+primeforge.pivot09.aggregate.v1	primeforge	6	16	16165719300	EXACT_AGREEMENT	NO	NONE
+primeforge.pivot09.aggregate.v1	primeforge	7	16	16170628900	EXACT_AGREEMENT	NO	NONE
+primeforge.pivot09.aggregate.v1	proth20	1	16	16205130300	EXACT_AGREEMENT	NO	NONE
+primeforge.pivot09.aggregate.v1	proth20	2	16	16158933700	EXACT_AGREEMENT	NO	NONE
+primeforge.pivot09.aggregate.v1	proth20	3	16	16144919000	EXACT_AGREEMENT	NO	NONE
+primeforge.pivot09.aggregate.v1	proth20	4	16	16152549500	EXACT_AGREEMENT	NO	NONE
+primeforge.pivot09.aggregate.v1	proth20	5	16	16161417400	EXACT_AGREEMENT	NO	NONE
+primeforge.pivot09.aggregate.v1	proth20	6	16	16166107400	EXACT_AGREEMENT	NO	NONE
+primeforge.pivot09.aggregate.v1	proth20	7	16	16180758000	EXACT_AGREEMENT	NO	NONE

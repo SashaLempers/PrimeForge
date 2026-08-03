@@ -601,3 +601,25 @@ Generalized Fermat, Sierpinski/Riesel and Cullen/Woodall paths remain candidates
 not simultaneous implementation targets. The decision authorizes development and
 known-range comparison only; it does not select a novelty range, request external
 work, claim discovery or authorize a prolonged campaign.
+
+## D-0075 - Native Proth proof requires a replayable exact congruence
+
+**Status:** Accepted - 2026-08-03
+
+The bounded native prover may emit `PROVEN_PRIME` only after validating the Proth
+form and replaying `a^((N-1)/2) mod N = N-1` for a recorded witness. Its canonical
+certificate binds `k`, `n`, `N`, witness and exponent as decimal strings. A
+witness-search bound that is exhausted returns `UNTESTED`, never `COMPOSITE`.
+This keeps absence of a found witness distinct from mathematical evidence of
+compositeness and gives the campaign verifier a deterministic artifact to replay.
+
+## D-0076 - PIVOT-09 retains exact agreement but selects no performance winner
+
+**Status:** Accepted - 2026-08-03
+
+PrimeForge and pinned proth20 agreed on all 224 measured classifications in the
+fixed 16-case protocol. The timing records remain evidence of protocol execution,
+not a ranking: the shared domain is tiny, one fresh process per candidate includes
+startup, and CPU temperature and package power are unavailable. Every row is
+therefore `performance_valid=NO` and `performance_claim=NONE`. Optimization must
+now target a measured complete-pipeline bottleneck after native proof integration.

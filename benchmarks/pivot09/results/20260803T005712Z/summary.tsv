@@ -1,0 +1,3 @@
+schema	engine	repetitions	cases_per_repetition	median_total_nanoseconds	median_absolute_deviation_nanoseconds	correction_status	performance_valid	performance_claim
+primeforge.pivot09.summary.v1	primeforge	7	16	16171632400	16473000	EXACT_AGREEMENT	NO	NONE
+primeforge.pivot09.summary.v1	proth20	7	16	16166107400	14650600	EXACT_AGREEMENT	NO	NONE

@@ -121,6 +121,11 @@ Run equivalent work, proof level, checkpoints and environmental controls against
 the relevant pinned engines. Keep raw data and losses as well as wins. Gate: only
 scoped, statistically supported claims; never a general “fastest” claim.
 
+**Gate:** `COMPLETE-INCONCLUSIVE PERFORMANCE`. PrimeForge and pinned proth20
+agreed on all 224 classifications in the fixed protocol. CPU stability sensors
+remain unavailable and process startup dominates the tiny shared domain, so no
+performance winner or default is selected. PIVOT-10 is next.
+
 ## PIVOT-10 — Limited real campaign
 
 Run a small known or locally controlled range with complete ledger, recovery,

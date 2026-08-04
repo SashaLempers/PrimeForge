@@ -337,13 +337,24 @@ void print_search_summary(const primeforge::mvp::SearchSummary &summary) {
               << "metrics.d2h_ns=" << summary.metrics.device_to_host_ns << '\n'
               << "metrics.prp_cpu_ns=" << summary.metrics.prp_cpu_ns << '\n'
               << "metrics.proof_ns=" << summary.metrics.proof_ns << '\n'
+              << "metrics.proof_compute_ns=" << summary.metrics.proof_compute_ns << '\n'
+              << "metrics.proof_artifact_prepare_ns="
+              << summary.metrics.proof_artifact_prepare_ns << '\n'
+              << "metrics.proof_artifact_io_ns=" << summary.metrics.proof_artifact_io_ns << '\n'
               << "metrics.verification_ns=" << summary.metrics.verification_ns << '\n'
               << "metrics.io_ns=" << summary.metrics.io_ns << '\n'
               << "metrics.checkpoint_ns=" << summary.metrics.checkpoint_ns << '\n'
+              << "metrics.prp_wait_ns=" << summary.metrics.prp_wait_ns << '\n'
+              << "metrics.proof_wait_ns=" << summary.metrics.proof_wait_ns << '\n'
+              << "metrics.verification_wait_ns=" << summary.metrics.verification_wait_ns << '\n'
+              << "metrics.result_processing_ns=" << summary.metrics.result_processing_ns << '\n'
               << "metrics.total_ns=" << summary.metrics.total_ns << '\n'
               << "search.results=" << summary.results_path.string() << '\n'
               << "search.checkpoint=" << summary.checkpoint_path.string() << '\n'
-              << "search.status=" << (summary.completed ? "PASS" : "STOPPED") << '\n';
+              << "search.timeline_json=" << summary.timeline_json_path.string() << '\n'
+              << "search.timeline_svg=" << summary.timeline_svg_path.string() << '\n'
+              << "search.status=" << (summary.completed ? "PASS" : "STOPPED") << '\n'
+              << std::flush;
 }
 
 void run_search(const std::filesystem::path &config_path,

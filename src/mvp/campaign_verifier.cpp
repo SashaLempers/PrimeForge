@@ -33,6 +33,26 @@ namespace {
     return {std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
 }
 
+[[nodiscard]] std::string read_file_slice(const std::filesystem::path& path,
+                                          const std::uint64_t offset,
+                                          const std::uint64_t length) {
+    std::ifstream input{path, std::ios::binary};
+    if (!input) throw std::runtime_error("cannot read verification artifact slice");
+    input.seekg(0, std::ios::end);
+    const auto size = input.tellg();
+    if (size < 0 || offset > static_cast<std::uint64_t>(size) ||
+        length > static_cast<std::uint64_t>(size) - offset) {
+        throw std::runtime_error("verification artifact slice is out of range");
+    }
+    input.seekg(static_cast<std::streamoff>(offset), std::ios::beg);
+    std::string result(static_cast<std::size_t>(length), '\0');
+    input.read(result.data(), static_cast<std::streamsize>(result.size()));
+    if (input.gcount() != static_cast<std::streamsize>(result.size())) {
+        throw std::runtime_error("verification artifact slice is truncated");
+    }
+    return result;
+}
+
 [[nodiscard]] std::string hash_text(
     const std::string_view content, const Sha256Provider& sha256) {
     return sha256_to_hex(
@@ -348,7 +368,18 @@ VerificationSummary verify_campaign(
                 throw std::runtime_error("native Proth certificate artifact is missing");
             }
             const auto artifact = safe_artifact_path(campaign_directory, *artifact_text);
-            const auto artifact_bytes = read_file(artifact);
+            const bool has_offset = proof->find("\"artifact_offset\":") !=
+                                    std::string_view::npos;
+            const bool has_length = proof->find("\"artifact_length\":") !=
+                                    std::string_view::npos;
+            if (has_offset != has_length) {
+                throw std::runtime_error("native Proth certificate slice is incomplete");
+            }
+            const auto artifact_bytes =
+                has_offset
+                    ? read_file_slice(artifact, decimal_field(*proof, "artifact_offset"),
+                                      decimal_field(*proof, "artifact_length"))
+                    : read_file(artifact);
             if (hash_text(artifact_bytes, sha256) != *artifact_digest) {
                 throw std::runtime_error("native Proth certificate hash mismatch");
             }

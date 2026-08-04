@@ -79,6 +79,20 @@ struct ExpectedPrime {
     return {std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
 }
 
+[[nodiscard]] std::string read_native_certificate(
+    const primeforge::mvp::NativeProofEvidence& evidence) {
+    const auto bytes = read_file(evidence.artifact_path);
+    if (!evidence.artifact_offset.has_value() || !evidence.artifact_length.has_value()) {
+        return bytes;
+    }
+    const auto offset = static_cast<std::size_t>(*evidence.artifact_offset);
+    const auto length = static_cast<std::size_t>(*evidence.artifact_length);
+    if (offset > bytes.size() || length > bytes.size() - offset) {
+        throw std::runtime_error("native certificate test slice is out of range");
+    }
+    return bytes.substr(offset, length);
+}
+
 void write_file(const std::filesystem::path& path, const std::string_view bytes) {
     std::ofstream output{path, std::ios::binary | std::ios::trunc};
     if (!output) throw std::runtime_error("cannot write test output");
@@ -347,7 +361,10 @@ int main(const int argc, char** argv) {
         check(first.completed && first.records.size() == 160U &&
                   first.plan.coverage.valid &&
                   std::filesystem::is_regular_file(first.coverage_report_path) &&
-                  std::filesystem::is_regular_file(first.manifest_path),
+                  std::filesystem::is_regular_file(first.manifest_path) &&
+                  std::filesystem::is_regular_file(first.timeline_json_path) &&
+                  std::filesystem::is_regular_file(first.timeline_svg_path) &&
+                  !first.timeline_events.empty(),
               "complete exact campaign output");
         check(independent.recommended_parallelism() == 1U &&
                   independent.run_batch_calls() > 0U && independent.run_calls() == 0U,
@@ -358,12 +375,14 @@ int main(const int argc, char** argv) {
         check(first.prp_tested_count > 0U && first.prp_submitted_batches > 1U &&
                   first.prp_backend_id == batched_prp->id(),
               "MVP uses the bounded batched PRP backend");
-        check(first.metrics.schema_version == 1U && first.metrics.total_ns > 0U &&
+        check(first.metrics.schema_version == 2U && first.metrics.total_ns > 0U &&
                   first.metrics.generation_ns > 0U && first.metrics.congruence_ns > 0U &&
                   first.metrics.sieve_ns > 0U && first.metrics.packing_ns > 0U &&
                   first.metrics.prp_cpu_ns > 0U && first.metrics.proof_ns > 0U &&
                   first.metrics.verification_ns > 0U && first.metrics.io_ns > 0U &&
-                  first.metrics.checkpoint_ns > 0U && first.metrics.host_to_device_ns == 0U &&
+                  first.metrics.checkpoint_ns > 0U &&
+                  first.metrics.result_processing_ns > 0U &&
+                  first.metrics.host_to_device_ns == 0U &&
                   first.metrics.kernel_ns == 0U && first.metrics.device_to_host_ns == 0U,
               "MVP reports complete integer stage metrics for the CPU baseline");
         check(first.externally_classified_count >= known_primes.size(),
@@ -390,7 +409,7 @@ int main(const int argc, char** argv) {
                           record.independent_engine.has_value(),
                       "prime has native proof artifact and independent agreement");
                 const auto certificate_bytes =
-                    read_file(record.native_proth_certificate->artifact_path);
+                    read_native_certificate(*record.native_proth_certificate);
                 const auto certificate =
                     primeforge::proth::parse_canonical_certificate(certificate_bytes);
                 check(certificate.has_value() &&
@@ -452,6 +471,13 @@ int main(const int argc, char** argv) {
         const auto first_manifest = read_file(first.manifest_path);
         const auto first_certificates =
             snapshot_regular_files(first.output_directory / "proofs" / "proth");
+        check(!first_certificates.empty() && first_certificates.size() <= 10U &&
+                  first_certificates.size() < native_certificates &&
+                  std::ranges::all_of(first_certificates, [](const auto& entry) {
+                      return entry.first.starts_with("segment-") &&
+                             entry.first.ends_with(".jsonl");
+                  }),
+              "native certificates share one deterministic journal per checkpoint segment");
         check(std::ranges::count(first_bytes, '\n') == 160,
               "one canonical JSONL record per candidate");
         KnownCertificateVerifier certificate_verifier;
@@ -684,12 +710,8 @@ int main(const int argc, char** argv) {
                   read_file(empty_prefix.flint_evidence_path) == empty_flint_prefix,
               "legacy checkpoint rejection performs no campaign mutation");
         write_file(empty_prefix.checkpoint_path, checkpoint_before_write_failure);
-        const auto obstructed_certificate = config.output_directory / "proofs" / "proth" /
-                                            ("proth-" +
-                                             std::to_string(expected.front().flat_index) +
-                                             ".json");
-        auto write_obstruction = obstructed_certificate;
-        write_obstruction += ".new";
+        const auto write_obstruction = config.output_directory / "proofs" / "proth" /
+                                       "segment-0-16.jsonl";
         std::filesystem::create_directories(write_obstruction);
         {
             std::ofstream marker{write_obstruction / "keep"};
@@ -727,6 +749,12 @@ int main(const int argc, char** argv) {
               "resume after parallel write failure reproduces the complete campaign exactly");
 
         std::filesystem::remove_all(config.output_directory);
+        std::filesystem::remove(first.timeline_json_path);
+        std::filesystem::remove(first.timeline_svg_path);
+        if (std::filesystem::is_directory(first.timeline_json_path.parent_path()) &&
+            std::filesystem::is_empty(first.timeline_json_path.parent_path())) {
+            std::filesystem::remove(first.timeline_json_path.parent_path());
+        }
         config.output_directory = "mvp-pipeline-mixed-evidence-output";
         KnownEngine mixed_evidence{
             "known-mixed-independent", known_primes, false, false, true};

@@ -34,6 +34,8 @@ struct NativeProofEvidence {
     std::string format_version;
     std::filesystem::path artifact_path;
     std::string artifact_sha256;
+    std::optional<std::uint64_t> artifact_offset;
+    std::optional<std::uint64_t> artifact_length;
 };
 
 struct SearchRecord {
@@ -50,7 +52,7 @@ struct SearchRecord {
 };
 
 struct SearchStageMetrics {
-    std::uint32_t schema_version{1U};
+    std::uint32_t schema_version{2U};
     std::uint64_t generation_ns{};
     std::uint64_t congruence_ns{};
     std::uint64_t sieve_ns{};
@@ -60,10 +62,27 @@ struct SearchStageMetrics {
     std::uint64_t device_to_host_ns{};
     std::uint64_t prp_cpu_ns{};
     std::uint64_t proof_ns{};
+    std::uint64_t proof_compute_ns{};
+    std::uint64_t proof_artifact_prepare_ns{};
+    std::uint64_t proof_artifact_io_ns{};
     std::uint64_t verification_ns{};
     std::uint64_t io_ns{};
     std::uint64_t checkpoint_ns{};
+    std::uint64_t prp_wait_ns{};
+    std::uint64_t proof_wait_ns{};
+    std::uint64_t verification_wait_ns{};
+    std::uint64_t result_processing_ns{};
     std::uint64_t total_ns{};
+};
+
+struct PipelineTimelineEvent {
+    std::string component;
+    std::string name;
+    std::string wait_reason;
+    std::uint64_t start_ns{};
+    std::uint64_t duration_ns{};
+    std::uint64_t batch_begin{};
+    std::uint64_t batch_end{};
 };
 
 struct SearchSummary {
@@ -86,8 +105,11 @@ struct SearchSummary {
     std::filesystem::path checkpoint_path;
     std::filesystem::path coverage_report_path;
     std::filesystem::path manifest_path;
+    std::filesystem::path timeline_json_path;
+    std::filesystem::path timeline_svg_path;
     bool completed{};
     SearchStageMetrics metrics;
+    std::vector<PipelineTimelineEvent> timeline_events;
     std::vector<SearchRecord> records;
 };
 

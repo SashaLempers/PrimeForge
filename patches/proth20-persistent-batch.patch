@@ -1,0 +1,148 @@
+diff --git a/src/main.cpp b/src/main.cpp
+index af4d333..e9112b2 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -12,6 +12,9 @@ Please give feedback to the authors if improvement is realized. It is distribute
+ #include "boinc.h"
+ 
+ #include <cstdlib>
++#include <filesystem>
++#include <fstream>
++#include <limits>
+ #include <stdexcept>
+ #include <vector>
+ 
+@@ -101,6 +104,9 @@ private:
+ 		std::ostringstream ss;
+ 		ss << "Usage: proth20 [options]  options may be specified in any order" << std::endl;
+ 		ss << "  -q \"k*2^n+1\"            test expression (default primality)" << std::endl;
++		ss << "  --batch <file>           test whitespace-separated k n pairs with one OpenCL context" << std::endl;
++		ss << "  --stop-on-prime          stop a batch after its first proven prime" << std::endl;
++		ss << "  --stop-file <file>       stop a batch cleanly between candidates when file exists" << std::endl;
+ 		ss << "  -o <a>                  compute the multiplicative order of a modulo k*2^n+1" << std::endl;
+ 		ss << "  -f                      Fermat and Generalized Fermat factor test" << std::endl;
+ 		ss << "  -d <n> or --device <n>  set device number=<n> (default 0)" << std::endl;
+@@ -149,15 +155,28 @@ public:
+ 		ocl::platform platform;
+ 		platform.displayDevices();
+ 
+-		bool bPrime = false, bOrder = false, bGFN = false;
++		bool bPrime = false, bOrder = false, bGFN = false, bBatch = false, bStopOnPrime = false;
+ 		uint32_t k = 0, n = 0, a = 0;
+ 		size_t d = 0;
++		std::string batchFile, stopFile;
+ 		// parse args
+ 		for (size_t i = 0, size = args.size(); i < size; ++i)
+ 		{
+ 			const std::string & arg = args[i];
+ 
+ 			if (arg == "-f") bGFN = true;
++			else if (arg == "--stop-on-prime") bStopOnPrime = true;
++			else if (arg == "--stop-file")
++			{
++				if (i + 1 >= size) throw std::runtime_error("--stop-file requires a file");
++				stopFile = args[++i];
++			}
++			else if (arg == "--batch")
++			{
++				if (i + 1 >= size) throw std::runtime_error("--batch requires a file");
++				batchFile = args[++i];
++				bBatch = bPrime = true;
++			}
+ 			else if (arg.substr(0, 2) == "-q")
+ 			{
+ 				const std::string exp = ((arg == "-q") && (i + 1 < size)) ? args[++i] : arg.substr(2);
+@@ -190,11 +209,65 @@ public:
+ 
+ 		proth & p = proth::getInstance();
+ 		p.setBoinc(bBoinc);
++		if (bStopOnPrime && !bBatch)
++			throw std::runtime_error("--stop-on-prime requires --batch");
++		if (!stopFile.empty() && !bBatch)
++			throw std::runtime_error("--stop-file requires --batch");
+ 
+ 		if (bPrime)
+ 		{
+ 			engine engine(platform, d);
+-			if (bOrder) p.check_order(k, n, a, engine);
++			if (bBatch)
++			{
++				if (bOrder || bGFN || (k != 0) || (n != 0))
++					throw std::runtime_error("--batch cannot be combined with -q, -o or -f");
++
++				std::ifstream input(batchFile);
++				if (!input) throw std::runtime_error("cannot open batch file");
++
++				uint64_t batchK = 0, batchN = 0;
++				size_t completed = 0;
++				bool stopped = false, primeFound = false;
++				while (input >> batchK >> batchN)
++				{
++					if (!stopFile.empty() && std::filesystem::exists(stopFile))
++					{
++						stopped = true;
++						break;
++					}
++					if ((batchK < 3) || (batchK > 99999999) ||
++						(batchN < 32) || (batchN > 99999999) ||
++						(batchK > std::numeric_limits<uint32_t>::max()) ||
++						(batchN > std::numeric_limits<uint32_t>::max()))
++						throw std::runtime_error("invalid batch candidate");
++
++					uint32_t normalizedK = static_cast<uint32_t>(batchK);
++					uint32_t normalizedN = static_cast<uint32_t>(batchN);
++					while (normalizedK % 2 == 0) { normalizedK /= 2; ++normalizedN; }
++					bool isPrime = false;
++					if (!p.check(normalizedK, normalizedN, engine, false, 0, &isPrime))
++					{
++						stopped = true;
++						break;
++					}
++					++completed;
++					std::ostringstream marker;
++					marker << "PRIMEFORGE_BATCH_COMPLETE\t" << completed << "\t"
++						<< normalizedK << "\t" << normalizedN << "\t"
++						<< (isPrime ? "PROVEN_PRIME" : "COMPOSITE") << std::endl;
++					pio::print(marker.str());
++					if (bStopOnPrime && isPrime)
++					{
++						primeFound = true;
++						pio::print("PRIMEFORGE_BATCH_PRIME_FOUND\n");
++						break;
++					}
++				}
++				if (!stopped && !primeFound && !input.eof())
++					throw std::runtime_error("malformed batch file");
++				if (stopped) pio::print("PRIMEFORGE_BATCH_STOPPED\n");
++			}
++			else if (bOrder) p.check_order(k, n, a, engine);
+ 			else if (bGFN) p.check_gfn(k, n, engine);
+ 			else p.check(k, n, engine);
+ 		}
+diff --git a/src/proth.h b/src/proth.h
+index 6f48035..e735e9f 100644
+--- a/src/proth.h
++++ b/src/proth.h
+@@ -155,11 +155,13 @@ public:
+ 	}
+ 
+ public:
+-	bool check(const uint32_t k, const uint32_t n, engine & engine, const bool checkRes = false, const uint64_t r64 = 0)
++	bool check(const uint32_t k, const uint32_t n, engine & engine, const bool checkRes = false,
++		const uint64_t r64 = 0, bool * const primeResult = nullptr)
+ 	{
+ 		uint32_t a = 0;
+ 		if (!arith::proth_prime_quad_nonres(k, n, 3, a))
+ 		{
++			if (primeResult != nullptr) *primeResult = false;
+ 			std::ostringstream ssr; ssr << k << " * 2^" << n << " + 1 is divisible by " << a << std::endl;
+ 			pio::display(ssr.str());
+ 			pio::result(ssr.str());
+@@ -281,6 +283,7 @@ public:
+ 
+ 		uint64_t res64;
+ 		const bool isPrime = X.isMinusOne(res64);
++		if (primeResult != nullptr) *primeResult = isPrime;
+ 		checkError(X);
+ 
+ 		// Gerbicz last check point is i % L == 0 and i >= n - L

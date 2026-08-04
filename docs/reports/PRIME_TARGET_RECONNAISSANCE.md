@@ -91,9 +91,11 @@ déjà épinglé :
 - temps interne annoncé : **3 s** ;
 - temps mural avec démarrage et compilation OpenCL : **5.847216 s**.
 
-Avec le crible actuel jusqu'à 65 521, l'estimation de Mertens donne environ
-10,13 % de survivants, soit **environ 4 050 tests Proth complets**. Cela borne
-provisoirement la campagne à :
+Le crible spécialisé exact jusqu'à 65 521 conserve **4 008 survivants** sur
+40 001 candidats (35 993 éliminés par 6 541 nombres premiers). Le SHA-256 de
+la liste canonique `k n` est
+`f4e60c6cbd66030d2034976a8b8aa663899e1dd61ebb995cd053c58abf13c5e5`.
+Cela borne provisoirement la campagne à :
 
 - **~6,58 h** si chaque candidat redémarre le processus OpenCL ;
 - **~3,38 h** si le contexte GPU reste vivant et que le coût interne de 3 s se
@@ -105,11 +107,42 @@ Ces nombres sont des estimations de décision issues d'un seul cas, pas un
 benchmark publiable. Une validation courte sur un petit segment de la même
 taille devra mesurer le vrai débit avant la campagne complète.
 
+## Validation courte de la chaîne retenue
+
+Trois survivants à la taille cible ont été testés : `k=10013`, `10035` et
+`10055`, toujours avec `n=33221`. Le `proth20` épinglé les a classés composites
+avec les témoins respectifs 3, 7 et 3. Le temps mural total mesuré pour les
+trois tests persistants a été **17,879841 s**, soit **5,959947 s par
+survivant**. Une projection linéaire prudente donne **environ 6 h 38 min** pour
+les 4 008 survivants ; ce n'est pas une revendication de performance.
+
+PARI/GP, exécuté séparément, a classé les trois mêmes entiers composites :
+accord **3/3**. Une interruption coopérative a ensuite été provoquée après le
+premier verdict. Le checkpoint indiquait exactement `1/3`, avec `k=10035`
+comme reprise. La relance n'a traité que les deux candidats restants et a
+terminé à `3/3`; aucun candidat déjà journalisé n'a été retraité.
+
+Sur les 12 échantillons de cette validation interruption/reprise : température
+CPU maximale 68,75 °C, température GPU maximale 52 °C, puissance GPU maximale
+72,84 W, RAM disponible minimale 40 575 934 464 octets, VRAM libre minimale
+13 377 MiB, zéro throttling et zéro erreur WHEA récente. La température mémoire
+GPU reste `UNKNOWN`. Cette observation courte valide la porte fonctionnelle,
+pas la stabilité d'une campagne prolongée.
+
+La campagne préparée, sans calcul Proth, se reproduit avec :
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\run_prime_discovery.ps1 -PrepareOnly
+```
+
+La même commande sans `-PrepareOnly` lancera ou reprendra automatiquement la
+campagne après autorisation de son lancement. Les sorties utiles sont compactes
+(`campaign.json`, `checkpoint.json`, `results.tsv` et un journal par unité).
+
 ## Modifications minimales nécessaires
 
-PrimeForge sait déjà générer et cribler la famille Proth, checkpoint/reprendre,
-et conserver des résultats compacts. Son pipeline de recherche final reste
-cependant limité à 64 bits. Le chemin minimal est donc :
+Le pipeline natif de recherche reste limité à 64 bits. Le chemin minimal retenu
+et désormais préparé est donc :
 
 1. accepter un exposant multiprécision dans la campagne Proth sans matérialiser
    les entiers décimaux composites ;
@@ -118,24 +151,26 @@ cependant limité à 64 bits. Le chemin minimal est donc :
 3. ajouter un adaptateur persistant ou un traitement en lots autour de la
    source MIT de `proth20`, sans un processus OpenCL par candidat ;
 4. produire un certificat Proth compact : `(k,n,a)` et les hashes de provenance ;
-5. vérifier chaque certificat dans PrimeForge puis avec une implantation
-   indépendante ;
+5. arrêter au premier résultat prouvé et le vérifier avec une implantation
+   indépendante avant toute qualification de découverte ;
 6. checkpoint limité à l'unité courante, au dernier `k` traité et aux journaux
    segmentés, sans JSON par composite.
 
 Aucun moteur multiprécision général, ECPP générique ou nouvelle infrastructure
-de benchmark n'est nécessaire pour cette cible.
+de benchmark n'est nécessaire pour cette cible. Les points 1, 2, 3 et 6 sont
+implémentés par le crible spécialisé et le lanceur segmenté. Les points 4 et 5
+ne s'activent qu'au premier résultat `PROVEN_PRIME`.
 
 ## Preuve et vérification indépendante
 
-- **Preuve primaire :** théorème de Proth, après validation stricte de `k`
+- **Preuve primaire :** `proth20`, par théorème de Proth, après validation stricte de `k`
   impair et `k < 2^33221`, avec un témoin `a` satisfaisant
   `a^((N-1)/2) ≡ -1 (mod N)`.
-- **Rejeu PrimeForge :** reconstruction de `N` et vérification du certificat par
-  arithmétique multiprécision CPU.
-- **Vérification indépendante :** `proth20` 0.9.1 sur la RTX 5080, puis rejeu du
-  critère modulaire avec PARI/GP ou FLINT dans un processus séparé. Un simple
-  PRP ne sera jamais enregistré comme `PROVEN_PRIME`.
+- **Orchestration PrimeForge :** conservation de `(k,n)`, du témoin, de la
+  sortie brute, des versions et des hashes, puis arrêt immédiat de la campagne.
+- **Vérification indépendante :** reconstruction et preuve CPU avec PARI/GP ou
+  FLINT dans un processus séparé. Un simple PRP ne sera jamais enregistré comme
+  `PROVEN_PRIME`.
 - **Nouveauté :** recherche exacte de la forme et du nombre dans PrimePages,
   l'historique PrimeGrid/Proth Search et les résultats publics pertinents,
   répétée après la preuve.
@@ -164,10 +199,12 @@ mais cette taille et cette forme ne satisfont pas actuellement le seuil des
 
 ## Conditions de passage à la campagne
 
-Avant la campagne complète : petit segment de même taille, arrêt/reprise,
-couverture exacte, certificat rejoué, comparaison indépendante, débit mesuré,
-ressources contrôlées et seconde vérification de couverture. Si la durée mesurée
-dépasse 24 h ou si la zone apparaît déjà couverte, la décision repasse à
-`NO-GO` et la cible est réévaluée.
+Le petit segment de même taille, l'arrêt/reprise, la couverture exacte, la
+comparaison indépendante des classifications, le débit et les ressources ont
+été validés. La couverture publique a été vérifiée une seconde fois le 4 août
+2026. Si elle change avant le lancement, si la durée projetée dépasse 24 h ou
+si la zone apparaît déjà couverte, la décision repasse à `NO-GO` et la cible
+est réévaluée. La campagne complète reste volontairement non lancée dans ce
+jalon initial.
 
 GO

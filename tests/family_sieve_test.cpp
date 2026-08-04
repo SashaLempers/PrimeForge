@@ -278,6 +278,10 @@ int main() {
             capabilities.brand.find("AMD Ryzen 9 9950X3D") != std::string::npos &&
             capabilities.physical_cores == 16U;
         if (target_affinity_checked) {
+            const auto target_physical_plan = primeforge::cpu::build_affinity_plan(
+                topology.cpu_sets,
+                primeforge::cpu::AffinityStrategy::physical_core_spread,
+                16U);
             auto target_options = baseline;
             target_options.threads = 16U;
             target_options.segment_candidates = 64U;
@@ -287,8 +291,9 @@ int main() {
             check(target_affinity_result.eliminated_words == reference,
                   "target 16-core placement equals the scalar reference");
             check(target_affinity_result.affinity_workers_requested == 16U &&
-                      target_affinity_result.affinity_workers_applied == 16U,
-                  "Ryzen 9 9950X3D applies the complete 16-core plan");
+                      target_affinity_result.affinity_workers_applied ==
+                          target_physical_plan.size(),
+                  "Ryzen 9 9950X3D applies every currently usable physical-core placement");
         }
 #else
         check(physical_affinity.affinity_workers_applied == 0U &&

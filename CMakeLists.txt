@@ -92,6 +92,7 @@ add_library(primeforge_core STATIC
     src/core/status.cpp
     src/core/system_info.cpp
     src/cpu/cpu_topology.cpp
+    src/discovery/proth_sieve.cpp
     src/engine/external_adapter.cpp
     src/family/family.cpp
     src/math/big_integer.cpp
@@ -287,6 +288,16 @@ add_executable(primeforge-proth-tests tests/proth_test.cpp)
 target_link_libraries(primeforge-proth-tests PRIVATE PrimeForge::core)
 target_compile_features(primeforge-proth-tests PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge-proth-tests)
+
+add_executable(primeforge-discovery-sieve src/discovery/proth_sieve_main.cpp)
+target_link_libraries(primeforge-discovery-sieve PRIVATE PrimeForge::core)
+target_compile_features(primeforge-discovery-sieve PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-discovery-sieve)
+
+add_executable(primeforge-discovery-sieve-tests tests/discovery_sieve_test.cpp)
+target_link_libraries(primeforge-discovery-sieve-tests PRIVATE PrimeForge::core)
+target_compile_features(primeforge-discovery-sieve-tests PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-discovery-sieve-tests)
 
 add_executable(primeforge-work-unit-tests tests/work_unit_test.cpp)
 target_link_libraries(primeforge-work-unit-tests PRIVATE PrimeForge::core)
@@ -553,6 +564,7 @@ if(BUILD_TESTING)
             ${CMAKE_CURRENT_SOURCE_DIR}/corpus/mvp/known_proth_small_primes.tsv
     )
     add_test(NAME primeforge.proth_cli COMMAND primeforge-proth --k 43 --n 32 --max-witness 255)
+    add_test(NAME primeforge.discovery_sieve COMMAND primeforge-discovery-sieve-tests)
     set_tests_properties(
         primeforge.proth_cli
         PROPERTIES PASS_REGULAR_EXPRESSION "proth.primality_status=PROVEN_PRIME"

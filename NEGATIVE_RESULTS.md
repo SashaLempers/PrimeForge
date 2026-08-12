@@ -579,3 +579,21 @@ Each future entry must include:
 - **Failure criterion:** a campaign target must remain inside the documented domain of every sieve/proof component and a binary must be reproducibly built from the audited source.
 - **Conclusion:** `PREFLIGHT_FAIL`; no PRP, proof test or campaign was launched. The stale binary result is rejected. The published guard is retained instead of being removed without independent differential validation.
 - **Retry condition:** select a reproducibly derived range below `100000000` and repeat the complete public audit, or separately validate and review a wider proof backend before changing the limit.
+
+## NR-0063 - A non-critical GitHub 503 aborted the first supported-range capture
+
+- **Date:** 2026-08-12
+- **Change tested:** first novelty-evidence capture for the deterministic supported target `n=33326`, `k=21909339..21989339`.
+- **Evidence:** after 71 raw response/request files had been retained, `gh api search/code` returned `HTTP 503: too many shards failed`; Windows PowerShell promoted native stderr to a terminating error because the script used `ErrorActionPreference=Stop`.
+- **Failure criterion:** a failure of a source explicitly classified as non-critical must be recorded in the manifest, not abort the capture before the manifest exists.
+- **Conclusion:** the partial capture is rejected. Native HTTP and GitHub failures are now captured as data, GitHub calls receive at most three bounded attempts, and only failed critical sources can reject the capture at its final gate.
+- **Retry condition:** run the complete capture into a new empty evidence directory and require a generated manifest, zero critical fetch failures, and deterministic analysis.
+
+## NR-0064 - Buffered batch markers prevented the first supported-range interruption test
+
+- **Date:** 2026-08-12
+- **Change tested:** external controller requested a stop immediately after the first Proth20 completion marker in the three-candidate validation for `n=33326`.
+- **Evidence:** Proth20 classified all three candidates before the redirected stdout reader observed the first marker. The three records were correct and agreed with PARI/GP, but the intended `1/3` checkpoint was never created.
+- **Failure criterion:** the batch protocol must expose each durable completion marker while the process is still running so a watchdog or operator can stop between candidates.
+- **Conclusion:** the mathematical results are retained only as a 3/3 classification check; the interruption/restart claim is rejected. The pinned patch now flushes stdout immediately after each `PRIMEFORGE_BATCH_COMPLETE` marker.
+- **Retry condition:** rebuild the pinned Proth20 executable, use a fresh campaign identity, require a nonterminal prefix checkpoint, then resume exactly the unprocessed suffix with no duplicate result row.

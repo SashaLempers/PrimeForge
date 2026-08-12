@@ -52,7 +52,7 @@ index af4d333..e9112b2 100644
  			else if (arg.substr(0, 2) == "-q")
  			{
  				const std::string exp = ((arg == "-q") && (i + 1 < size)) ? args[++i] : arg.substr(2);
-@@ -190,11 +209,65 @@ public:
+@@ -190,11 +209,66 @@ public:
  
  		proth & p = proth::getInstance();
  		p.setBoinc(bBoinc);
@@ -104,6 +104,7 @@ index af4d333..e9112b2 100644
 +						<< normalizedK << "\t" << normalizedN << "\t"
 +						<< (isPrime ? "PROVEN_PRIME" : "COMPOSITE") << std::endl;
 +					pio::print(marker.str());
++					std::cout.flush();
 +					if (bStopOnPrime && isPrime)
 +					{
 +						primeFound = true;

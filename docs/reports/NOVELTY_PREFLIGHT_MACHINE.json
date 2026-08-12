@@ -1,0 +1,281 @@
+{
+    "schema":  "primeforge.novelty.preflight.v1",
+    "generated_utc":  "2026-08-12T20:23:29Z",
+    "source_manifest_sha256":  "13fe463fe42d12506f8803e645bacbba614c376b42dbc8293bbf28fc25e7b7ab",
+    "target":  {
+                   "family":  "k*2^n+1",
+                   "k_min":  "1227250535",
+                   "k_max":  "1227330535",
+                   "k_step":  2,
+                   "exponent":  33326,
+                   "candidate_count":  "40001",
+                   "digits_min":  10042,
+                   "digits_max":  10042,
+                   "expected_prime_count_odd_heuristic":  "3.46018171949567",
+                   "probability_at_least_one_poisson":  "0.968575948863230",
+                   "selection_provenance":  "EXTERNALLY_SELECTED; the repository contains no reproducible seed-to-range mapping.",
+                   "deterministic_interior_values":  [
+                                                         "1227255239",
+                                                         "1227259945",
+                                                         "1227264651",
+                                                         "1227269357",
+                                                         "1227274063",
+                                                         "1227278769",
+                                                         "1227283475",
+                                                         "1227288181",
+                                                         "1227292887",
+                                                         "1227297593",
+                                                         "1227302299",
+                                                         "1227307005",
+                                                         "1227311711",
+                                                         "1227316417",
+                                                         "1227321123",
+                                                         "1227325829"
+                                                     ]
+               },
+    "capture":  {
+                    "source_count":  77,
+                    "failures":  [
+
+                                 ],
+                    "critical_failures":  [
+
+                                          ]
+                },
+    "numeric_overlap_checks":  {
+                                   "est_proth":  [
+
+                                                 ],
+                                   "fermatsearch_done":  [
+
+                                                         ],
+                                   "fermatsearch_running":  [
+
+                                                            ],
+                                   "primegrid_pps":  [
+
+                                                     ],
+                                   "primegrid_ppse":  [
+
+                                                      ],
+                                   "t5k_exact_result_count":  0,
+                                   "exact_web_result_blocks_inspected":  361,
+                                   "exact_web_relevant_blocks":  [
+
+                                                                 ],
+                                   "machine_api_result_counts":  [
+                                                                     {
+                                                                         "file":  "archive-org.json",
+                                                                         "returned_items":  0,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "arxiv.xml",
+                                                                         "returned_items":  0,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "crossref-01.json",
+                                                                         "returned_items":  0,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "crossref-02.json",
+                                                                         "returned_items":  0,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "crossref-03.json",
+                                                                         "returned_items":  100,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "crossref-04.json",
+                                                                         "returned_items":  100,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "datacite-01.json",
+                                                                         "returned_items":  0,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "datacite-02.json",
+                                                                         "returned_items":  0,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "datacite-03.json",
+                                                                         "returned_items":  0,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "datacite-04.json",
+                                                                         "returned_items":  0,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "figshare.json",
+                                                                         "returned_items":  0,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "github-code-01.json",
+                                                                         "returned_items":  0,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "github-code-02.json",
+                                                                         "returned_items":  0,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "github-code-03.json",
+                                                                         "returned_items":  0,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "github-code-04.json",
+                                                                         "returned_items":  0,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "github-commits-01.json",
+                                                                         "returned_items":  0,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "github-commits-02.json",
+                                                                         "returned_items":  0,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "github-commits-03.json",
+                                                                         "returned_items":  0,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "github-commits-04.json",
+                                                                         "returned_items":  0,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "github-issues-01.json",
+                                                                         "returned_items":  99,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "github-issues-02.json",
+                                                                         "returned_items":  99,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "github-issues-03.json",
+                                                                         "returned_items":  0,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "github-issues-04.json",
+                                                                         "returned_items":  0,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "gitlab.json",
+                                                                         "returned_items":  0,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "oeis.json",
+                                                                         "returned_items":  0,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "openalex-01.json",
+                                                                         "returned_items":  0,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "openalex-02.json",
+                                                                         "returned_items":  0,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "openalex-03.json",
+                                                                         "returned_items":  null,
+                                                                         "parse_status":  "POWERSHELL_CASE_COLLISION"
+                                                                     },
+                                                                     {
+                                                                         "file":  "openalex-04.json",
+                                                                         "returned_items":  0,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "zenodo-01.json",
+                                                                         "returned_items":  0,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "zenodo-02.json",
+                                                                         "returned_items":  0,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "zenodo-03.json",
+                                                                         "returned_items":  25,
+                                                                         "parse_status":  "PASS"
+                                                                     },
+                                                                     {
+                                                                         "file":  "zenodo-04.json",
+                                                                         "returned_items":  25,
+                                                                         "parse_status":  "PASS"
+                                                                     }
+                                                                 ],
+                                   "machine_api_relevant_hits":  [
+
+                                                                 ],
+                                   "total_possible_overlaps_or_matches":  0
+                               },
+    "historical_control":  {
+                               "expression":  "34745*2^33221+1",
+                               "est_proth_coverage_rows":  [
+                                                               {
+                                                                   "k_from":  "30000",
+                                                                   "k_to":  "70000",
+                                                                   "maximum_n":  "400000"
+                                                               }
+                                                           ],
+                               "classification":  "NOT_NOVEL"
+                           },
+    "freshness":  {
+                      "est_proth_displayed_update":  "2026-06-21",
+                      "fermatsearch_displayed_update":  "2026-03-31",
+                      "fermatsearch_age_days":  134,
+                      "conservative_stale_threshold_days":  90,
+                      "fermatsearch_stale":  true
+                  },
+    "numeric_path_checks":  {
+                                "json_round_trip":  "PASS",
+                                "tsv_round_trip":  "PASS",
+                                "checkpoint_uint32":  "PASS",
+                                "cli_uint32":  "PASS",
+                                "primeforge_sieve":  "FAIL_LIMIT_99999999",
+                                "proth20_batch_adapter":  "FAIL_LIMIT_99999999",
+                                "upstream_proth20_domain":  "FAIL_DOCUMENTED_LIMIT_100000000_EXCLUSIVE",
+                                "cuda_discovery_adapter":  "NOT_IMPLEMENTED_DISCOVERY_PATH_USES_PROTH20_OPENCL"
+                            },
+    "coverage_verdict":  "NO_DOCUMENTED_OVERLAP_FOUND_IN_CAPTURED_RESPONSES",
+    "preflight_status":  "PREFLIGHT_FAIL",
+    "launch_status":  "MASSIVE_RUN_BLOCKED",
+    "fail_reasons":  [
+                         "FERMATSEARCH_DONE_AND_RUNNING_STALE_OVER_90_DAYS",
+                         "PRIMEFORGE_SIEVE_REJECTS_K_ABOVE_99999999",
+                         "PINNED_PROTH20_BATCH_ADAPTER_REJECTS_K_ABOVE_99999999",
+                         "UPSTREAM_PROTH20_DOCUMENTS_K_BELOW_100000000_ONLY"
+                     ],
+    "limitations":  [
+                        "Public searches cannot reveal private or unindexed computations.",
+                        "GitHub has no global API for searching release-asset contents.",
+                        "T5K is not exhaustive for primes of this size.",
+                        "No claim of globally unexplored or guaranteed novel is made."
+                    ]
+}

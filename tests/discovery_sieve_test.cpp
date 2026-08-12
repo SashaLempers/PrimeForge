@@ -47,6 +47,16 @@ int main() {
         }
         require(rejected_even_bound, "even k bound was accepted");
 
+        bool rejected_out_of_engine_domain = false;
+        try {
+            static_cast<void>(primeforge::discovery::sieve_proth_candidates(
+                {1'227'250'535U, 1'227'330'535U, 33'326U, 65'521U}));
+        } catch (const std::invalid_argument&) {
+            rejected_out_of_engine_domain = true;
+        }
+        require(rejected_out_of_engine_domain,
+                "k range outside the pinned proof-engine domain was accepted");
+
         std::cout << "discovery_sieve.candidates=" << result.candidate_count << '\n'
                   << "discovery_sieve.eliminated=" << result.eliminated_count << '\n'
                   << "discovery_sieve.survivors=" << result.survivors.size() << '\n'

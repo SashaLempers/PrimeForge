@@ -1,0 +1,52 @@
+{
+  "schema": "primeforge.discovery.short_validation.v1",
+  "target": {
+    "family": "k*2^n+1",
+    "exponent": 33326,
+    "k_min": 21909339,
+    "k_max": 21989339,
+    "candidate_count": 40001,
+    "sieve_bound": 65521,
+    "sieve_survivors": 4012,
+    "sieve_survivors_sha256": "a6e874f3f2e6c86f2e66a1f4652459037a55db64d027d49b51198f651b214213"
+  },
+  "oracle_agreement": {
+    "tested": 3,
+    "agreed": 3,
+    "proth20_revision": "6771325939a7ceef2c75644c79981c7df4a61882",
+    "proth20_binary_sha256": "0c97e0e9f61c1e1aedb48ed7b7f5fa1f31343a9cb0cb167f4f4eb0e747dc2dfd",
+    "pari_gp_version": "2.17.4"
+  },
+  "resume": {
+    "intermediate_completed": 2,
+    "intermediate_total": 3,
+    "intermediate_next_k": 21909367,
+    "final_completed": 3,
+    "final_total": 3,
+    "resume_processed_k": [21909367],
+    "duplicate_keys": 0,
+    "missing_keys": 0,
+    "status": "PASS"
+  },
+  "telemetry": {
+    "sample_count": 13,
+    "cpu_temperature_max_celsius": "68.875",
+    "gpu_temperature_max_celsius": "47",
+    "gpu_power_max_watts": "83.68",
+    "ram_available_min_bytes": "40706715648",
+    "vram_free_min_mib": "12488",
+    "throttling_events": 0,
+    "whea_errors_max": 0,
+    "gpu_memory_temperature_celsius": "UNKNOWN"
+  },
+  "local_artifact_hashes": {
+    "campaign.json": "f00e835f23b26bb9edb5fc0475d45150bd3aed3655eba5a38307935ab4071015",
+    "checkpoint.json": "b6344846fca5b5980868e4374e27865eb635bbb9f9cf0ae742ebb05df8f8ed18",
+    "results.tsv": "d1863abff863dc21f761c89d02fc23c84d3991bbf89cd1bbc7cde9c6123134f2",
+    "attempt-001.stdout.log": "a459f291ae4e83a5c8a2e1a6f59fa12a2b6a238195a5ed4895f0333f3a8b4315",
+    "attempt-002.stdout.log": "eca5efc93ec7fb3c65c277ac0412dc88e5b3d10952d11790b54f9a6034e37847",
+    "attempt-001.telemetry.jsonl": "5130399c43bcac6bbd781f4638442765dae62cce2bc56c29bcdc6912bad45b68",
+    "attempt-002.telemetry.jsonl": "025a1e4c6f1234f4968a1738e706fe597ab0303f1adb3ffe3ec354e2e6d5c91b"
+  },
+  "status": "SHORT_VALIDATION_PASS"
+}

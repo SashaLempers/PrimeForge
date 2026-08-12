@@ -1,6 +1,11 @@
 [CmdletBinding()]
 param(
-    [string]$OutputDirectory = 'docs\reports\novelty_sources\2026-08-05-or-later'
+    [string]$OutputDirectory = 'docs\reports\novelty_sources\2026-08-05-or-later',
+    [uint64]$KMin = 1227250535,
+    [uint64]$KMax = 1227330535,
+    [uint32]$Exponent = 33326,
+    [string]$SelectionProvenance = 'EXTERNALLY_SELECTED; the repository contains no reproducible seed-to-range mapping.',
+    [string]$SelectionSeed = 'PrimeForge|SashaLempers|2026-08-05|547ee8566eac612756ceff9e50fea4c56c225d96'
 )
 
 Set-StrictMode -Version Latest
@@ -24,7 +29,14 @@ $utf8 = [System.Text.UTF8Encoding]::new($false)
 $records = [System.Collections.Generic.List[object]]::new()
 $startedUtc = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
 
-New-Item -ItemType Directory -Path $outputPath -Force | Out-Null
+if (Test-Path -LiteralPath $outputPath) {
+    $existing = @(Get-ChildItem -LiteralPath $outputPath -Force)
+    if ($existing.Count -ne 0) {
+        throw "Evidence directory must be new or empty: $outputPath"
+    }
+} else {
+    New-Item -ItemType Directory -Path $outputPath | Out-Null
+}
 
 function Write-Utf8NoBom {
     param([string]$Path, [string]$Content)
@@ -74,8 +86,16 @@ function Invoke-HttpSnapshot {
     $arguments += @('--', $Url)
 
     $fetchedUtc = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
-    $httpText = & $script:curl @arguments
-    $curlExit = $LASTEXITCODE
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        # Native failures are evidence to record. They must not bypass the
+        # critical/non-critical policy through PowerShell's native stderr bridge.
+        $ErrorActionPreference = 'Continue'
+        $httpText = & $script:curl @arguments
+        $curlExit = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
     $httpStatus = 0
     if ($httpText -match '([0-9]{3})\s*$') { $httpStatus = [int]$Matches[1] }
     $evidence = Get-FileEvidence -Path $rawPath
@@ -121,8 +141,25 @@ function Invoke-GitHubSnapshot {
         Write-Utf8NoBom -Path $rawPath -Content '{"error":"gh CLI unavailable"}'
         $exitCode = 127
     } else {
-        $text = @(& $script:gh.Source api --method GET $Endpoint -f "q=$Query" -f 'per_page=100' 2>&1)
-        $exitCode = $LASTEXITCODE
+        $text = [Collections.Generic.List[string]]::new()
+        $exitCode = 1
+        for ($attempt = 1; $attempt -le 3; ++$attempt) {
+            $previousErrorActionPreference = $ErrorActionPreference
+            try {
+                # GitHub search occasionally returns 5xx responses. Keep those
+                # diagnostics and retry, but never turn this non-critical source
+                # into an unhandled PowerShell exception.
+                $ErrorActionPreference = 'Continue'
+                $attemptText = @(& $script:gh.Source api --method GET $Endpoint `
+                    -f "q=$Query" -f 'per_page=100' 2>&1)
+                $exitCode = $LASTEXITCODE
+            } finally {
+                $ErrorActionPreference = $previousErrorActionPreference
+            }
+            foreach ($line in $attemptText) { $text.Add([string]$line) }
+            if ($exitCode -eq 0) { break }
+            if ($attempt -lt 3) { Start-Sleep -Seconds $attempt }
+        }
         Write-Utf8NoBom -Path $rawPath -Content (($text -join "`n") + "`n")
     }
     $evidence = Get-FileEvidence -Path $rawPath
@@ -144,17 +181,26 @@ function Invoke-GitHubSnapshot {
     })
 }
 
-$kMin = [uint64]1227250535
-$kMax = [uint64]1227330535
-$n = [uint32]33326
+if ($KMin -lt 3 -or $KMin -gt $KMax -or ($KMin -band 1) -eq 0 -or
+    ($KMax -band 1) -eq 0 -or (($KMax - $KMin) % 2) -ne 0) {
+    throw 'KMin and KMax must be ordered odd integers with an even difference.'
+}
+if ($KMax -gt [uint32]::MaxValue) {
+    throw 'The current discovery transport requires KMax to fit uint32 exactly.'
+}
+if ($Exponent -lt 32) { throw 'Exponent must be at least 32.' }
+
+$kMin = $KMin
+$kMax = $KMax
+$n = $Exponent
 $candidateCount = (($kMax - $kMin) / 2) + 1
 $interior = [System.Collections.Generic.List[uint64]]::new()
 for ($sample = 1; $sample -le 16; ++$sample) {
-    $index = [uint64][Math]::Floor(($sample * 40000.0) / 17.0)
+    $index = [uint64][Math]::Floor(($sample * ([double]$candidateCount - 1.0)) / 17.0)
     $interior.Add($kMin + 2 * $index)
 }
 $allValues = @($kMin) + @($interior) + @($kMax)
-$seed = 'PrimeForge|SashaLempers|2026-08-05|547ee8566eac612756ceff9e50fea4c56c225d96'
+$seed = $SelectionSeed
 $seedBytes = $utf8.GetBytes($seed)
 $sha = [System.Security.Cryptography.SHA256]::Create()
 try {
@@ -162,6 +208,15 @@ try {
 } finally {
     $sha.Dispose()
 }
+
+$midpoint = ([double]$kMin + [double]$kMax) / 2.0
+$naturalLog = [Math]::Log($midpoint) + [double]$n * [Math]::Log(2.0)
+$expectedPrimeCount = [double]$candidateCount * 2.0 / $naturalLog
+$probabilityAtLeastOne = 1.0 - [Math]::Exp(-$expectedPrimeCount)
+$digitsMin = [int][Math]::Floor([Math]::Log10([double]$kMin) +
+    [double]$n * [Math]::Log10(2.0)) + 1
+$digitsMax = [int][Math]::Floor([Math]::Log10([double]$kMax) +
+    [double]$n * [Math]::Log10(2.0)) + 1
 
 $target = [pscustomobject][ordered]@{
     schema = 'primeforge.novelty.target.v1'
@@ -173,8 +228,12 @@ $target = [pscustomobject][ordered]@{
     exponent = $n
     candidate_count = $candidateCount.ToString([Globalization.CultureInfo]::InvariantCulture)
     deterministic_interior_values = @($interior | ForEach-Object { $_.ToString([Globalization.CultureInfo]::InvariantCulture) })
-    interior_sampling_algorithm = 'For j=1..16: index=floor(j*40000/17), k=k_min+2*index.'
-    selection_provenance = 'EXTERNALLY_SELECTED; the repository contains no reproducible seed-to-range mapping.'
+    digits_min = $digitsMin
+    digits_max = $digitsMax
+    expected_prime_count_odd_heuristic = $expectedPrimeCount.ToString('0.000000000000000', [Globalization.CultureInfo]::InvariantCulture)
+    probability_at_least_one_poisson = $probabilityAtLeastOne.ToString('0.000000000000000', [Globalization.CultureInfo]::InvariantCulture)
+    interior_sampling_algorithm = 'For j=1..16: index=floor(j*(candidate_count-1)/17), k=k_min+2*index.'
+    selection_provenance = $SelectionProvenance
     seed = $seed
     seed_sha256 = $seedHash
 }
@@ -188,6 +247,14 @@ Invoke-HttpSnapshot -Id 'fermatsearch-done' -Url 'https://www.fermatsearch.org/s
     -FileName 'fermatsearch-done.html' -Query 'Full completed-work table; numeric interval comparison' -Critical $true
 Invoke-HttpSnapshot -Id 'fermatsearch-running' -Url 'https://www.fermatsearch.org/stat/running.php' `
     -FileName 'fermatsearch-running.html' -Query 'Full reserved-work table; numeric interval comparison' -Critical $true
+$fermatRangeBody = 'nMin={0}&nMax={0}' -f $n
+Invoke-HttpSnapshot -Id 'fermatsearch-live-range' -Url 'https://www.fermatsearch.org/stat/range.php' `
+    -FileName 'fermatsearch-live-range.html' `
+    -Query "Dynamic current-database range query for n=$n" -Method 'POST' `
+    -Body $fermatRangeBody -Critical $true
+Invoke-HttpSnapshot -Id 'fermatsearch-merged' -Url 'https://www.fermatsearch.org/stat/merge.php' `
+    -FileName 'fermatsearch-merged.html' `
+    -Query 'Full merged completed and reserved-work table; numeric interval comparison' -Critical $true
 Invoke-HttpSnapshot -Id 'primegrid-home' -Url 'https://www.primegrid.com/' `
     -FileName 'primegrid-home.html' -Query 'Current official project page' -Critical $false
 Invoke-HttpSnapshot -Id 'primegrid-subprojects' -Url 'https://www.primegrid.com/server_status_subprojects.php' `
@@ -197,7 +264,8 @@ Invoke-HttpSnapshot -Id 'primegrid-pps' -Url 'https://www.primegrid.com/stats_pp
 Invoke-HttpSnapshot -Id 'primegrid-ppse' -Url 'https://www.primegrid.com/stats_ppse_llr.php' `
     -FileName 'primegrid-ppse.html' -Query 'Full official PPSE k table; numeric comparison' -Critical $true
 
-$t5kBody = 'base=2&min_k=1227250535&max_k=1227330535&min_n=33326&max_n=33326&plus=on&number=100&search=Start+Search'
+$t5kBody = 'base=2&min_k={0}&max_k={1}&min_n={2}&max_n={2}&plus=on&number=100&search=Start+Search' -f `
+    $kMin, $kMax, $n
 Invoke-HttpSnapshot -Id 't5k-proth-query' -Url 'https://t5k.org/primes/search_proth.php' `
     -FileName 't5k-proth-query.html' -Query $t5kBody -Method 'POST' -Body $t5kBody -Critical $false
 
@@ -206,24 +274,28 @@ $webQueries = [System.Collections.Generic.List[string]]::new()
 foreach ($value in $allValues) {
     $webQueries.Add(('"{0}" "{1}" Proth' -f $value, $n))
 }
-$webQueries.Add('"1227250535*2^33326+1"')
-$webQueries.Add('"1227330535*2^33326+1"')
-$webQueries.Add('"1227250535 × 2^33326 + 1"')
-$webQueries.Add('"1227330535.2^33326+1"')
-$webQueries.Add('"1227250535..1227330535" Proth')
-$webQueries.Add('"1,227,250,535" "1,227,330,535" Proth')
-$webQueries.Add('"1.227.250.535" "1.227.330.535" Proth')
-$webQueries.Add('site:github.com/releases "1227250535" Proth')
-$webQueries.Add('site:mersenneforum.org "1227250535" Proth')
-$webQueries.Add('site:prothsearch.com "1227250535" Proth')
-$webQueries.Add('site:rieselprime.de "33326" Proth')
-$webQueries.Add('site:oeis.org "1227250535"')
-$webQueries.Add('site:arxiv.org "1227250535"')
-$webQueries.Add('site:osf.io "1227250535"')
-$webQueries.Add('site:figshare.com "1227250535"')
-$webQueries.Add('site:gitlab.com "1227250535" Proth')
-$webQueries.Add('site:sourceforge.net "1227250535" Proth')
-$webQueries.Add('site:archive.org "1227250535" Proth')
+$webQueries.Add(('"{0}*2^{1}+1"' -f $kMin, $n))
+$webQueries.Add(('"{0}*2^{1}+1"' -f $kMax, $n))
+$webQueries.Add(('"{0} × 2^{1} + 1"' -f $kMin, $n))
+$webQueries.Add(('"{0}.2^{1}+1"' -f $kMax, $n))
+$webQueries.Add(('"{0}..{1}" Proth' -f $kMin, $kMax))
+$webQueries.Add(('"{0}" "{1}" Proth' -f `
+    $kMin.ToString('N0', [Globalization.CultureInfo]::GetCultureInfo('en-US')), `
+    $kMax.ToString('N0', [Globalization.CultureInfo]::GetCultureInfo('en-US'))))
+$webQueries.Add(('"{0}" "{1}" Proth' -f `
+    $kMin.ToString('N0', [Globalization.CultureInfo]::GetCultureInfo('de-DE')), `
+    $kMax.ToString('N0', [Globalization.CultureInfo]::GetCultureInfo('de-DE'))))
+$webQueries.Add(('site:github.com/releases "{0}" Proth' -f $kMin))
+$webQueries.Add(('site:mersenneforum.org "{0}" Proth' -f $kMin))
+$webQueries.Add(('site:prothsearch.com "{0}" Proth' -f $kMin))
+$webQueries.Add(('site:rieselprime.de "{0}" Proth' -f $n))
+$webQueries.Add(('site:oeis.org "{0}"' -f $kMin))
+$webQueries.Add(('site:arxiv.org "{0}"' -f $kMin))
+$webQueries.Add(('site:osf.io "{0}"' -f $kMin))
+$webQueries.Add(('site:figshare.com "{0}"' -f $kMin))
+$webQueries.Add(('site:gitlab.com "{0}" Proth' -f $kMin))
+$webQueries.Add(('site:sourceforge.net "{0}" Proth' -f $kMin))
+$webQueries.Add(('site:archive.org "{0}" Proth' -f $kMin))
 
 $queryIndex = 0
 foreach ($query in $webQueries) {
@@ -236,10 +308,10 @@ foreach ($query in $webQueries) {
 
 # Primary scholarly/repository APIs. Four query shapes are retained independently.
 $apiQueries = @(
-    '1227250535',
-    '1227330535',
-    '33326 Proth',
-    '1227250535 1227330535 33326 Proth'
+    [string]$kMin,
+    [string]$kMax,
+    "$n Proth",
+    "$kMin $kMax $n Proth"
 )
 $apiIndex = 0
 foreach ($query in $apiQueries) {
@@ -260,27 +332,27 @@ foreach ($query in $apiQueries) {
 }
 
 # Other machine-searchable public collections named by the audit specification.
-$exactMin = [Uri]::EscapeDataString('1227250535')
+$exactMin = [Uri]::EscapeDataString([string]$kMin)
 Invoke-HttpSnapshot -Id 'oeis-api' -Url "https://oeis.org/search?fmt=json&q=$exactMin" `
-    -FileName 'oeis.json' -Query '1227250535' -Critical $false
-Invoke-HttpSnapshot -Id 'arxiv-api' -Url 'https://export.arxiv.org/api/query?search_query=all%3A1227250535&max_results=100' `
-    -FileName 'arxiv.xml' -Query 'all:1227250535' -Critical $false
+    -FileName 'oeis.json' -Query ([string]$kMin) -Critical $false
+Invoke-HttpSnapshot -Id 'arxiv-api' -Url "https://export.arxiv.org/api/query?search_query=all%3A$exactMin&max_results=100" `
+    -FileName 'arxiv.xml' -Query "all:$kMin" -Critical $false
 Invoke-HttpSnapshot -Id 'gitlab-api' -Url "https://gitlab.com/api/v4/projects?search=$exactMin&simple=true&per_page=100" `
-    -FileName 'gitlab.json' -Query 'public project metadata search=1227250535' -Critical $false
+    -FileName 'gitlab.json' -Query "public project metadata search=$kMin" -Critical $false
 Invoke-HttpSnapshot -Id 'archive-api' `
-    -Url 'https://archive.org/advancedsearch.php?q=%221227250535%22&fl%5B%5D=identifier%2Ctitle&rows=100&page=1&output=json' `
-    -FileName 'archive-org.json' -Query '"1227250535"' -Critical $false
-$figshareBody = '{"search_for":"1227250535","page_size":100}'
+    -Url "https://archive.org/advancedsearch.php?q=%22$exactMin%22&fl%5B%5D=identifier%2Ctitle&rows=100&page=1&output=json" `
+    -FileName 'archive-org.json' -Query ('"{0}"' -f $kMin) -Critical $false
+$figshareBody = '{"search_for":"' + $kMin + '","page_size":100}'
 Invoke-HttpSnapshot -Id 'figshare-api' -Url 'https://api.figshare.com/v2/articles/search' `
-    -FileName 'figshare.json' -Query 'search_for=1227250535' -Method 'POST' `
+    -FileName 'figshare.json' -Query "search_for=$kMin" -Method 'POST' `
     -Body $figshareBody -ContentType 'application/json' -Critical $false
 
 # Authenticated GitHub REST searches. The API has no global release-content search.
 $githubQueries = @(
-    '"1227250535" "33326" Proth',
-    '"1227330535" "33326" Proth',
-    '"1227250535*2^33326+1"',
-    '"1227330535*2^33326+1"'
+    ('"{0}" "{1}" Proth' -f $kMin, $n),
+    ('"{0}" "{1}" Proth' -f $kMax, $n),
+    ('"{0}*2^{1}+1"' -f $kMin, $n),
+    ('"{0}*2^{1}+1"' -f $kMax, $n)
 )
 $githubIndex = 0
 foreach ($query in $githubQueries) {
@@ -312,6 +384,14 @@ foreach ($record in $records) {
         'fermatsearch-running' {
             $record.displayed_update = '2026-03-31'
             $record.limitation = 'Displayed reservation list is stale at capture time.'
+        }
+        'fermatsearch-live-range' {
+            $record.displayed_update = '2026-03-31'
+            $record.limitation = 'Live POST query executed at fetched_utc against the operator database; the shared displayed update remains stale.'
+        }
+        'fermatsearch-merged' {
+            $record.displayed_update = '2026-03-31'
+            $record.limitation = 'Merged operator table is current only to its displayed update; used as corroboration, not proof of private work.'
         }
         'primegrid-pps' {
             $record.limitation = 'Current public fixed-k table; does not expose private work or every historical artifact.'

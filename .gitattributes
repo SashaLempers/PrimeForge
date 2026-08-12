@@ -22,4 +22,5 @@ NOTICE text eol=lf
 THIRD_PARTY_NOTICES.txt text eol=lf
 corpus/v1/certificates/*.txt text eol=lf
 docs/specifications/*.txt -text
+docs/reports/novelty_sources/2026-08-05-or-later/** -text -diff
 *.nsys-rep -text

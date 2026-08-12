@@ -561,3 +561,21 @@ Each future entry must include:
 - **Failure criterion:** original PrimeForge code must compile warning-free on the supported Linux/GCC path before a candidate can be retained.
 - **Conclusion:** the candidate was already rejected by the complete-pipeline performance gate in NR-0059. The entire parallel partition is therefore reverted, which removes the faulty hunk; it is not patched and retained merely to make a scientifically rejected optimization compile. The Windows benchmark evidence remains valid for its measured platform, but the candidate is not a portable retained implementation.
 - **Retry condition:** if a materially different FLINT parallel design is ever justified, use a non-copying binding such as `const auto& [begin, end]`, pass Linux/GCC and Windows/MSVC CI before measurement, then satisfy a new preregistered performance gate.
+
+## NR-0061 - The first large-number discovery result was inside a known search region
+
+- **Date:** 2026-08-12
+- **Change tested:** novelty audit of the completed `n=33221`, `k=10001..90001` campaign after PrimeForge proved `34745*2^33221+1` with witness `a=3`.
+- **Evidence:** the raw unit-13 output and `results.tsv` agree on `PROVEN_PRIME`; the checkpoint records exactly `1251/4008`. The live EST Proth table dated 2026-06-21 records exhaustive coverage for `k=30000..70000` through `n=400000`, which includes `(34745,33221)`.
+- **Failure criterion:** a proven prime may be called a new discovery only after a current public-coverage audit excludes known work.
+- **Conclusion:** the primality result remains valid, but novelty is `NOT_NOVEL` and submission is `DO_NOT_SUBMIT_AS_NEW`. All 85 campaign files were copied into the local `known-rediscoveries` archive and verified by SHA-256.
+- **Retry condition:** run the reproducible novelty preflight before, not after, every future costly campaign.
+
+## NR-0062 - The proposed billion-scale k range is outside the pinned proof-engine domain
+
+- **Date:** 2026-08-12
+- **Change tested:** end-to-end numeric-path audit for `n=33326`, odd `k=1227250535..1227330535`.
+- **Evidence:** JSON, TSV, checkpoint and CLI transport the values exactly, but the versioned PrimeForge sieve and persistent Proth20 patch reject `k>99999999`; upstream Proth20 documents only `3 <= k < 100000000`. An older local Release executable initially accepted and sieved all 40001 inputs because its generated object was stale relative to the checked-out source. After forcing a source rebuild in the Visual Studio developer environment, it rejected the target with exit code 1 and created no output.
+- **Failure criterion:** a campaign target must remain inside the documented domain of every sieve/proof component and a binary must be reproducibly built from the audited source.
+- **Conclusion:** `PREFLIGHT_FAIL`; no PRP, proof test or campaign was launched. The stale binary result is rejected. The published guard is retained instead of being removed without independent differential validation.
+- **Retry condition:** select a reproducibly derived range below `100000000` and repeat the complete public audit, or separately validate and review a wider proof backend before changing the limit.

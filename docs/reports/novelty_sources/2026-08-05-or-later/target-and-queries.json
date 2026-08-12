@@ -1,0 +1,32 @@
+{
+    "schema":  "primeforge.novelty.target.v1",
+    "audit_started_utc":  "2026-08-12T20:20:27Z",
+    "family":  "k*2^n+1",
+    "k_min":  "1227250535",
+    "k_max":  "1227330535",
+    "k_step":  2,
+    "exponent":  33326,
+    "candidate_count":  "40001",
+    "deterministic_interior_values":  [
+                                          "1227255239",
+                                          "1227259945",
+                                          "1227264651",
+                                          "1227269357",
+                                          "1227274063",
+                                          "1227278769",
+                                          "1227283475",
+                                          "1227288181",
+                                          "1227292887",
+                                          "1227297593",
+                                          "1227302299",
+                                          "1227307005",
+                                          "1227311711",
+                                          "1227316417",
+                                          "1227321123",
+                                          "1227325829"
+                                      ],
+    "interior_sampling_algorithm":  "For j=1..16: index=floor(j*40000/17), k=k_min+2*index.",
+    "selection_provenance":  "EXTERNALLY_SELECTED; the repository contains no reproducible seed-to-range mapping.",
+    "seed":  "PrimeForge|SashaLempers|2026-08-05|547ee8566eac612756ceff9e50fea4c56c225d96",
+    "seed_sha256":  "b2343fc91164eee5843d57f26e6dd3e5434fb1213d9a599c76909fbb19ec2cf8"
+}

@@ -734,7 +734,7 @@ future campaigns.
 
 - **Date:** 2026-08-13
 - **Change tested:** GitHub Actions build of production native B=8 commit `019d3da1e0ece211ad86b7ee21a5d8081cd5dd0a`.
-- **Evidence:** workflow run `31744112028`, job `linux-gcc`; GCC rejected conversion of the Linux lambda to `BatchExecutor` and reported `read_watchdog_status` unused under `-Werror`.
+- **Evidence:** workflow runs `31744112028` and `31745175612`, jobs `linux-gcc`; GCC first rejected conversion of the Linux lambda to `BatchExecutor` and reported `read_watchdog_status` unused, then exposed its remaining helper `split` as unused under `-Werror`.
 - **Failure criterion:** the scheduler must compile on Linux CI even though actual Proth20 GPU execution is intentionally Windows-only.
-- **Conclusion:** that Linux build is rejected. The lambda now declares `BatchExecution` explicitly, and the watchdog-status helper is compiled only on Windows. No Windows execution path or mathematical operation changed. A fresh clean Windows Debug/Release run passes 43/43 tests in each configuration.
+- **Conclusion:** both Linux builds are rejected. The lambda now declares `BatchExecution` explicitly, and the watchdog-status parser and its splitter are compiled only on Windows. No Windows execution path or mathematical operation changed. A fresh clean Windows Debug/Release run passes 43/43 tests in each configuration.
 - **Retry condition:** both the Linux/GCC and Windows/MSVC jobs for the corrective commit must complete successfully before launch.

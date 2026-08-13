@@ -47,6 +47,8 @@ void on_signal(int) { signal_stop.store(true); }
         sha256.digest(std::as_bytes(std::span{bytes.data(), bytes.size()})));
 }
 
+#if defined(_WIN32)
+
 [[nodiscard]] std::vector<std::string> split(const std::string_view value, const char separator) {
     std::vector<std::string> fields;
     std::size_t begin = 0U;
@@ -58,8 +60,6 @@ void on_signal(int) { signal_stop.store(true); }
     }
     return fields;
 }
-
-#if defined(_WIN32)
 
 [[nodiscard]] TelemetryFields read_watchdog_status(const std::filesystem::path& path) {
     TelemetryFields values;

@@ -1,0 +1,10 @@
+variant	run	candidates	wall_seconds	candidates_per_hour	corpus	status
+two_processes	1	2	13.8348617	520.424428963	k75939141+k75939159	PASS
+two_processes	2	2	14.5898145	493.494965272	k75939141+k75939159	PASS
+native_B2	1	2	9.0912040	791.974308353	k75939141+k75939159	PASS_IDENTICAL
+native_B2	2	2	8.8943667	809.501141886	reversed_k75939159+k75939141	PASS_IDENTICAL
+native_B4	1	4	9.1251816	1578.050786408	profile_first_4	PASS_IDENTICAL
+native_B4	2	4	9.0508742	1591.006535037	reversed_profile_first_4	PASS_IDENTICAL
+native_B8	1	8	9.3647144	3075.374087223	profile_first_8	PASS_IDENTICAL
+native_B8	2	8	9.2130874	3125.987928867	reversed_profile_first_8	PASS_IDENTICAL
+two_processes_same_B8_corpus	1	8	53.5382136	537.933525671	profile_first_8_split_4_plus_4	PASS_IDENTICAL

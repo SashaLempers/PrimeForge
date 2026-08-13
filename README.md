@@ -323,8 +323,12 @@ same-process Proth20 plan cache are documented in
 The bounded invariant-context prototype is exact but rejected after a measured
 2.320800% complete-throughput regression; see
 `docs/reports/BREAKTHROUGH_JALON_C.md`. It is not enabled in the production
-Proth20 build. Work proceeds on the dominant NTT loop and native
-multi-candidate execution.
+Proth20 build. The native multi-candidate NTT prototype then passes its exact
+end-to-end gate: B=8 reaches 3,100.474460 complete candidates/hour on the
+retained 20,000-digit corpus, with all witnesses, RES64 values and Gerbicz
+checks identical to the two-process reference. See
+`docs/reports/BREAKTHROUGH_JALON_D.md`. The patch remains experimental pending
+checkpoint-safe scheduler integration.
 The guarded long-run component contract and exact commands are in
 `docs/pivot/RUNTIME_SAFETY.md`. No massive or prolonged benchmark has run yet.
 

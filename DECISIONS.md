@@ -820,3 +820,19 @@ marginal optimum lies at the current `uint32_t` ceiling.
 Within a Proth20 process, an autotuned plan is cached by transform size, digit
 width and supported work-group class. Cross-process persistence is deferred
 until the key also authenticates GPU UUID, driver and kernel source.
+
+## D-0090 - Reject the standalone runtime-k context and target native NTT batching
+
+**Status:** Accepted - 2026-08-13
+
+The minimal invariant-context prototype is retained only as reproducible
+negative evidence. It is exact on the bounded full-size corpus but reduces
+median complete throughput from 417.520564 to 407.830748 candidates/hour. The
+production Proth20 build therefore keeps full `k` specialization plus the
+same-process plan cache from D-0089.
+
+No further `gpmp` micro-optimization is authorized by this result. The next
+performance work must attack the measured dominant loop using kernel-level
+profiling and then native multi-candidate NTT. Acceptance is based on identical
+complete results and aggregate candidates/hour against the retained two-worker
+baseline, not GPU utilization.

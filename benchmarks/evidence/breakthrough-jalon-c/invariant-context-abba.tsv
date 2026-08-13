@@ -1,0 +1,6 @@
+variant	run	order_slot	process_ns	candidate_sum_ns	main_sum_ns	construct_sum_ns	context_reuses	residues_verified	retained
+runtime_context	candidate_r1	warmup	28454254400	28339820500	26095497300	2013737300	2	3	NO_COLD_OPENCL_BUILD
+specialized	baseline_r1	A1	26087077200	25984441000	25589118500	176772300	0	3	YES
+runtime_context	candidate_r2	B1	26780594500	26682179800	26307815700	153981700	2	3	YES
+specialized	baseline_r2	A2	25646901600	25530992800	25131766700	174535700	0	3	YES
+runtime_context	candidate_r3	B2	26182552800	26076667600	25713152900	147972000	2	3	YES

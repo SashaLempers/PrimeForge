@@ -320,6 +320,11 @@ decision are documented in `docs/reports/BREAKTHROUGH_JALON_A.md`.
 The retained direct-inverse/segmented Proth sieve, measured depth decision and
 same-process Proth20 plan cache are documented in
 `docs/reports/BREAKTHROUGH_JALON_B.md`.
+The bounded invariant-context prototype is exact but rejected after a measured
+2.320800% complete-throughput regression; see
+`docs/reports/BREAKTHROUGH_JALON_C.md`. It is not enabled in the production
+Proth20 build. Work proceeds on the dominant NTT loop and native
+multi-candidate execution.
 The guarded long-run component contract and exact commands are in
 `docs/pivot/RUNTIME_SAFETY.md`. No massive or prolonged benchmark has run yet.
 

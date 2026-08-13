@@ -1,0 +1,1076 @@
+diff --git a/ocl/misc.cl b/ocl/misc.cl
+index 4fd2a8c2ddbf4f47671c06bf73102c8ebdb42149..21822062b826041a680cf167594d8347a23e2df7 100644
+--- a/ocl/misc.cl
++++ b/ocl/misc.cl
+@@ -6,7 +6,8 @@ Please give feedback to the authors if improvement is realized. It is distribute
+ */
+ 
+ __kernel
+-void set_positive(__global uint2 * restrict const x)
++void set_positive(__global uint2 * restrict const x,
++	__global const candidate_params_t * restrict const candidate_params)
+ {
+ 	// x.s0 = R, x.s1 = Y
+ 	// if R < Y then add k.2^n + 1 to R.
+@@ -28,7 +29,7 @@ void set_positive(__global uint2 * restrict const x)
+ 			}
+ 
+ 			// R += k.2^n
+-			ulong l = (ulong)(pconst_d) << pconst_s;
++			ulong l = (ulong)(candidate_params->d) << pconst_s;
+ 			for (size_t k = pconst_e; l != 0; ++k)
+ 			{
+ 				l += x[k].s0;
+@@ -42,7 +43,8 @@ void set_positive(__global uint2 * restrict const x)
+ }
+ 
+ __kernel
+-void add1(__global uint2 * restrict const x, const uint a)
++void add1(__global uint2 * restrict const x, const uint a,
++	__global const candidate_params_t * restrict const candidate_params)
+ {
+ 	// s0: += a
+ 	// s1: 0 => k.2^n + 1 for reduce_z step
+@@ -58,7 +60,7 @@ void add1(__global uint2 * restrict const x, const uint a)
+ 		c >>= digit_bit;
+ 	}
+ 
+-	ulong l = (ulong)(pconst_d) << pconst_s;
++	ulong l = (ulong)(candidate_params->d) << pconst_s;
+ 	for (size_t k = pconst_e; l != 0; ++k)
+ 	{
+ 		x[k].s1 = (uint)(l) & digit_mask;
+diff --git a/ocl/modarith.cl b/ocl/modarith.cl
+index f7faba8a065ce7898a31726e2f28d9d46a01f200..f804eabd4c6430cad9faa92a6cc337f89f49d180 100644
+--- a/ocl/modarith.cl
++++ b/ocl/modarith.cl
+@@ -11,6 +11,15 @@ Please give feedback to the authors if improvement is realized. It is distribute
+ 
+ #define digit_mask		((1u << digit_bit) - 1)
+ 
++typedef struct
++{
++	uint d;
++	uint d_inv;
++	int d_shift;
++	uint exponent;
++	uint digit_bits;
++} candidate_params_t;
++
+ /*
+ Barrett's product/reduction, where P is such that h (the number of iterations in the 'while loop') is 0 or 1.
+ 
+@@ -45,16 +54,16 @@ inline uint _rem(const ulong q, const uint d, const uint d_inv, const int d_shif
+ 	return r - t;
+ }
+ 
+-inline uint addmod_d(const uint lhs, const uint rhs)
++inline uint addmod_d_runtime(const uint lhs, const uint rhs, const uint d)
+ {
+ 	const uint r = lhs + rhs;
+-	const uint t = (r >= pconst_d) ? pconst_d : 0;
++	const uint t = (r >= d) ? d : 0;
+ 	return r - t;
+ }
+ 
+-inline uint rem_d(const ulong q)
++inline uint rem_d_runtime(const ulong q, const uint d, const uint d_inv, const int d_shift)
+ {
+-	return _rem(q, pconst_d, pconst_d_inv, pconst_d_shift);
++	return _rem(q, d, d_inv, d_shift);
+ }
+ 
+ inline uint _mulmodP1(const uint a, const uint b) { return _rem(a * (ulong)(b), P1, P1_INV, 30); }
+diff --git a/ocl/reduce.cl b/ocl/reduce.cl
+index 5b52a62d6d3a80ae3895d35bd2b2d7ab417f235b..b871ecc1be19c60dc27433694f07cc3b4b59cc4f 100644
+--- a/ocl/reduce.cl
++++ b/ocl/reduce.cl
+@@ -7,8 +7,12 @@ Please give feedback to the authors if improvement is realized. It is distribute
+ 
+ #define	R64		(RED_BLK * 64 / 4)
+ 
++#define addmod_d(lhs, rhs) addmod_d_runtime((lhs), (rhs), candidate_params->d)
++#define rem_d(q) rem_d_runtime((q), candidate_params->d, candidate_params->d_inv, candidate_params->d_shift)
++
+ __kernel __attribute__((reqd_work_group_size(R64, 1, 1)))
+-void reduce_upsweep64(__global uint * restrict const t, const uint s, const uint j)
++void reduce_upsweep64(__global uint * restrict const t, const uint s, const uint j,
++	__global const candidate_params_t * restrict const candidate_params)
+ {
+ 	__local uint4 T_4[R64 / 4 + R64 / 16];	// alignment
+ 	__local uint4 * const T2_4 = &T_4[R64 / 4];
+@@ -47,7 +51,8 @@ void reduce_upsweep64(__global uint * restrict const t, const uint s, const uint
+ }
+ 
+ __kernel __attribute__((reqd_work_group_size(R64, 1, 1)))
+-void reduce_downsweep64(__global uint * restrict const t, const uint s, const uint j)
++void reduce_downsweep64(__global uint * restrict const t, const uint s, const uint j,
++	__global const candidate_params_t * restrict const candidate_params)
+ {
+ 	__local uint4 T_4[R64 / 4 + R64 / 16];	// alignment
+ 	__local uint4 * const T2_4 = &T_4[R64 / 4];
+@@ -90,7 +95,8 @@ void reduce_downsweep64(__global uint * restrict const t, const uint s, const ui
+ 	tj1_4[k] = (uint4)(u012, u02, u03, u0);
+ }
+ 
+-inline void _reduce_upsweep4i(__local uint * restrict const T, __global const uint * restrict const t, const uint s, const size_t k)
++inline void _reduce_upsweep4i(__local uint * restrict const T, __global const uint * restrict const t, const uint s, const size_t k,
++	__global const candidate_params_t * restrict const candidate_params)
+ {
+ 	__global const uint4 * const ti = (__global const uint4 *)&t[4 * k];
+ 	__local uint * const To = &T[k];
+@@ -100,7 +106,8 @@ inline void _reduce_upsweep4i(__local uint * restrict const T, __global const ui
+ 	To[0] = u23; To[s] = u0123;
+ }
+ 
+-inline void _reduce_upsweep4(__local uint * restrict const T, const uint s, const size_t k)
++inline void _reduce_upsweep4(__local uint * restrict const T, const uint s, const size_t k,
++	__global const candidate_params_t * restrict const candidate_params)
+ {
+ 	__local const uint * const Ti = &T[0 * s + 4 * k];
+ 	__local uint * const To = &T[4 * s + 1 * k];
+@@ -110,7 +117,8 @@ inline void _reduce_upsweep4(__local uint * restrict const T, const uint s, cons
+ 	To[0] = u23; To[s] = u0123;
+ }
+ 
+-inline void _reduce_downsweep4(__local uint * restrict const T, const uint s, const size_t k)
++inline void _reduce_downsweep4(__local uint * restrict const T, const uint s, const size_t k,
++	__global const candidate_params_t * restrict const candidate_params)
+ {
+ 	__local const uint * const Ti = &T[4 * s + 1 * k];
+ 	__local uint * const To = &T[0 * s + 4 * k];
+@@ -121,7 +129,8 @@ inline void _reduce_downsweep4(__local uint * restrict const T, const uint s, co
+ 	To[0] = u012; To[1] = u02; To[2] = u03; To[3] = u0;
+ }
+ 
+-inline void _reduce_downsweep4o(__global uint * restrict const t, __local const uint * restrict const T, const uint s, const size_t k)
++inline void _reduce_downsweep4o(__global uint * restrict const t, __local const uint * restrict const T, const uint s, const size_t k,
++	__global const candidate_params_t * restrict const candidate_params)
+ {
+ 	__local const uint * const Ti = &T[k];
+ 	__global uint4 * const to = (__global uint4 *)&t[4 * k];
+@@ -132,7 +141,8 @@ inline void _reduce_downsweep4o(__global uint * restrict const t, __local const
+ 	to[0] = (uint4)(u012, u02, u03, u0);
+ }
+ 
+-inline void _reduce_topsweep2(__global uint * restrict const t, __local uint * restrict const T)
++inline void _reduce_topsweep2(__global uint * restrict const t, __local uint * restrict const T,
++	__global const candidate_params_t * restrict const candidate_params)
+ {
+ 	const uint u0 = T[0], u1 = T[1];
+ 	const uint u01 = addmod_d(u0, u1);
+@@ -140,7 +150,8 @@ inline void _reduce_topsweep2(__global uint * restrict const t, __local uint * r
+ 	T[0] = u1; T[1] = 0;
+ }
+ 
+-inline void _reduce_topsweep4(__global uint * restrict const t, __local uint * restrict const T)
++inline void _reduce_topsweep4(__global uint * restrict const t, __local uint * restrict const T,
++	__global const candidate_params_t * restrict const candidate_params)
+ {
+ 	const uint u0 = T[0], u1 = T[1], u2 = T[2], u3 = T[3];
+ 	const uint u01 = addmod_d(u0, u1), u23 = addmod_d(u2, u3);
+@@ -151,145 +162,152 @@ inline void _reduce_topsweep4(__global uint * restrict const t, __local uint * r
+ 
+ #define	S32		(32 / 4)
+ __kernel __attribute__((reqd_work_group_size(S32, 1, 1)))
+-void reduce_topsweep32(__global uint * restrict const t, const uint j)
++void reduce_topsweep32(__global uint * restrict const t, const uint j,
++	__global const candidate_params_t * restrict const candidate_params)
+ {
+ 	__local uint T[64];	// 20
+ 
+ 	const size_t i = get_local_id(0);
+ 
+-	_reduce_upsweep4i(T, &t[j], S32, i);
++	_reduce_upsweep4i(T, &t[j], S32, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i < S32 / 4) _reduce_upsweep4(&T[S32], S32 / 4, i);
++	if (i < S32 / 4) _reduce_upsweep4(&T[S32], S32 / 4, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i == 0) _reduce_topsweep2(t, &T[S32 + 5 * (S32 / 4)]);
++	if (i == 0) _reduce_topsweep2(t, &T[S32 + 5 * (S32 / 4)], candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i < S32 / 4) _reduce_downsweep4(&T[S32], S32 / 4, i);
++	if (i < S32 / 4) _reduce_downsweep4(&T[S32], S32 / 4, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	_reduce_downsweep4o(&t[j], T, S32, i);
++	_reduce_downsweep4o(&t[j], T, S32, i, candidate_params);
+ }
+ 
+ #define	S64		(64 / 4)
+ __kernel __attribute__((reqd_work_group_size(S64, 1, 1)))
+-void reduce_topsweep64(__global uint * restrict const t, const uint j)
++void reduce_topsweep64(__global uint * restrict const t, const uint j,
++	__global const candidate_params_t * restrict const candidate_params)
+ {
+ 	__local uint T[64];	// 40
+ 
+ 	const size_t i = get_local_id(0);
+ 
+-	_reduce_upsweep4i(T, &t[j], S64, i);
++	_reduce_upsweep4i(T, &t[j], S64, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i < S64 / 4) _reduce_upsweep4(&T[S64], S64 / 4, i);
++	if (i < S64 / 4) _reduce_upsweep4(&T[S64], S64 / 4, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i == 0) _reduce_topsweep4(t, &T[S64 + 5 * (S64 / 4)]);
++	if (i == 0) _reduce_topsweep4(t, &T[S64 + 5 * (S64 / 4)], candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i < S64 / 4) _reduce_downsweep4(&T[S64], S64 / 4, i);
++	if (i < S64 / 4) _reduce_downsweep4(&T[S64], S64 / 4, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	_reduce_downsweep4o(&t[j], T, S64, i);
++	_reduce_downsweep4o(&t[j], T, S64, i, candidate_params);
+ }
+ 
+ #define	S128	(128 / 4)
+ __kernel __attribute__((reqd_work_group_size(S128, 1, 1)))
+-void reduce_topsweep128(__global uint * restrict const t, const uint j)
++void reduce_topsweep128(__global uint * restrict const t, const uint j,
++	__global const candidate_params_t * restrict const candidate_params)
+ {
+ 	__local uint T[128];	// 82
+ 
+ 	const size_t i = get_local_id(0);
+ 
+-	_reduce_upsweep4i(T, &t[j], S128, i);
++	_reduce_upsweep4i(T, &t[j], S128, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i < S128 / 4) _reduce_upsweep4(&T[S128], S128 / 4, i);
++	if (i < S128 / 4) _reduce_upsweep4(&T[S128], S128 / 4, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i < S128 / 16) _reduce_upsweep4(&T[S128 + 5 * (S128 / 4)], S128 / 16, i);
++	if (i < S128 / 16) _reduce_upsweep4(&T[S128 + 5 * (S128 / 4)], S128 / 16, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i == 0) _reduce_topsweep2(t, &T[S128 + 5 * (S128 / 4) + 5 * (S128 / 16)]);
++	if (i == 0) _reduce_topsweep2(t, &T[S128 + 5 * (S128 / 4) + 5 * (S128 / 16)], candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i < S128 / 16) _reduce_downsweep4(&T[S128 + 5 * (S128 / 4)], S128 / 16, i);
++	if (i < S128 / 16) _reduce_downsweep4(&T[S128 + 5 * (S128 / 4)], S128 / 16, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i < S128 / 4) _reduce_downsweep4(&T[S128], S128 / 4, i);
++	if (i < S128 / 4) _reduce_downsweep4(&T[S128], S128 / 4, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	_reduce_downsweep4o(&t[j], T, S128, i);
++	_reduce_downsweep4o(&t[j], T, S128, i, candidate_params);
+ }
+ 
+ #define	S256	(256 / 4)
+ __kernel __attribute__((reqd_work_group_size(S256, 1, 1)))
+-void reduce_topsweep256(__global uint * restrict const t, const uint j)
++void reduce_topsweep256(__global uint * restrict const t, const uint j,
++	__global const candidate_params_t * restrict const candidate_params)
+ {
+ 	__local uint T[256];	// 168
+ 
+ 	const size_t i = get_local_id(0);
+ 
+-	_reduce_upsweep4i(T, &t[j], S256, i);
++	_reduce_upsweep4i(T, &t[j], S256, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i < S256 / 4) _reduce_upsweep4(&T[S256], S256 / 4, i);
++	if (i < S256 / 4) _reduce_upsweep4(&T[S256], S256 / 4, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i < S256 / 16) _reduce_upsweep4(&T[S256 + 5 * (S256 / 4)], S256 / 16, i);
++	if (i < S256 / 16) _reduce_upsweep4(&T[S256 + 5 * (S256 / 4)], S256 / 16, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i == 0) _reduce_topsweep4(t, &T[S256 + 5 * (S256 / 4) + 5 * (S256 / 16)]);
++	if (i == 0) _reduce_topsweep4(t, &T[S256 + 5 * (S256 / 4) + 5 * (S256 / 16)], candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i < S256 / 16) _reduce_downsweep4(&T[S256 + 5 * (S256 / 4)], S256 / 16, i);
++	if (i < S256 / 16) _reduce_downsweep4(&T[S256 + 5 * (S256 / 4)], S256 / 16, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i < S256 / 4) _reduce_downsweep4(&T[S256], S256 / 4, i);
++	if (i < S256 / 4) _reduce_downsweep4(&T[S256], S256 / 4, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	_reduce_downsweep4o(&t[j], T, S256, i);
++	_reduce_downsweep4o(&t[j], T, S256, i, candidate_params);
+ }
+ 
+ #define	S512	(512 / 4)
+ __kernel __attribute__((reqd_work_group_size(S512, 1, 1)))
+-void reduce_topsweep512(__global uint * restrict const t, const uint j)
++void reduce_topsweep512(__global uint * restrict const t, const uint j,
++	__global const candidate_params_t * restrict const candidate_params)
+ {
+ 	__local uint T[512];	// 340
+ 
+ 	const size_t i = get_local_id(0);
+ 
+-	_reduce_upsweep4i(T, &t[j], S512, i);
++	_reduce_upsweep4i(T, &t[j], S512, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i < S512 / 4) _reduce_upsweep4(&T[S512], S512 / 4, i);
++	if (i < S512 / 4) _reduce_upsweep4(&T[S512], S512 / 4, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i < S512 / 16) _reduce_upsweep4(&T[S512 + 5 * (S512 / 4)], S512 / 16, i);
++	if (i < S512 / 16) _reduce_upsweep4(&T[S512 + 5 * (S512 / 4)], S512 / 16, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i < S512 / 64) _reduce_upsweep4(&T[S512 + 5 * (S512 / 4) + 5 * (S512 / 16)], S512 / 64, i);
++	if (i < S512 / 64) _reduce_upsweep4(&T[S512 + 5 * (S512 / 4) + 5 * (S512 / 16)], S512 / 64, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i == 0) _reduce_topsweep2(t, &T[S512 + 5 * (S512 / 4) + 5 * (S512 / 16) + 5 * (S512 / 64)]);
++	if (i == 0) _reduce_topsweep2(t, &T[S512 + 5 * (S512 / 4) + 5 * (S512 / 16) + 5 * (S512 / 64)], candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i < S512 / 64) _reduce_downsweep4(&T[S512 + 5 * (S512 / 4) + 5 * (S512 / 16)], S512 / 64, i);
++	if (i < S512 / 64) _reduce_downsweep4(&T[S512 + 5 * (S512 / 4) + 5 * (S512 / 16)], S512 / 64, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i < S512 / 16) _reduce_downsweep4(&T[S512 + 5 * (S512 / 4)], S512 / 16, i);
++	if (i < S512 / 16) _reduce_downsweep4(&T[S512 + 5 * (S512 / 4)], S512 / 16, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i < S512 / 4) _reduce_downsweep4(&T[S512], S512 / 4, i);
++	if (i < S512 / 4) _reduce_downsweep4(&T[S512], S512 / 4, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	_reduce_downsweep4o(&t[j], T, S512, i);
++	_reduce_downsweep4o(&t[j], T, S512, i, candidate_params);
+ }
+ 
+ #define	S1024	(1024 / 4)
+ __kernel __attribute__((reqd_work_group_size(S1024, 1, 1)))
+-void reduce_topsweep1024(__global uint * restrict const t, const uint j)
++void reduce_topsweep1024(__global uint * restrict const t, const uint j,
++	__global const candidate_params_t * restrict const candidate_params)
+ {
+ 	__local uint T[1024];	// 680
+ 
+ 	const size_t i = get_local_id(0);
+ 
+-	_reduce_upsweep4i(T, &t[j], S1024, i);
++	_reduce_upsweep4i(T, &t[j], S1024, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i < S1024 / 4) _reduce_upsweep4(&T[S1024], S1024 / 4, i);
++	if (i < S1024 / 4) _reduce_upsweep4(&T[S1024], S1024 / 4, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i < S1024 / 16) _reduce_upsweep4(&T[S1024 + 5 * (S1024 / 4)], S1024 / 16, i);
++	if (i < S1024 / 16) _reduce_upsweep4(&T[S1024 + 5 * (S1024 / 4)], S1024 / 16, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i < S1024 / 64) _reduce_upsweep4(&T[S1024 + 5 * (S1024 / 4) + 5 * (S1024 / 16)], S1024 / 64, i);
++	if (i < S1024 / 64) _reduce_upsweep4(&T[S1024 + 5 * (S1024 / 4) + 5 * (S1024 / 16)], S1024 / 64, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i == 0) _reduce_topsweep4(t, &T[S1024 + 5 * (S1024 / 4) + 5 * (S1024 / 16) + 5 * (S1024 / 64)]);
++	if (i == 0) _reduce_topsweep4(t, &T[S1024 + 5 * (S1024 / 4) + 5 * (S1024 / 16) + 5 * (S1024 / 64)], candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i < S1024 / 64) _reduce_downsweep4(&T[S1024 + 5 * (S1024 / 4) + 5 * (S1024 / 16)], S1024 / 64, i);
++	if (i < S1024 / 64) _reduce_downsweep4(&T[S1024 + 5 * (S1024 / 4) + 5 * (S1024 / 16)], S1024 / 64, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i < S1024 / 16) _reduce_downsweep4(&T[S1024 + 5 * (S1024 / 4)], S1024 / 16, i);
++	if (i < S1024 / 16) _reduce_downsweep4(&T[S1024 + 5 * (S1024 / 4)], S1024 / 16, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	if (i < S1024 / 4) _reduce_downsweep4(&T[S1024], S1024 / 4, i);
++	if (i < S1024 / 4) _reduce_downsweep4(&T[S1024], S1024 / 4, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+-	_reduce_downsweep4o(&t[j], T, S1024, i);
++	_reduce_downsweep4o(&t[j], T, S1024, i, candidate_params);
+ }
+ 
+ __kernel
+ void reduce_i(__global const uint2 * restrict const x, __global uint * restrict const y, __global uint * restrict const t,
+-	__global const uint * restrict const bp)
++	__global const uint * restrict const bp,
++	__global const candidate_params_t * restrict const candidate_params)
+ {
+ 	const size_t k = get_global_id(0);
+ 
+@@ -302,7 +320,8 @@ void reduce_i(__global const uint2 * restrict const x, __global uint * restrict
+ 
+ __kernel
+ void reduce_o(__global uint2 * restrict const x, __global const uint * restrict const y, __global const uint * restrict const t,
+-	__global const uint * restrict const ibp)
++	__global const uint * restrict const ibp,
++	__global const candidate_params_t * restrict const candidate_params)
+ {
+ 	const size_t k = get_global_id(0);
+ 
+@@ -314,9 +333,9 @@ void reduce_o(__global uint2 * restrict const x, __global const uint * restrict
+ 
+ 	const ulong q = ((ulong)(r_prev) << digit_bit) | y[k];
+ 
+-	const uint q_d = mul_hi((uint)(q >> pconst_d_shift), pconst_d_inv);	// d < 2^29
+-	const uint r = (uint)(q) - q_d * pconst_d;
+-	const uint c = (r >= pconst_d) ? 1 : 0;
++	const uint q_d = mul_hi((uint)(q >> candidate_params->d_shift), candidate_params->d_inv);	// d < 2^29
++	const uint r = (uint)(q) - q_d * candidate_params->d;
++	const uint c = (r >= candidate_params->d) ? 1 : 0;
+ 
+ 	x[k] = (uint2)((k > pconst_e) ? 0 : x[k].s0, q_d + c);
+ }
+@@ -372,3 +391,6 @@ void reduce_z(__global uint2 * restrict const x, __global int * const err)
+ 
+ 	_reduce_x(x, err);
+ }
++
++#undef rem_d
++#undef addmod_d
+diff --git a/src/engine.h b/src/engine.h
+index 191ac2f3a571df4ad75c2d2506f40ed6d1bf9af8..30d22644aad2dcc5e848a7741e4ddb1fca4a6065 100644
+--- a/src/engine.h
++++ b/src/engine.h
+@@ -11,10 +11,21 @@ Please give feedback to the authors if improvement is realized. It is distribute
+ 
+ class engine : public ocl::device
+ {
++public:
++	struct candidate_params
++	{
++		cl_uint d;
++		cl_uint d_inv;
++		cl_int d_shift;
++		cl_uint exponent;
++		cl_uint digit_bits;
++	};
++
+ private:
+ 	size_t _size = 0, _constant_size = 0;
+ 	cl_mem _x = nullptr, _y = nullptr, _t = nullptr, _cr = nullptr, _u = nullptr, _tu = nullptr, _v = nullptr, _m1 = nullptr, _m2 = nullptr, _err = nullptr;
+ 	cl_mem _r1ir1 = nullptr, _r2 = nullptr, _ir2 = nullptr, _cr1 = nullptr, _cir1 = nullptr, _cr2 = nullptr, _cir2 = nullptr, _bp = nullptr, _ibp = nullptr;
++	cl_mem _candidate_params = nullptr;
+ 	cl_kernel _sub_ntt64_16 = nullptr, _lst_intt64_16 = nullptr, _ntt64_16 = nullptr, _intt64_16 = nullptr;
+ 	cl_kernel _sub_ntt256_4 = nullptr, _lst_intt256_4 = nullptr, _ntt256_4 = nullptr, _intt256_4 = nullptr;
+ 	cl_kernel _sub_ntt256_8 = nullptr, _lst_intt256_8 = nullptr, _ntt256_8 = nullptr, _intt256_8 = nullptr;
+@@ -79,6 +90,7 @@ public:
+ 		_ir2 = _createBuffer(CL_MEM_READ_ONLY, sizeof(cl_uint2) * size);			// NTT roots (inverse square)
+ 		_bp = _createBuffer(CL_MEM_READ_ONLY, sizeof(cl_uint) * size / 2);			// b^i mod k (division algorithm)
+ 		_ibp = _createBuffer(CL_MEM_READ_ONLY, sizeof(cl_uint) * size / 2);			// (1/b)^(i+1) mod k (division algorithm)
++		_candidate_params = _createBuffer(CL_MEM_READ_ONLY, sizeof(candidate_params));	// runtime values for the current k
+ 
+ 		_constant_size = constant_size;
+ 
+@@ -102,6 +114,7 @@ public:
+ 			_releaseBuffer(_x); _releaseBuffer(_y); _releaseBuffer(_t); _releaseBuffer(_cr); _releaseBuffer(_u); _releaseBuffer(_tu);
+ 			_releaseBuffer(_v); _releaseBuffer(_m1); _releaseBuffer(_m2); _releaseBuffer(_err);
+ 			_releaseBuffer(_r1ir1); _releaseBuffer(_r2); _releaseBuffer(_ir2); _releaseBuffer(_bp); _releaseBuffer(_ibp);
++			_releaseBuffer(_candidate_params);
+ 			_size = 0;
+ 		}
+ 
+@@ -154,10 +167,11 @@ private:
+ 	}
+ 
+ private:
+-	inline cl_kernel _createSweepKernel(const char * const kernelName)
++	inline cl_kernel _createSweepKernel(const char * const kernelName, const cl_uint candidateParamsIndex)
+ 	{
+ 		cl_kernel kernel = _createKernel(kernelName);
+ 		_setKernelArg(kernel, 0, sizeof(cl_mem), &_t);
++		_setKernelArg(kernel, candidateParamsIndex, sizeof(cl_mem), &_candidate_params);
+ 		return kernel;
+ 	}
+ 
+@@ -169,6 +183,7 @@ private:
+ 		_setKernelArg(kernel, 1, sizeof(cl_mem), &_y);
+ 		_setKernelArg(kernel, 2, sizeof(cl_mem), &_t);
+ 		_setKernelArg(kernel, 3, sizeof(cl_mem), forward ? &_bp : &_ibp);
++		_setKernelArg(kernel, 4, sizeof(cl_mem), &_candidate_params);
+ 		return kernel;
+ 	}
+ 
+@@ -246,15 +261,15 @@ public:
+ 		_setKernelArg(_poly2int2, 0, sizeof(cl_mem), &_x);
+ 		_setKernelArg(_poly2int2, 1, sizeof(cl_mem), &_err);
+ 
+-		_reduce_upsweep64 = _createSweepKernel("reduce_upsweep64");
+-		_reduce_downsweep64 = _createSweepKernel("reduce_downsweep64");
++		_reduce_upsweep64 = _createSweepKernel("reduce_upsweep64", 3);
++		_reduce_downsweep64 = _createSweepKernel("reduce_downsweep64", 3);
+ 
+-		_reduce_topsweep32 = _createSweepKernel("reduce_topsweep32");
+-		_reduce_topsweep64 = _createSweepKernel("reduce_topsweep64");
+-		_reduce_topsweep128 = _createSweepKernel("reduce_topsweep128");
+-		_reduce_topsweep256 = _createSweepKernel("reduce_topsweep256");
+-		_reduce_topsweep512 = _createSweepKernel("reduce_topsweep512");
+-		_reduce_topsweep1024 = _createSweepKernel("reduce_topsweep1024");
++		_reduce_topsweep32 = _createSweepKernel("reduce_topsweep32", 2);
++		_reduce_topsweep64 = _createSweepKernel("reduce_topsweep64", 2);
++		_reduce_topsweep128 = _createSweepKernel("reduce_topsweep128", 2);
++		_reduce_topsweep256 = _createSweepKernel("reduce_topsweep256", 2);
++		_reduce_topsweep512 = _createSweepKernel("reduce_topsweep512", 2);
++		_reduce_topsweep1024 = _createSweepKernel("reduce_topsweep1024", 2);
+ 
+ 		_reduce_i = _createReduceKernel("reduce_i", true);
+ 		_reduce_o = _createReduceKernel("reduce_o", false);
+@@ -284,9 +299,11 @@ public:
+ 
+ 		_set_positive = _createKernel("set_positive");
+ 		_setKernelArg(_set_positive, 0, sizeof(cl_mem), &_x);
++		_setKernelArg(_set_positive, 1, sizeof(cl_mem), &_candidate_params);
+ 
+ 		_add1 = _createKernel("add1");
+ 		_setKernelArg(_add1, 0, sizeof(cl_mem), &_m1);
++		_setKernelArg(_add1, 2, sizeof(cl_mem), &_candidate_params);
+ 
+ 		_swap = _createKernel("swap");
+ 		_copy = _createKernel("copy");
+@@ -370,6 +387,11 @@ public:
+ 		_writeBuffer(_ibp, ptr_ibp, sizeof(cl_uint) * _size / 2);
+ 	}
+ 
++	void writeCandidateParams(const candidate_params & params)
++	{
++		_writeBuffer(_candidate_params, &params, sizeof(params));
++	}
++
+ public:
+ 	void sub_ntt64_16(const cl_uint, const cl_uint) { _executeKernel(_sub_ntt64_16, _size / 4, 64 / 4 * 16); }
+ 	void sub_ntt256_4(const cl_uint, const cl_uint) { _executeKernel(_sub_ntt256_4, _size / 4, 256 / 4 * 4); }
+diff --git a/src/gpmp.h b/src/gpmp.h
+index 00e7a70a96eeac2652c2995dcb2f76967f067bbf..67ea7a7bddfdbb966b801a4d63f4e6ccf549e7a7 100644
+--- a/src/gpmp.h
++++ b/src/gpmp.h
+@@ -88,14 +88,15 @@ private:
+ private:
+ 	const int _digit_bit;
+ 	const size_t _size;
+-	const uint32_t _k, _n;
++	uint32_t _k;
++	const uint32_t _n;
+ 	const bool _isBoinc;
+ 	bool _ext512, _ext1024;
+ 	engine & _engine;
+ 	plan _plan;
+ 	std::vector<cl_uint2> _mem;
+-	const bool _phaseProfile;
+-	const size_t _profileIndex;
++	bool _phaseProfile;
++	size_t _profileIndex;
+ 
+ private:
+ 	void _emitPhase(const char * const name, const primeforge_profile::time_point & start) const
+@@ -226,14 +227,10 @@ private:
+ 
+ 		src << _engine.oclDefines() << std::endl;
+ 
+-		const cl_int k_shift = cl_int(arith::log2(_k) - 1);
+ 		src << "#define\tpconst_size\t" << size << "u" << std::endl;
+ 		src << "#define\tpconst_norm\t(uint2)(" << cl_uint(P1 - (P1 - 1) / size) << "u, " << cl_uint(P2 - (P2 - 1) / size) << "u)" << std::endl;
+ 		src << "#define\tpconst_e\t" << cl_uint(_n / _digit_bit) << "u" << std::endl;
+ 		src << "#define\tpconst_s\t" << cl_int(_n % _digit_bit) << std::endl;
+-		src << "#define\tpconst_d\t" << cl_uint(_k) << "u" << std::endl;
+-		src << "#define\tpconst_d_inv\t" << cl_uint((uint64_t(1) << (32 + k_shift)) / _k) << "u" << std::endl;
+-		src << "#define\tpconst_d_shift\t" << k_shift << std::endl;
+ 		src << std::endl;
+ 
+ 		// if xxx.cl file is not found then source is src_ocl_xxx string in src/ocl/xxx.h
+@@ -309,6 +306,13 @@ private:
+ 				cir2.size() * sizeof(cl_uint4)));
+ 		_emitPhase("ROOT_TABLE_UPLOAD", rootUploadStart);
+ 
++		_loadCandidate();
++	}
++
++private:
++	void _loadCandidate()
++	{
++		const size_t size = _size;
+ 		const primeforge_profile::time_point kTableBuildStart = primeforge_profile::now();
+ 		std::vector<cl_uint> bp(size / 2), ibp(size / 2);
+ 		const uint32_t ib = arith::invert(uint32_t(1) << _digit_bit, _k);
+@@ -322,9 +326,18 @@ private:
+ 		}
+ 		_emitPhase("K_DEPENDENT_TABLE_BUILD", kTableBuildStart);
+ 		const primeforge_profile::time_point kTableUploadStart = primeforge_profile::now();
++		const cl_int k_shift = cl_int(arith::log2(_k) - 1);
++		const engine::candidate_params params = {
++			cl_uint(_k),
++			cl_uint((uint64_t(1) << (32 + k_shift)) / _k),
++			k_shift,
++			cl_uint(_n),
++			cl_uint(_digit_bit)
++		};
++		_engine.writeCandidateParams(params);
+ 		_engine.writeMemory_bp(bp.data(), ibp.data());
+ 		_emitCounter("K_DEPENDENT_TABLE_UPLOAD_BYTES",
+-			uint64_t((bp.size() + ibp.size()) * sizeof(cl_uint)));
++			uint64_t((bp.size() + ibp.size()) * sizeof(cl_uint) + sizeof(params)));
+ 		_emitPhase("K_DEPENDENT_TABLE_UPLOAD", kTableUploadStart);
+ 
+ 		_engine.clearMemory_err();
+@@ -439,6 +452,7 @@ reset:
+ 		_initEngine();
+ 		_plan.setSquareSeq(size, bestSq_i);
+ 		_plan.setPoly2intFn(bestP2i_i);
++		_emitCounter("INVARIANT_CONTEXT_REUSED", 0);
+ 	}
+ 
+ public:
+@@ -451,6 +465,19 @@ public:
+ 	size_t getSize() const { return _size; }
+ 	size_t getDigitBit() const { return _digit_bit; }
+ 	size_t getDigits() const { return size_t(std::ceil(std::log10(_k) + _n * std::log10(2))); }
++	bool canReuseFor(const uint32_t k, const uint32_t n) const
++	{
++		return (n == _n) && (digitBit(k, n) == _digit_bit) && (transformSize(k, n, _digit_bit) == _size);
++	}
++	void loadCandidate(const uint32_t k, const uint32_t n, const bool phaseProfile, const size_t profileIndex)
++	{
++		if (!canReuseFor(k, n)) throw std::runtime_error("candidate is outside the invariant transform class");
++		_k = k;
++		_phaseProfile = phaseProfile;
++		_profileIndex = profileIndex;
++		_loadCandidate();
++		_emitCounter("INVARIANT_CONTEXT_REUSED", 1);
++	}
+ 
+ public:
+ 	std::string getPlanString() const { return _plan.getPlanString(_size); }
+diff --git a/src/main.cpp b/src/main.cpp
+index 62dc51307389af1f49e93d2751f7cd975a2da102..4af953d7298a22f01a2f8f1c2a56cdaca1234c58 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -245,6 +245,7 @@ public:
+ 				uint64_t batchK = 0, batchN = 0;
+ 				size_t completed = 0;
+ 				bool stopped = false, primeFound = false;
++				std::unique_ptr<gpmp> batchContext;
+ 				while (input >> batchK >> batchN)
+ 				{
+ 					if (!stopFile.empty() && std::filesystem::exists(stopFile))
+@@ -265,7 +266,7 @@ public:
+ 					const primeforge_profile::time_point candidateStart = primeforge_profile::now();
+ 					bool isPrime = false;
+ 					const bool checkCompleted = p.check(normalizedK, normalizedN, engine, false, 0,
+-						&isPrime, bPhaseProfile, bKernelProfile, candidateIndex);
++						&isPrime, bPhaseProfile, bKernelProfile, candidateIndex, &batchContext);
+ 					primeforge_profile::emitPhase(bPhaseProfile, candidateIndex, normalizedK, normalizedN,
+ 						"CANDIDATE_TOTAL", primeforge_profile::elapsedNanoseconds(candidateStart));
+ 					if (!checkCompleted)
+diff --git a/src/ocl/misc.h b/src/ocl/misc.h
+index 138f9a8d60c3c7637273add489a4e90b9fae625c..9610c7a382c99559d0e4d3aa706db6f605544361 100644
+--- a/src/ocl/misc.h
++++ b/src/ocl/misc.h
+@@ -18,7 +18,8 @@ static const char * const src_ocl_misc = \
+ "*/\n" \
+ "\n" \
+ "__kernel\n" \
+-"void set_positive(__global uint2 * restrict const x)\n" \
++"void set_positive(__global uint2 * restrict const x,\n" \
++"	__global const candidate_params_t * restrict const candidate_params)\n" \
+ "{\n" \
+ "	// x.s0 = R, x.s1 = Y\n" \
+ "	// if R < Y then add k.2^n + 1 to R.\n" \
+@@ -40,7 +41,7 @@ static const char * const src_ocl_misc = \
+ "			}\n" \
+ "\n" \
+ "			// R += k.2^n\n" \
+-"			ulong l = (ulong)(pconst_d) << pconst_s;\n" \
++"			ulong l = (ulong)(candidate_params->d) << pconst_s;\n" \
+ "			for (size_t k = pconst_e; l != 0; ++k)\n" \
+ "			{\n" \
+ "				l += x[k].s0;\n" \
+@@ -54,7 +55,8 @@ static const char * const src_ocl_misc = \
+ "}\n" \
+ "\n" \
+ "__kernel\n" \
+-"void add1(__global uint2 * restrict const x, const uint a)\n" \
++"void add1(__global uint2 * restrict const x, const uint a,\n" \
++"	__global const candidate_params_t * restrict const candidate_params)\n" \
+ "{\n" \
+ "	// s0: += a\n" \
+ "	// s1: 0 => k.2^n + 1 for reduce_z step\n" \
+@@ -70,7 +72,7 @@ static const char * const src_ocl_misc = \
+ "		c >>= digit_bit;\n" \
+ "	}\n" \
+ "\n" \
+-"	ulong l = (ulong)(pconst_d) << pconst_s;\n" \
++"	ulong l = (ulong)(candidate_params->d) << pconst_s;\n" \
+ "	for (size_t k = pconst_e; l != 0; ++k)\n" \
+ "	{\n" \
+ "		x[k].s1 = (uint)(l) & digit_mask;\n" \
+diff --git a/src/ocl/modarith.h b/src/ocl/modarith.h
+index 48eb51ed7afc8e3e9e7a4ba5d0f835527b93450d..8756d20cf8b68e0d617baa9df3d07befd09078fd 100644
+--- a/src/ocl/modarith.h
++++ b/src/ocl/modarith.h
+@@ -23,6 +23,15 @@ static const char * const src_ocl_modarith = \
+ "\n" \
+ "#define digit_mask		((1u << digit_bit) - 1)\n" \
+ "\n" \
++"typedef struct\n" \
++"{\n" \
++"	uint d;\n" \
++"	uint d_inv;\n" \
++"	int d_shift;\n" \
++"	uint exponent;\n" \
++"	uint digit_bits;\n" \
++"} candidate_params_t;\n" \
++"\n" \
+ "/*\n" \
+ "Barrett's product/reduction, where P is such that h (the number of iterations in the 'while loop') is 0 or 1.\n" \
+ "\n" \
+@@ -57,16 +66,16 @@ static const char * const src_ocl_modarith = \
+ "	return r - t;\n" \
+ "}\n" \
+ "\n" \
+-"inline uint addmod_d(const uint lhs, const uint rhs)\n" \
++"inline uint addmod_d_runtime(const uint lhs, const uint rhs, const uint d)\n" \
+ "{\n" \
+ "	const uint r = lhs + rhs;\n" \
+-"	const uint t = (r >= pconst_d) ? pconst_d : 0;\n" \
++"	const uint t = (r >= d) ? d : 0;\n" \
+ "	return r - t;\n" \
+ "}\n" \
+ "\n" \
+-"inline uint rem_d(const ulong q)\n" \
++"inline uint rem_d_runtime(const ulong q, const uint d, const uint d_inv, const int d_shift)\n" \
+ "{\n" \
+-"	return _rem(q, pconst_d, pconst_d_inv, pconst_d_shift);\n" \
++"	return _rem(q, d, d_inv, d_shift);\n" \
+ "}\n" \
+ "\n" \
+ "inline uint _mulmodP1(const uint a, const uint b) { return _rem(a * (ulong)(b), P1, P1_INV, 30); }\n" \
+diff --git a/src/ocl/reduce.h b/src/ocl/reduce.h
+index d5b0f94bcbaf34cc32aa09c3fb4a9ec198875eca..c52ba6842156d7c110da3cc4676d30293bdcfcef 100644
+--- a/src/ocl/reduce.h
++++ b/src/ocl/reduce.h
+@@ -19,8 +19,12 @@ static const char * const src_ocl_reduce = \
+ "\n" \
+ "#define	R64		(RED_BLK * 64 / 4)\n" \
+ "\n" \
++"#define addmod_d(lhs, rhs) addmod_d_runtime((lhs), (rhs), candidate_params->d)\n" \
++"#define rem_d(q) rem_d_runtime((q), candidate_params->d, candidate_params->d_inv, candidate_params->d_shift)\n" \
++"\n" \
+ "__kernel __attribute__((reqd_work_group_size(R64, 1, 1)))\n" \
+-"void reduce_upsweep64(__global uint * restrict const t, const uint s, const uint j)\n" \
++"void reduce_upsweep64(__global uint * restrict const t, const uint s, const uint j,\n" \
++"	__global const candidate_params_t * restrict const candidate_params)\n" \
+ "{\n" \
+ "	__local uint4 T_4[R64 / 4 + R64 / 16];	// alignment\n" \
+ "	__local uint4 * const T2_4 = &T_4[R64 / 4];\n" \
+@@ -59,7 +63,8 @@ static const char * const src_ocl_reduce = \
+ "}\n" \
+ "\n" \
+ "__kernel __attribute__((reqd_work_group_size(R64, 1, 1)))\n" \
+-"void reduce_downsweep64(__global uint * restrict const t, const uint s, const uint j)\n" \
++"void reduce_downsweep64(__global uint * restrict const t, const uint s, const uint j,\n" \
++"	__global const candidate_params_t * restrict const candidate_params)\n" \
+ "{\n" \
+ "	__local uint4 T_4[R64 / 4 + R64 / 16];	// alignment\n" \
+ "	__local uint4 * const T2_4 = &T_4[R64 / 4];\n" \
+@@ -102,7 +107,8 @@ static const char * const src_ocl_reduce = \
+ "	tj1_4[k] = (uint4)(u012, u02, u03, u0);\n" \
+ "}\n" \
+ "\n" \
+-"inline void _reduce_upsweep4i(__local uint * restrict const T, __global const uint * restrict const t, const uint s, const size_t k)\n" \
++"inline void _reduce_upsweep4i(__local uint * restrict const T, __global const uint * restrict const t, const uint s, const size_t k,\n" \
++"	__global const candidate_params_t * restrict const candidate_params)\n" \
+ "{\n" \
+ "	__global const uint4 * const ti = (__global const uint4 *)&t[4 * k];\n" \
+ "	__local uint * const To = &T[k];\n" \
+@@ -112,7 +118,8 @@ static const char * const src_ocl_reduce = \
+ "	To[0] = u23; To[s] = u0123;\n" \
+ "}\n" \
+ "\n" \
+-"inline void _reduce_upsweep4(__local uint * restrict const T, const uint s, const size_t k)\n" \
++"inline void _reduce_upsweep4(__local uint * restrict const T, const uint s, const size_t k,\n" \
++"	__global const candidate_params_t * restrict const candidate_params)\n" \
+ "{\n" \
+ "	__local const uint * const Ti = &T[0 * s + 4 * k];\n" \
+ "	__local uint * const To = &T[4 * s + 1 * k];\n" \
+@@ -122,7 +129,8 @@ static const char * const src_ocl_reduce = \
+ "	To[0] = u23; To[s] = u0123;\n" \
+ "}\n" \
+ "\n" \
+-"inline void _reduce_downsweep4(__local uint * restrict const T, const uint s, const size_t k)\n" \
++"inline void _reduce_downsweep4(__local uint * restrict const T, const uint s, const size_t k,\n" \
++"	__global const candidate_params_t * restrict const candidate_params)\n" \
+ "{\n" \
+ "	__local const uint * const Ti = &T[4 * s + 1 * k];\n" \
+ "	__local uint * const To = &T[0 * s + 4 * k];\n" \
+@@ -133,7 +141,8 @@ static const char * const src_ocl_reduce = \
+ "	To[0] = u012; To[1] = u02; To[2] = u03; To[3] = u0;\n" \
+ "}\n" \
+ "\n" \
+-"inline void _reduce_downsweep4o(__global uint * restrict const t, __local const uint * restrict const T, const uint s, const size_t k)\n" \
++"inline void _reduce_downsweep4o(__global uint * restrict const t, __local const uint * restrict const T, const uint s, const size_t k,\n" \
++"	__global const candidate_params_t * restrict const candidate_params)\n" \
+ "{\n" \
+ "	__local const uint * const Ti = &T[k];\n" \
+ "	__global uint4 * const to = (__global uint4 *)&t[4 * k];\n" \
+@@ -144,7 +153,8 @@ static const char * const src_ocl_reduce = \
+ "	to[0] = (uint4)(u012, u02, u03, u0);\n" \
+ "}\n" \
+ "\n" \
+-"inline void _reduce_topsweep2(__global uint * restrict const t, __local uint * restrict const T)\n" \
++"inline void _reduce_topsweep2(__global uint * restrict const t, __local uint * restrict const T,\n" \
++"	__global const candidate_params_t * restrict const candidate_params)\n" \
+ "{\n" \
+ "	const uint u0 = T[0], u1 = T[1];\n" \
+ "	const uint u01 = addmod_d(u0, u1);\n" \
+@@ -152,7 +162,8 @@ static const char * const src_ocl_reduce = \
+ "	T[0] = u1; T[1] = 0;\n" \
+ "}\n" \
+ "\n" \
+-"inline void _reduce_topsweep4(__global uint * restrict const t, __local uint * restrict const T)\n" \
++"inline void _reduce_topsweep4(__global uint * restrict const t, __local uint * restrict const T,\n" \
++"	__global const candidate_params_t * restrict const candidate_params)\n" \
+ "{\n" \
+ "	const uint u0 = T[0], u1 = T[1], u2 = T[2], u3 = T[3];\n" \
+ "	const uint u01 = addmod_d(u0, u1), u23 = addmod_d(u2, u3);\n" \
+@@ -163,145 +174,152 @@ static const char * const src_ocl_reduce = \
+ "\n" \
+ "#define	S32		(32 / 4)\n" \
+ "__kernel __attribute__((reqd_work_group_size(S32, 1, 1)))\n" \
+-"void reduce_topsweep32(__global uint * restrict const t, const uint j)\n" \
++"void reduce_topsweep32(__global uint * restrict const t, const uint j,\n" \
++"	__global const candidate_params_t * restrict const candidate_params)\n" \
+ "{\n" \
+ "	__local uint T[64];	// 20\n" \
+ "\n" \
+ "	const size_t i = get_local_id(0);\n" \
+ "\n" \
+-"	_reduce_upsweep4i(T, &t[j], S32, i);\n" \
++"	_reduce_upsweep4i(T, &t[j], S32, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i < S32 / 4) _reduce_upsweep4(&T[S32], S32 / 4, i);\n" \
++"	if (i < S32 / 4) _reduce_upsweep4(&T[S32], S32 / 4, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i == 0) _reduce_topsweep2(t, &T[S32 + 5 * (S32 / 4)]);\n" \
++"	if (i == 0) _reduce_topsweep2(t, &T[S32 + 5 * (S32 / 4)], candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i < S32 / 4) _reduce_downsweep4(&T[S32], S32 / 4, i);\n" \
++"	if (i < S32 / 4) _reduce_downsweep4(&T[S32], S32 / 4, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	_reduce_downsweep4o(&t[j], T, S32, i);\n" \
++"	_reduce_downsweep4o(&t[j], T, S32, i, candidate_params);\n" \
+ "}\n" \
+ "\n" \
+ "#define	S64		(64 / 4)\n" \
+ "__kernel __attribute__((reqd_work_group_size(S64, 1, 1)))\n" \
+-"void reduce_topsweep64(__global uint * restrict const t, const uint j)\n" \
++"void reduce_topsweep64(__global uint * restrict const t, const uint j,\n" \
++"	__global const candidate_params_t * restrict const candidate_params)\n" \
+ "{\n" \
+ "	__local uint T[64];	// 40\n" \
+ "\n" \
+ "	const size_t i = get_local_id(0);\n" \
+ "\n" \
+-"	_reduce_upsweep4i(T, &t[j], S64, i);\n" \
++"	_reduce_upsweep4i(T, &t[j], S64, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i < S64 / 4) _reduce_upsweep4(&T[S64], S64 / 4, i);\n" \
++"	if (i < S64 / 4) _reduce_upsweep4(&T[S64], S64 / 4, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i == 0) _reduce_topsweep4(t, &T[S64 + 5 * (S64 / 4)]);\n" \
++"	if (i == 0) _reduce_topsweep4(t, &T[S64 + 5 * (S64 / 4)], candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i < S64 / 4) _reduce_downsweep4(&T[S64], S64 / 4, i);\n" \
++"	if (i < S64 / 4) _reduce_downsweep4(&T[S64], S64 / 4, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	_reduce_downsweep4o(&t[j], T, S64, i);\n" \
++"	_reduce_downsweep4o(&t[j], T, S64, i, candidate_params);\n" \
+ "}\n" \
+ "\n" \
+ "#define	S128	(128 / 4)\n" \
+ "__kernel __attribute__((reqd_work_group_size(S128, 1, 1)))\n" \
+-"void reduce_topsweep128(__global uint * restrict const t, const uint j)\n" \
++"void reduce_topsweep128(__global uint * restrict const t, const uint j,\n" \
++"	__global const candidate_params_t * restrict const candidate_params)\n" \
+ "{\n" \
+ "	__local uint T[128];	// 82\n" \
+ "\n" \
+ "	const size_t i = get_local_id(0);\n" \
+ "\n" \
+-"	_reduce_upsweep4i(T, &t[j], S128, i);\n" \
++"	_reduce_upsweep4i(T, &t[j], S128, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i < S128 / 4) _reduce_upsweep4(&T[S128], S128 / 4, i);\n" \
++"	if (i < S128 / 4) _reduce_upsweep4(&T[S128], S128 / 4, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i < S128 / 16) _reduce_upsweep4(&T[S128 + 5 * (S128 / 4)], S128 / 16, i);\n" \
++"	if (i < S128 / 16) _reduce_upsweep4(&T[S128 + 5 * (S128 / 4)], S128 / 16, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i == 0) _reduce_topsweep2(t, &T[S128 + 5 * (S128 / 4) + 5 * (S128 / 16)]);\n" \
++"	if (i == 0) _reduce_topsweep2(t, &T[S128 + 5 * (S128 / 4) + 5 * (S128 / 16)], candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i < S128 / 16) _reduce_downsweep4(&T[S128 + 5 * (S128 / 4)], S128 / 16, i);\n" \
++"	if (i < S128 / 16) _reduce_downsweep4(&T[S128 + 5 * (S128 / 4)], S128 / 16, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i < S128 / 4) _reduce_downsweep4(&T[S128], S128 / 4, i);\n" \
++"	if (i < S128 / 4) _reduce_downsweep4(&T[S128], S128 / 4, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	_reduce_downsweep4o(&t[j], T, S128, i);\n" \
++"	_reduce_downsweep4o(&t[j], T, S128, i, candidate_params);\n" \
+ "}\n" \
+ "\n" \
+ "#define	S256	(256 / 4)\n" \
+ "__kernel __attribute__((reqd_work_group_size(S256, 1, 1)))\n" \
+-"void reduce_topsweep256(__global uint * restrict const t, const uint j)\n" \
++"void reduce_topsweep256(__global uint * restrict const t, const uint j,\n" \
++"	__global const candidate_params_t * restrict const candidate_params)\n" \
+ "{\n" \
+ "	__local uint T[256];	// 168\n" \
+ "\n" \
+ "	const size_t i = get_local_id(0);\n" \
+ "\n" \
+-"	_reduce_upsweep4i(T, &t[j], S256, i);\n" \
++"	_reduce_upsweep4i(T, &t[j], S256, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i < S256 / 4) _reduce_upsweep4(&T[S256], S256 / 4, i);\n" \
++"	if (i < S256 / 4) _reduce_upsweep4(&T[S256], S256 / 4, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i < S256 / 16) _reduce_upsweep4(&T[S256 + 5 * (S256 / 4)], S256 / 16, i);\n" \
++"	if (i < S256 / 16) _reduce_upsweep4(&T[S256 + 5 * (S256 / 4)], S256 / 16, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i == 0) _reduce_topsweep4(t, &T[S256 + 5 * (S256 / 4) + 5 * (S256 / 16)]);\n" \
++"	if (i == 0) _reduce_topsweep4(t, &T[S256 + 5 * (S256 / 4) + 5 * (S256 / 16)], candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i < S256 / 16) _reduce_downsweep4(&T[S256 + 5 * (S256 / 4)], S256 / 16, i);\n" \
++"	if (i < S256 / 16) _reduce_downsweep4(&T[S256 + 5 * (S256 / 4)], S256 / 16, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i < S256 / 4) _reduce_downsweep4(&T[S256], S256 / 4, i);\n" \
++"	if (i < S256 / 4) _reduce_downsweep4(&T[S256], S256 / 4, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	_reduce_downsweep4o(&t[j], T, S256, i);\n" \
++"	_reduce_downsweep4o(&t[j], T, S256, i, candidate_params);\n" \
+ "}\n" \
+ "\n" \
+ "#define	S512	(512 / 4)\n" \
+ "__kernel __attribute__((reqd_work_group_size(S512, 1, 1)))\n" \
+-"void reduce_topsweep512(__global uint * restrict const t, const uint j)\n" \
++"void reduce_topsweep512(__global uint * restrict const t, const uint j,\n" \
++"	__global const candidate_params_t * restrict const candidate_params)\n" \
+ "{\n" \
+ "	__local uint T[512];	// 340\n" \
+ "\n" \
+ "	const size_t i = get_local_id(0);\n" \
+ "\n" \
+-"	_reduce_upsweep4i(T, &t[j], S512, i);\n" \
++"	_reduce_upsweep4i(T, &t[j], S512, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i < S512 / 4) _reduce_upsweep4(&T[S512], S512 / 4, i);\n" \
++"	if (i < S512 / 4) _reduce_upsweep4(&T[S512], S512 / 4, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i < S512 / 16) _reduce_upsweep4(&T[S512 + 5 * (S512 / 4)], S512 / 16, i);\n" \
++"	if (i < S512 / 16) _reduce_upsweep4(&T[S512 + 5 * (S512 / 4)], S512 / 16, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i < S512 / 64) _reduce_upsweep4(&T[S512 + 5 * (S512 / 4) + 5 * (S512 / 16)], S512 / 64, i);\n" \
++"	if (i < S512 / 64) _reduce_upsweep4(&T[S512 + 5 * (S512 / 4) + 5 * (S512 / 16)], S512 / 64, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i == 0) _reduce_topsweep2(t, &T[S512 + 5 * (S512 / 4) + 5 * (S512 / 16) + 5 * (S512 / 64)]);\n" \
++"	if (i == 0) _reduce_topsweep2(t, &T[S512 + 5 * (S512 / 4) + 5 * (S512 / 16) + 5 * (S512 / 64)], candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i < S512 / 64) _reduce_downsweep4(&T[S512 + 5 * (S512 / 4) + 5 * (S512 / 16)], S512 / 64, i);\n" \
++"	if (i < S512 / 64) _reduce_downsweep4(&T[S512 + 5 * (S512 / 4) + 5 * (S512 / 16)], S512 / 64, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i < S512 / 16) _reduce_downsweep4(&T[S512 + 5 * (S512 / 4)], S512 / 16, i);\n" \
++"	if (i < S512 / 16) _reduce_downsweep4(&T[S512 + 5 * (S512 / 4)], S512 / 16, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i < S512 / 4) _reduce_downsweep4(&T[S512], S512 / 4, i);\n" \
++"	if (i < S512 / 4) _reduce_downsweep4(&T[S512], S512 / 4, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	_reduce_downsweep4o(&t[j], T, S512, i);\n" \
++"	_reduce_downsweep4o(&t[j], T, S512, i, candidate_params);\n" \
+ "}\n" \
+ "\n" \
+ "#define	S1024	(1024 / 4)\n" \
+ "__kernel __attribute__((reqd_work_group_size(S1024, 1, 1)))\n" \
+-"void reduce_topsweep1024(__global uint * restrict const t, const uint j)\n" \
++"void reduce_topsweep1024(__global uint * restrict const t, const uint j,\n" \
++"	__global const candidate_params_t * restrict const candidate_params)\n" \
+ "{\n" \
+ "	__local uint T[1024];	// 680\n" \
+ "\n" \
+ "	const size_t i = get_local_id(0);\n" \
+ "\n" \
+-"	_reduce_upsweep4i(T, &t[j], S1024, i);\n" \
++"	_reduce_upsweep4i(T, &t[j], S1024, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i < S1024 / 4) _reduce_upsweep4(&T[S1024], S1024 / 4, i);\n" \
++"	if (i < S1024 / 4) _reduce_upsweep4(&T[S1024], S1024 / 4, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i < S1024 / 16) _reduce_upsweep4(&T[S1024 + 5 * (S1024 / 4)], S1024 / 16, i);\n" \
++"	if (i < S1024 / 16) _reduce_upsweep4(&T[S1024 + 5 * (S1024 / 4)], S1024 / 16, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i < S1024 / 64) _reduce_upsweep4(&T[S1024 + 5 * (S1024 / 4) + 5 * (S1024 / 16)], S1024 / 64, i);\n" \
++"	if (i < S1024 / 64) _reduce_upsweep4(&T[S1024 + 5 * (S1024 / 4) + 5 * (S1024 / 16)], S1024 / 64, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i == 0) _reduce_topsweep4(t, &T[S1024 + 5 * (S1024 / 4) + 5 * (S1024 / 16) + 5 * (S1024 / 64)]);\n" \
++"	if (i == 0) _reduce_topsweep4(t, &T[S1024 + 5 * (S1024 / 4) + 5 * (S1024 / 16) + 5 * (S1024 / 64)], candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i < S1024 / 64) _reduce_downsweep4(&T[S1024 + 5 * (S1024 / 4) + 5 * (S1024 / 16)], S1024 / 64, i);\n" \
++"	if (i < S1024 / 64) _reduce_downsweep4(&T[S1024 + 5 * (S1024 / 4) + 5 * (S1024 / 16)], S1024 / 64, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i < S1024 / 16) _reduce_downsweep4(&T[S1024 + 5 * (S1024 / 4)], S1024 / 16, i);\n" \
++"	if (i < S1024 / 16) _reduce_downsweep4(&T[S1024 + 5 * (S1024 / 4)], S1024 / 16, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	if (i < S1024 / 4) _reduce_downsweep4(&T[S1024], S1024 / 4, i);\n" \
++"	if (i < S1024 / 4) _reduce_downsweep4(&T[S1024], S1024 / 4, i, candidate_params);\n" \
+ "	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+-"	_reduce_downsweep4o(&t[j], T, S1024, i);\n" \
++"	_reduce_downsweep4o(&t[j], T, S1024, i, candidate_params);\n" \
+ "}\n" \
+ "\n" \
+ "__kernel\n" \
+ "void reduce_i(__global const uint2 * restrict const x, __global uint * restrict const y, __global uint * restrict const t,\n" \
+-"	__global const uint * restrict const bp)\n" \
++"	__global const uint * restrict const bp,\n" \
++"	__global const candidate_params_t * restrict const candidate_params)\n" \
+ "{\n" \
+ "	const size_t k = get_global_id(0);\n" \
+ "\n" \
+@@ -314,7 +332,8 @@ static const char * const src_ocl_reduce = \
+ "\n" \
+ "__kernel\n" \
+ "void reduce_o(__global uint2 * restrict const x, __global const uint * restrict const y, __global const uint * restrict const t,\n" \
+-"	__global const uint * restrict const ibp)\n" \
++"	__global const uint * restrict const ibp,\n" \
++"	__global const candidate_params_t * restrict const candidate_params)\n" \
+ "{\n" \
+ "	const size_t k = get_global_id(0);\n" \
+ "\n" \
+@@ -326,9 +345,9 @@ static const char * const src_ocl_reduce = \
+ "\n" \
+ "	const ulong q = ((ulong)(r_prev) << digit_bit) | y[k];\n" \
+ "\n" \
+-"	const uint q_d = mul_hi((uint)(q >> pconst_d_shift), pconst_d_inv);	// d < 2^29\n" \
+-"	const uint r = (uint)(q) - q_d * pconst_d;\n" \
+-"	const uint c = (r >= pconst_d) ? 1 : 0;\n" \
++"	const uint q_d = mul_hi((uint)(q >> candidate_params->d_shift), candidate_params->d_inv);	// d < 2^29\n" \
++"	const uint r = (uint)(q) - q_d * candidate_params->d;\n" \
++"	const uint c = (r >= candidate_params->d) ? 1 : 0;\n" \
+ "\n" \
+ "	x[k] = (uint2)((k > pconst_e) ? 0 : x[k].s0, q_d + c);\n" \
+ "}\n" \
+@@ -384,4 +403,7 @@ static const char * const src_ocl_reduce = \
+ "\n" \
+ "	_reduce_x(x, err);\n" \
+ "}\n" \
++"\n" \
++"#undef rem_d\n" \
++"#undef addmod_d\n" \
+ "";
+diff --git a/src/proth.h b/src/proth.h
+index ee79e2d53d97f3abe2f41dc125d8583d4a43fa78..2a52865e84f6d0744d97dfe657c3f65cb50d3586 100644
+--- a/src/proth.h
++++ b/src/proth.h
+@@ -158,7 +158,7 @@ public:
+ 	bool check(const uint32_t k, const uint32_t n, engine & engine, const bool checkRes = false,
+ 		const uint64_t r64 = 0, bool * const primeResult = nullptr,
+ 		const bool phaseProfile = false, const bool kernelProfile = false,
+-		const size_t profileIndex = 0)
++		const size_t profileIndex = 0, std::unique_ptr<gpmp> * const reusableContext = nullptr)
+ 	{
+ 		const primeforge_profile::time_point witnessStart = primeforge_profile::now();
+ 		uint32_t a = 0;
+@@ -179,7 +179,22 @@ public:
+ 		}
+ 
+ 		const primeforge_profile::time_point constructStart = primeforge_profile::now();
+-		gpmp X(k, n, engine, _isBoinc, true, kernelProfile, phaseProfile, profileIndex);
++		std::unique_ptr<gpmp> localContext;
++		gpmp * context = nullptr;
++		if (reusableContext == nullptr)
++		{
++			localContext.reset(new gpmp(k, n, engine, _isBoinc, true, kernelProfile, phaseProfile, profileIndex));
++			context = localContext.get();
++		}
++		else
++		{
++			if ((*reusableContext == nullptr) || !(*reusableContext)->canReuseFor(k, n))
++				reusableContext->reset(new gpmp(k, n, engine, _isBoinc, true, kernelProfile, phaseProfile, profileIndex));
++			else
++				(*reusableContext)->loadCandidate(k, n, phaseProfile, profileIndex);
++			context = reusableContext->get();
++		}
++		gpmp & X = *context;
+ 		primeforge_profile::emitPhase(phaseProfile, profileIndex, k, n, "GPMP_CONSTRUCT_TOTAL", primeforge_profile::elapsedNanoseconds(constructStart));
+ 
+ 		chronometer chrono;

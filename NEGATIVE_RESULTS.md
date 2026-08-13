@@ -684,3 +684,12 @@ future campaigns.
 - **Failure criterion:** AB/BA variants must use identical complete candidate sets and start within a 3 °C GPU-temperature spread.
 - **Conclusion:** neither attempt contributes to the retained statistics. Both remain in the local ignored output tree. A1 was rerun at 42 °C; B1 was rerun from zero with 20/20 markers. The final A1/B1/B2/A2 set passes exact witness/residue and thermal gates.
 - **Retry condition:** reuse only complete variants; a missing native exit property is not itself failure when exact markers and empty stderr prove completion.
+
+## NR-0074 - Runtime candidate parameters regressed complete Proth20 throughput
+
+- **Date:** 2026-08-13
+- **Change tested:** minimal invariant Proth20 context retaining the OpenCL program, kernels, roots, buffers and plan while loading runtime `k` parameters and candidate-dependent reduction tables.
+- **Evidence:** `benchmarks/evidence/breakthrough-jalon-c/`; two retained runs per variant on the same three 20,000-digit survivors produced identical witnesses and `RES64` values. Specialized median process time was 25.8669894 s (417.520564 candidates/hour); runtime-context median was 26.48157365 s (407.830748 candidates/hour).
+- **Failure criterion:** an invariant context is retained only if complete candidates/hour improves with identical mathematical results.
+- **Conclusion:** correctness passed, but throughput regressed 2.320800%. Context preparation saved only 24.677150 ms over three candidates while the main-loop sum regressed 2.563211%. The experimental patch is preserved but is not applied to the production Proth20 build.
+- **Retry condition:** do not micro-optimize this runtime variant. Revisit only if native multi-candidate execution can share candidate parameters without penalizing the dominant NTT/reduction loop.

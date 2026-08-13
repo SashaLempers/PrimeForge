@@ -15,6 +15,7 @@ CMakeLists.txt text eol=lf
 *.lock text eol=lf
 *.pf text eol=lf
 *.patch text eol=lf
+patches/proth20-invariant-context-prototype.patch binary
 *.ps1 text eol=crlf
 *.yml text eol=lf
 *.yaml text eol=lf

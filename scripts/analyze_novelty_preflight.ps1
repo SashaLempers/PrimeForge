@@ -300,7 +300,7 @@ $fermatStaleCorroborated = $fermatStale -and $fermatLiveQueryConfirmed -and
 
 $sieveSource = [IO.File]::ReadAllText((Join-Path $repositoryRoot 'src\discovery\proth_sieve.cpp'))
 $prothPatch = [IO.File]::ReadAllText((Join-Path $repositoryRoot 'patches\proth20-persistent-batch.patch'))
-$prothReadmePath = Join-Path $repositoryRoot 'out\third_party\proth20-src\README.md'
+$prothReadmePath = Join-Path $sourcePath 'proth20-pinned-readme.md'
 $prothReadme = if (Test-Path -LiteralPath $prothReadmePath) { [IO.File]::ReadAllText($prothReadmePath) } else { '' }
 $sieveHasPinnedLimit = $sieveSource -match "k_stop\s*>\s*99'999'999U"
 $adapterHasPinnedLimit = $prothPatch -match 'batchK\s*>\s*99999999'

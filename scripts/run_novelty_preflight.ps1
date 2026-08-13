@@ -263,6 +263,11 @@ Invoke-HttpSnapshot -Id 'primegrid-pps' -Url 'https://www.primegrid.com/stats_pp
     -FileName 'primegrid-pps.html' -Query 'Full official PPS k table; numeric comparison' -Critical $true
 Invoke-HttpSnapshot -Id 'primegrid-ppse' -Url 'https://www.primegrid.com/stats_ppse_llr.php' `
     -FileName 'primegrid-ppse.html' -Query 'Full official PPSE k table; numeric comparison' -Critical $true
+Invoke-HttpSnapshot -Id 'proth20-pinned-readme' `
+    -Url 'https://raw.githubusercontent.com/galloty/proth20/6771325939a7ceef2c75644c79981c7df4a61882/README.md' `
+    -FileName 'proth20-pinned-readme.md' `
+    -Query 'Pinned upstream engine domain at revision 6771325939a7ceef2c75644c79981c7df4a61882' `
+    -Critical $true
 
 $t5kBody = 'base=2&min_k={0}&max_k={1}&min_n={2}&max_n={2}&plus=on&number=100&search=Start+Search' -f `
     $kMin, $kMax, $n
@@ -401,6 +406,10 @@ foreach ($record in $records) {
         }
         't5k-proth-query' {
             $record.limitation = 'Database covers the 5,000 largest known primes plus selected categories; absence is weak evidence.'
+        }
+        'proth20-pinned-readme' {
+            $record.displayed_update = 'PINNED_GIT_REVISION_6771325939A7CEEF2C75644C79981C7DF4A61882'
+            $record.limitation = 'Documents the supported engine domain only; it is not coverage evidence.'
         }
     }
     if ($record.id -like 'web-exact-*') {

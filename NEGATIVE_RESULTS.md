@@ -606,3 +606,57 @@ Each future entry must include:
 - **Failure criterion:** an optional verifier must not starve the host or cross the existing minimum-RAM gate; absence of a FLINT verdict must never be promoted to independent verification.
 - **Conclusion:** the FLINT attempt is `ABORTED_RESOURCE_LIMIT` and contributes no mathematical verdict. The exact Proth witness remains independently verified by PARI/GP 2.17.4 and, additionally, CPython 3.12.13.
 - **Retry condition:** retry FLINT only through a bounded-memory implementation or on a host with a separately measured memory budget; do not repeat the current general call on this machine.
+
+## NR-0066 - The first fast-prime sieve harness misread a successful redirected process
+
+- **Date:** 2026-08-13
+- **Change tested:** first multi-band sieve benchmark harness under Windows PowerShell 5.1.
+- **Evidence:** `out/fast-prime/sieve-benchmark-20260813T1040Z/`; the sieve printed a complete `PASS` result, but `Start-Process -PassThru` exposed a null `ExitCode`, reproducing the Windows behavior already recorded in NR-0057.
+- **Failure criterion:** the benchmark must not classify a successful or failed process from an unavailable native property.
+- **Conclusion:** the first harness run is rejected. The retained harness invokes the short sieve process natively and validates `$LASTEXITCODE`, the complete metric contract, empty stderr and `discovery.sieve.status=PASS`; 18/18 retained measurements passed.
+- **Retry condition:** retain the native invocation for short synchronous tools, or use the watchdog exit event for redirected long-running workers.
+
+## NR-0067 - Two drafts of the GPU-worker harness relied on null PowerShell exit codes
+
+- **Date:** 2026-08-13
+- **Change tested:** warmup stage of the one-versus-two Proth20 worker benchmark.
+- **Evidence:** `out/fast-prime/gpu-worker-benchmark-20260813/` and `out/fast-prime/gpu-worker-benchmark-20260813-r2/`; Proth20 and the watchdog both completed normally, but their redirected `ExitCode` properties were null.
+- **Failure criterion:** a throughput record requires independently checkable normal termination.
+- **Conclusion:** both harness drafts are rejected as benchmark records. The retained runs require empty worker stderr, exact completion markers, matching classifications, terminal watchdog decision `WORKER_EXITED reason=NONE`, and exactly one telemetry `worker_exited exit_code=0` event. Native exit code is checked only when available.
+- **Retry condition:** none while the watchdog contract remains available and tested.
+
+## NR-0068 - Single-candidate units cannot demonstrate a between-candidate stop
+
+- **Date:** 2026-08-13
+- **Change tested:** deliberate stop/resume with five one-candidate units at 20,000 digits.
+- **Evidence:** `out/fast-prime/stop-resume-validation-20260813/`; the watchdog requested `EXTERNAL_GRACEFUL_STOP` during unit 2, but Proth20 completed its only candidate before observing the marker. The controller correctly accepted that durable result, removed the obsolete marker at the next unit boundary, and completed 5/5.
+- **Failure criterion:** the validation required a nonterminal checkpoint followed by a distinct resume, not merely a harmless stop request.
+- **Conclusion:** the first interruption claim is rejected. The retained test uses one five-candidate unit; it stopped after 2/5, preserved an `IN_PROGRESS` checkpoint, resumed the exact three-candidate suffix, and finished 5/5 with zero gaps or duplicate result rows.
+- **Retry condition:** use multi-candidate units whenever the test specifically needs an observable between-candidate cooperative stop.
+
+## NR-0069 - Four-billion sieve depth missed the marginal 3% retention gate
+
+- **Date:** 2026-08-13
+- **Change tested:** geometric sieve depths from one million through four billion on `fp-20000-c0-a210bbba7489`.
+- **Evidence:** `benchmarks/fast-prime/raw.jsonl`; one billion retained 3,675 survivors in 6.619 s, two billion retained 3,563 in 13.494 s, and four billion retained 3,455 in 27.133 s. The retained two-worker median is 524.118 candidates/hour.
+- **Failure criterion:** a performance-only extension is retained only for at least 3% median complete-work reduction.
+- **Conclusion:** one to two billion improves projected complete time by about 3.02% and is retained. Two to four billion improves it by about 2.99% after added sieve time and is rejected; the supported and recommended ceiling remains two billion.
+- **Retry condition:** retry above two billion only after a faster streaming/residue sieve changes the marginal cost or a substantially slower proof workload changes the complete-time ratio.
+
+## NR-0070 - Three GPU workers regressed aggregate throughput
+
+- **Date:** 2026-08-13
+- **Change tested:** one, two and three concurrent Proth20/OpenCL workers on four identical 20,000-digit survivors after an excluded warmup.
+- **Evidence:** `out/fast-prime/gpu-worker-benchmark-20260813-higher/raw.jsonl`; one, two and three workers measured 414.398, 520.638 and 500.279 completed candidates/hour. A separate retained repetition measured 336.808 and 527.598 for one and two workers. All classifications matched, with no throttling or WHEA error.
+- **Failure criterion:** add a worker only when aggregate completed candidates/hour increases.
+- **Conclusion:** two workers are retained. Three workers regress 3.91% against two; four workers were not tested because the adaptive protocol stops at the first regression.
+- **Retry condition:** retry only with a shared dynamic queue, a materially different candidate size, or a driver/engine change.
+
+## NR-0071 - The first final preflight depended on an ignored local Proth20 checkout
+
+- **Date:** 2026-08-13
+- **Change tested:** deterministic analysis of the first 79-source capture for `n=66411`, `k=75939069..76077027` in the dedicated worktree.
+- **Evidence:** `out/fast-prime/redundant-novelty-preflight-20260813/`; all 79 captures and overlap checks passed, but the analyzer failed closed because it expected `out/third_party/proth20-src/README.md`, which was intentionally absent from the worktree.
+- **Failure criterion:** an engine-domain gate must not depend on an ignored checkout outside the evidence manifest.
+- **Conclusion:** the first analysis is rejected and its capture was moved under ignored `out/` rather than committed twice. The capture script now archives the pinned upstream README at revision `6771325939a7ceef2c75644c79981c7df4a61882` as critical evidence. The fresh 80-source rerun passed with zero overlaps and zero integrity or critical-fetch failures.
+- **Retry condition:** every external fact used by the machine preflight must be inside the hashed evidence set.

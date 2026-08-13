@@ -36,8 +36,8 @@ void validate(const ProthSieveConfig& config) {
     if (config.exponent < 32U || config.exponent > 99'999'999U) {
         throw std::invalid_argument("Proth discovery exponent exceeds the pinned engine domain");
     }
-    if (config.maximum_prime < 3U || config.maximum_prime > 10'000'000U) {
-        throw std::invalid_argument("Proth discovery sieve bound must be in [3, 10000000]");
+    if (config.maximum_prime < 3U || config.maximum_prime > 2'000'000'000U) {
+        throw std::invalid_argument("Proth discovery sieve bound must be in [3, 2000000000]");
     }
 }
 

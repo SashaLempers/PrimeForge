@@ -57,6 +57,16 @@ int main() {
         require(rejected_out_of_engine_domain,
                 "k range outside the pinned proof-engine domain was accepted");
 
+        bool rejected_excessive_sieve_bound = false;
+        try {
+            static_cast<void>(primeforge::discovery::sieve_proth_candidates(
+                {3U, 43U, 32U, 2'000'000'001U}));
+        } catch (const std::invalid_argument&) {
+            rejected_excessive_sieve_bound = true;
+        }
+        require(rejected_excessive_sieve_bound,
+                "sieve bound above the validated implementation limit was accepted");
+
         std::cout << "discovery_sieve.candidates=" << result.candidate_count << '\n'
                   << "discovery_sieve.eliminated=" << result.eliminated_count << '\n'
                   << "discovery_sieve.survivors=" << result.survivors.size() << '\n'

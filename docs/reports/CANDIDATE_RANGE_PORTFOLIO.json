@@ -1,0 +1,1564 @@
+{
+    "schema":  "primeforge.fast_prime.portfolio.v1",
+    "generated_utc":  "2026-08-13T10:39:52Z",
+    "generator_version":  "primeforge.fast-prime-range.v1",
+    "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+    "date_tag":  "2026-08-13",
+    "domain":  {
+                   "k_min":  "10000001",
+                   "k_max":  "99999999",
+                   "k_parity":  "ODD",
+                   "proth20_documented_k_limit_exclusive":  "100000000",
+                   "proth20_documented_n_limit_exclusive":  "100000000"
+               },
+    "target_probability":  "0.950000",
+    "target_lambda":  "2.995732273553990",
+    "exact_digit_formula":  "floor(log10(k)+n*log10(2))+1",
+    "ranges":  [
+                   {
+                       "range_id":  "fp-20000-c0-a210bbba7489",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=20000|counter=0|k-domain=10000001..99999999|candidate-count=68980",
+                       "seed_sha256":  "844e6a95798a57fa757cd45aaa3755245ba256bc4e29645f9d65a84d4f9fa305",
+                       "counter":  0,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  20000,
+                       "n":  66411,
+                       "k_min":  "75939069",
+                       "k_max":  "76077027",
+                       "k_step":  2,
+                       "candidate_count":  "68980",
+                       "digit_count_min":  20000,
+                       "digit_count_max":  20000,
+                       "generation_hash":  "a210bbba7489ddc9221f3f6266ebc6c96947a80e089be6bb736f96f12fffafd3",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995825664078910",
+                                                       "probability_at_least_one":  "0.950004669308208",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "PUBLICLY_UNCOVERED_CANDIDATE",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "ENGINE_SUPPORT_PASS",
+                       "benchmark_status":  "SIEVE_2B_MEASURED;FULL_SIZE_PROTH20_MEASURED_ON_EQUIVALENT_20000_DIGIT_FINALIST",
+                       "gate_status":  "AWAITING_SASHA_GO",
+                       "coverage_evidence":  {
+                                                 "level":  "B_FULL_PREFLIGHT",
+                                                 "source_count":  80,
+                                                 "source_manifest_sha256":  "6fe60c447711d8e17a099758695de8dde16af1ee5064d21952a6eb69cdd891ad",
+                                                 "documented_overlap_count":  0,
+                                                 "preflight_status":  "PREFLIGHT_PASS",
+                                                 "audited_utc":  "2026-08-13T11:25:10Z",
+                                                 "limitations":  [
+                                                                     "Public searches cannot reveal private or unindexed computations.",
+                                                                     "GitHub has no global API for searching release-asset contents.",
+                                                                     "T5K is not exhaustive for primes of this size.",
+                                                                     "The FermatSearch live range endpoint and merged table share the same operator database; their agreement corroborates but does not erase the displayed-date limitation.",
+                                                                     "No claim of globally unexplored or guaranteed novel is made."
+                                                                 ]
+                                             },
+                       "decision_metrics":  {
+                                                "rank":  1,
+                                                "sieve_bound":  2000000000,
+                                                "measured_sieve_seconds":  "13.624732",
+                                                "measured_sieve_peak_working_set_bytes":  "1697804288",
+                                                "measured_survivors":  3563,
+                                                "selected_gpu_workers":  2,
+                                                "measured_two_worker_rates_per_hour":  [
+                                                                                           "520.637703",
+                                                                                           "527.598225"
+                                                                                       ],
+                                                "median_throughput_per_hour":  "524.117964",
+                                                "slower_measured_throughput_per_hour":  "520.637703",
+                                                "estimated_full_range_hours":  "6.801873",
+                                                "prudent_full_range_hours":  "8.216021",
+                                                "estimated_median_time_to_prime_hours":  "1.573805",
+                                                "estimated_p90_time_to_prime_hours":  "5.228067",
+                                                "estimated_expected_stop_time_hours":  "2.156995",
+                                                "probability_at_least_one":  "0.950004669308208",
+                                                "probability_model":  "Poisson heuristic; not a guarantee"
+                                            }
+                   },
+                   {
+                       "range_id":  "fp-20000-c1-e50987f5e688",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=20000|counter=1|k-domain=10000001..99999999|candidate-count=68980",
+                       "seed_sha256":  "8a01d064e6eb1b118149111b1aafc15176d4f01aa005e685b9a2e1131ba4bd6a",
+                       "counter":  1,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  20000,
+                       "n":  66412,
+                       "k_min":  "33402579",
+                       "k_max":  "33540537",
+                       "k_step":  2,
+                       "candidate_count":  "68980",
+                       "digit_count_min":  20000,
+                       "digit_count_max":  20000,
+                       "generation_hash":  "e50987f5e6884935700cc7af6293c05913a0b18c58a757d5130e9843567b4ade",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995833925810450",
+                                                       "probability_at_least_one":  "0.950005082354502",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "QUICK_FILTER_PASS",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "PROTH20_DOCUMENTED_DOMAIN",
+                       "benchmark_status":  "SIEVE_2B_MEASURED;FULL_SIZE_PROTH20_MEASURED_ON_EQUIVALENT_20000_DIGIT_FINALIST",
+                       "gate_status":  "LEVEL_B_PREFLIGHT_PENDING",
+                       "coverage_evidence":  {
+                                                 "level":  "A_QUICK_FILTER",
+                                                 "checked_source_ids":  [
+                                                                            "est-proth",
+                                                                            "fermatsearch-done",
+                                                                            "fermatsearch-running",
+                                                                            "fermatsearch-merged",
+                                                                            "primegrid-pps",
+                                                                            "primegrid-ppse"
+                                                                        ],
+                                                 "documented_overlap_count":  0,
+                                                 "limitations":  [
+                                                                     "This is a structural quick filter, not the full novelty preflight.",
+                                                                     "Private, deleted, offline and unindexed computations cannot be observed.",
+                                                                     "ProthSearch, T5K exact queries and broad exact searches remain pending for finalists."
+                                                                 ]
+                                             },
+                       "decision_metrics":  {
+                                                "rank":  2,
+                                                "sieve_bound":  2000000000,
+                                                "measured_sieve_seconds":  "12.758490",
+                                                "measured_sieve_peak_working_set_bytes":  "UNKNOWN_NOT_POLLED",
+                                                "measured_survivors":  3569,
+                                                "selected_gpu_workers":  2,
+                                                "measured_two_worker_rates_per_hour":  [
+                                                                                           "520.637703",
+                                                                                           "527.598225"
+                                                                                       ],
+                                                "median_throughput_per_hour":  "524.117964",
+                                                "slower_measured_throughput_per_hour":  "520.637703",
+                                                "estimated_full_range_hours":  "6.813080",
+                                                "prudent_full_range_hours":  "8.229610",
+                                                "estimated_median_time_to_prime_hours":  "1.576398",
+                                                "estimated_p90_time_to_prime_hours":  "5.236682",
+                                                "estimated_expected_stop_time_hours":  "2.160549",
+                                                "probability_at_least_one":  "0.950005082354502",
+                                                "probability_model":  "Poisson heuristic; not a guarantee"
+                                            }
+                   },
+                   {
+                       "range_id":  "fp-20000-c2-da62410639c5",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=20000|counter=2|k-domain=10000001..99999999|candidate-count=68980",
+                       "seed_sha256":  "18176da46052f543f0fb07d1d621344fd01828488929e51be799341bb738657f",
+                       "counter":  2,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  20000,
+                       "n":  66411,
+                       "k_min":  "99718115",
+                       "k_max":  "99856073",
+                       "k_step":  2,
+                       "candidate_count":  "68980",
+                       "digit_count_min":  20000,
+                       "digit_count_max":  20000,
+                       "generation_hash":  "da62410639c55a7bc8f707aaecf34d7836a1cd8a2e1c0218012b45f102945799",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995807956269190",
+                                                       "probability_at_least_one":  "0.950003783992567",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "QUICK_FILTER_PASS",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "PROTH20_DOCUMENTED_DOMAIN",
+                       "benchmark_status":  "SIEVE_2B_MEASURED;FULL_SIZE_PROTH20_MEASURED_ON_EQUIVALENT_20000_DIGIT_FINALIST",
+                       "gate_status":  "LEVEL_B_PREFLIGHT_PENDING",
+                       "coverage_evidence":  {
+                                                 "level":  "A_QUICK_FILTER",
+                                                 "checked_source_ids":  [
+                                                                            "est-proth",
+                                                                            "fermatsearch-done",
+                                                                            "fermatsearch-running",
+                                                                            "fermatsearch-merged",
+                                                                            "primegrid-pps",
+                                                                            "primegrid-ppse"
+                                                                        ],
+                                                 "documented_overlap_count":  0,
+                                                 "limitations":  [
+                                                                     "This is a structural quick filter, not the full novelty preflight.",
+                                                                     "Private, deleted, offline and unindexed computations cannot be observed.",
+                                                                     "ProthSearch, T5K exact queries and broad exact searches remain pending for finalists."
+                                                                 ]
+                                             },
+                       "decision_metrics":  {
+                                                "rank":  3,
+                                                "sieve_bound":  2000000000,
+                                                "measured_sieve_seconds":  "13.422548",
+                                                "measured_sieve_peak_working_set_bytes":  "UNKNOWN_NOT_POLLED",
+                                                "measured_survivors":  3604,
+                                                "selected_gpu_workers":  2,
+                                                "measured_two_worker_rates_per_hour":  [
+                                                                                           "520.637703",
+                                                                                           "527.598225"
+                                                                                       ],
+                                                "median_throughput_per_hour":  "524.117964",
+                                                "slower_measured_throughput_per_hour":  "520.637703",
+                                                "estimated_full_range_hours":  "6.880043",
+                                                "prudent_full_range_hours":  "8.310465",
+                                                "estimated_median_time_to_prime_hours":  "1.591892",
+                                                "estimated_p90_time_to_prime_hours":  "5.288151",
+                                                "estimated_expected_stop_time_hours":  "2.181784",
+                                                "probability_at_least_one":  "0.950003783992567",
+                                                "probability_model":  "Poisson heuristic; not a guarantee"
+                                            }
+                   },
+                   {
+                       "range_id":  "fp-25000-c0-bae429926b7e",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=25000|counter=0|k-domain=10000001..99999999|candidate-count=86225",
+                       "seed_sha256":  "fa53a7b631f39cc88533117930c638f7a14385e0d3a163977fdb6370214b91cb",
+                       "counter":  0,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  25000,
+                       "n":  83020,
+                       "k_min":  "84025969",
+                       "k_max":  "84198417",
+                       "k_step":  2,
+                       "candidate_count":  "86225",
+                       "digit_count_min":  25000,
+                       "digit_count_max":  25000,
+                       "generation_hash":  "bae429926b7e3e7b604242f6da6ed843893b26ccf431b429d538f2811c29c6d0",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995831030088830",
+                                                       "probability_at_least_one":  "0.950004937582929",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "QUICK_FILTER_PASS",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "PROTH20_DOCUMENTED_DOMAIN",
+                       "benchmark_status":  "ONE_FULL_SIZE_PROBE_PASS;DOMINATED_BY_20000_DIGIT_OPTIONS",
+                       "gate_status":  "DOMINATED_NOT_ADVANCED_TO_LEVEL_B",
+                       "coverage_evidence":  {
+                                                 "level":  "A_QUICK_FILTER",
+                                                 "checked_source_ids":  [
+                                                                            "est-proth",
+                                                                            "fermatsearch-done",
+                                                                            "fermatsearch-running",
+                                                                            "fermatsearch-merged",
+                                                                            "primegrid-pps",
+                                                                            "primegrid-ppse"
+                                                                        ],
+                                                 "documented_overlap_count":  0,
+                                                 "limitations":  [
+                                                                     "This is a structural quick filter, not the full novelty preflight.",
+                                                                     "Private, deleted, offline and unindexed computations cannot be observed.",
+                                                                     "ProthSearch, T5K exact queries and broad exact searches remain pending for finalists."
+                                                                 ]
+                                             },
+                       "probe_metrics":  {
+                                             "representative_engine_seconds":  10,
+                                             "representative_sieve_bound":  10000000,
+                                             "representative_survivors":  5937,
+                                             "inference":  "Single-candidate band probe; sufficient only for elimination, not a p90 claim."
+                                         }
+                   },
+                   {
+                       "range_id":  "fp-25000-c1-97a3e70ef8c8",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=25000|counter=1|k-domain=10000001..99999999|candidate-count=86225",
+                       "seed_sha256":  "3a8b993aae954225b6794bfa8a8bfa104179addf50c50841b961333de647a3f8",
+                       "counter":  1,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  25000,
+                       "n":  83020,
+                       "k_min":  "80483659",
+                       "k_max":  "80656107",
+                       "k_step":  2,
+                       "candidate_count":  "86225",
+                       "digit_count_min":  25000,
+                       "digit_count_max":  25000,
+                       "generation_hash":  "97a3e70ef8c87af2a03f557504c4c261b770f0eae59b391b462e9578e71696c1",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995833269371790",
+                                                       "probability_at_least_one":  "0.950005049535895",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "QUICK_FILTER_PASS",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "PROTH20_DOCUMENTED_DOMAIN",
+                       "benchmark_status":  "BAND_COST_TRANSFERRED;DOMINATED_BY_20000_DIGIT_OPTIONS",
+                       "gate_status":  "DOMINATED_NOT_ADVANCED_TO_LEVEL_B",
+                       "coverage_evidence":  {
+                                                 "level":  "A_QUICK_FILTER",
+                                                 "checked_source_ids":  [
+                                                                            "est-proth",
+                                                                            "fermatsearch-done",
+                                                                            "fermatsearch-running",
+                                                                            "fermatsearch-merged",
+                                                                            "primegrid-pps",
+                                                                            "primegrid-ppse"
+                                                                        ],
+                                                 "documented_overlap_count":  0,
+                                                 "limitations":  [
+                                                                     "This is a structural quick filter, not the full novelty preflight.",
+                                                                     "Private, deleted, offline and unindexed computations cannot be observed.",
+                                                                     "ProthSearch, T5K exact queries and broad exact searches remain pending for finalists."
+                                                                 ]
+                                             },
+                       "probe_metrics":  {
+                                             "representative_engine_seconds":  10,
+                                             "representative_sieve_bound":  10000000,
+                                             "representative_survivors":  5937,
+                                             "inference":  "Single-candidate band probe; sufficient only for elimination, not a p90 claim."
+                                         }
+                   },
+                   {
+                       "range_id":  "fp-25000-c2-92a4545d2fac",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=25000|counter=2|k-domain=10000001..99999999|candidate-count=86225",
+                       "seed_sha256":  "398cf9642f6cc19cde1f1ce9939702112f9483565d3189865a003a48c79a5855",
+                       "counter":  2,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  25000,
+                       "n":  83019,
+                       "k_min":  "82941497",
+                       "k_max":  "83113945",
+                       "k_step":  2,
+                       "candidate_count":  "86225",
+                       "digit_count_min":  25000,
+                       "digit_count_max":  25000,
+                       "generation_hash":  "92a4545d2fac7ad8edbd232cd662ec38097d7e19b280fa1798cb391573075ac1",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995867780130960",
+                                                       "probability_at_least_one":  "0.950006774869818",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "QUICK_FILTER_PASS",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "PROTH20_DOCUMENTED_DOMAIN",
+                       "benchmark_status":  "BAND_COST_TRANSFERRED;DOMINATED_BY_20000_DIGIT_OPTIONS",
+                       "gate_status":  "DOMINATED_NOT_ADVANCED_TO_LEVEL_B",
+                       "coverage_evidence":  {
+                                                 "level":  "A_QUICK_FILTER",
+                                                 "checked_source_ids":  [
+                                                                            "est-proth",
+                                                                            "fermatsearch-done",
+                                                                            "fermatsearch-running",
+                                                                            "fermatsearch-merged",
+                                                                            "primegrid-pps",
+                                                                            "primegrid-ppse"
+                                                                        ],
+                                                 "documented_overlap_count":  0,
+                                                 "limitations":  [
+                                                                     "This is a structural quick filter, not the full novelty preflight.",
+                                                                     "Private, deleted, offline and unindexed computations cannot be observed.",
+                                                                     "ProthSearch, T5K exact queries and broad exact searches remain pending for finalists."
+                                                                 ]
+                                             },
+                       "probe_metrics":  {
+                                             "representative_engine_seconds":  10,
+                                             "representative_sieve_bound":  10000000,
+                                             "representative_survivors":  5937,
+                                             "inference":  "Single-candidate band probe; sufficient only for elimination, not a p90 claim."
+                                         }
+                   },
+                   {
+                       "range_id":  "fp-50000-c0-210a0c661d8b",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=50000|counter=0|k-domain=10000001..99999999|candidate-count=172449",
+                       "seed_sha256":  "ada3b17fcb798574890e3be4019642114b52383cdef8479d1fecaed998743c8c",
+                       "counter":  0,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  50000,
+                       "n":  166068,
+                       "k_min":  "76315753",
+                       "k_max":  "76660649",
+                       "k_step":  2,
+                       "candidate_count":  "172449",
+                       "digit_count_min":  50000,
+                       "digit_count_max":  50000,
+                       "generation_hash":  "210a0c661d8b212a27382530de9045e0b00093ec8197667913c71dc014ebbd00",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995785933304140",
+                                                       "probability_at_least_one":  "0.950002682915524",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "QUICK_FILTER_PASS",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "PROTH20_DOCUMENTED_DOMAIN",
+                       "benchmark_status":  "ONE_FULL_SIZE_PROBE_PASS;DOMINATED_BY_20000_DIGIT_OPTIONS",
+                       "gate_status":  "DOMINATED_NOT_ADVANCED_TO_LEVEL_B",
+                       "coverage_evidence":  {
+                                                 "level":  "A_QUICK_FILTER",
+                                                 "checked_source_ids":  [
+                                                                            "est-proth",
+                                                                            "fermatsearch-done",
+                                                                            "fermatsearch-running",
+                                                                            "fermatsearch-merged",
+                                                                            "primegrid-pps",
+                                                                            "primegrid-ppse"
+                                                                        ],
+                                                 "documented_overlap_count":  0,
+                                                 "limitations":  [
+                                                                     "This is a structural quick filter, not the full novelty preflight.",
+                                                                     "Private, deleted, offline and unindexed computations cannot be observed.",
+                                                                     "ProthSearch, T5K exact queries and broad exact searches remain pending for finalists."
+                                                                 ]
+                                             },
+                       "probe_metrics":  {
+                                             "representative_engine_seconds":  21,
+                                             "representative_sieve_bound":  10000000,
+                                             "representative_survivors":  11901,
+                                             "inference":  "Single-candidate band probe; sufficient only for elimination, not a p90 claim."
+                                         }
+                   },
+                   {
+                       "range_id":  "fp-50000-c1-3247bd932518",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=50000|counter=1|k-domain=10000001..99999999|candidate-count=172449",
+                       "seed_sha256":  "d05d42e4b5d28e27a0d3c54e67d1b5572394db2ab817770adb89c2be3e3294c2",
+                       "counter":  1,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  50000,
+                       "n":  166072,
+                       "k_min":  "19195535",
+                       "k_max":  "19540431",
+                       "k_step":  2,
+                       "candidate_count":  "172449",
+                       "digit_count_min":  50000,
+                       "digit_count_max":  50000,
+                       "generation_hash":  "3247bd932518d48593c7a2abe2c83c2fe439d6f9f6f08fe73397203f58f0ff2c",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995749527875120",
+                                                       "probability_at_least_one":  "0.950000862708614",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "QUICK_FILTER_PASS",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "PROTH20_DOCUMENTED_DOMAIN",
+                       "benchmark_status":  "BAND_COST_TRANSFERRED;DOMINATED_BY_20000_DIGIT_OPTIONS",
+                       "gate_status":  "DOMINATED_NOT_ADVANCED_TO_LEVEL_B",
+                       "coverage_evidence":  {
+                                                 "level":  "A_QUICK_FILTER",
+                                                 "checked_source_ids":  [
+                                                                            "est-proth",
+                                                                            "fermatsearch-done",
+                                                                            "fermatsearch-running",
+                                                                            "fermatsearch-merged",
+                                                                            "primegrid-pps",
+                                                                            "primegrid-ppse"
+                                                                        ],
+                                                 "documented_overlap_count":  0,
+                                                 "limitations":  [
+                                                                     "This is a structural quick filter, not the full novelty preflight.",
+                                                                     "Private, deleted, offline and unindexed computations cannot be observed.",
+                                                                     "ProthSearch, T5K exact queries and broad exact searches remain pending for finalists."
+                                                                 ]
+                                             },
+                       "probe_metrics":  {
+                                             "representative_engine_seconds":  21,
+                                             "representative_sieve_bound":  10000000,
+                                             "representative_survivors":  11901,
+                                             "inference":  "Single-candidate band probe; sufficient only for elimination, not a p90 claim."
+                                         }
+                   },
+                   {
+                       "range_id":  "fp-50000-c2-e3ece22ebc11",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=50000|counter=2|k-domain=10000001..99999999|candidate-count=172449",
+                       "seed_sha256":  "2591e9c318e8d0e2a7e18f28830a085317d328f13878793736b414ef1984ee10",
+                       "counter":  2,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  50000,
+                       "n":  166068,
+                       "k_min":  "53730565",
+                       "k_max":  "54075461",
+                       "k_step":  2,
+                       "candidate_count":  "172449",
+                       "digit_count_min":  50000,
+                       "digit_count_max":  50000,
+                       "generation_hash":  "e3ece22ebc1132a3969625462c2d7eb01950a777372c421a4782373cdf487bb7",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995795039528410",
+                                                       "probability_at_least_one":  "0.950003138200234",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "QUICK_FILTER_PASS",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "PROTH20_DOCUMENTED_DOMAIN",
+                       "benchmark_status":  "BAND_COST_TRANSFERRED;DOMINATED_BY_20000_DIGIT_OPTIONS",
+                       "gate_status":  "DOMINATED_NOT_ADVANCED_TO_LEVEL_B",
+                       "coverage_evidence":  {
+                                                 "level":  "A_QUICK_FILTER",
+                                                 "checked_source_ids":  [
+                                                                            "est-proth",
+                                                                            "fermatsearch-done",
+                                                                            "fermatsearch-running",
+                                                                            "fermatsearch-merged",
+                                                                            "primegrid-pps",
+                                                                            "primegrid-ppse"
+                                                                        ],
+                                                 "documented_overlap_count":  0,
+                                                 "limitations":  [
+                                                                     "This is a structural quick filter, not the full novelty preflight.",
+                                                                     "Private, deleted, offline and unindexed computations cannot be observed.",
+                                                                     "ProthSearch, T5K exact queries and broad exact searches remain pending for finalists."
+                                                                 ]
+                                             },
+                       "probe_metrics":  {
+                                             "representative_engine_seconds":  21,
+                                             "representative_sieve_bound":  10000000,
+                                             "representative_survivors":  11901,
+                                             "inference":  "Single-candidate band probe; sufficient only for elimination, not a p90 claim."
+                                         }
+                   },
+                   {
+                       "range_id":  "fp-75000-c0-67a09a06068e",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=75000|counter=0|k-domain=10000001..99999999|candidate-count=258673",
+                       "seed_sha256":  "5e032c9f12c1bc259f1d95e4800e527a3b0ca1f83c30f7cc322d98bc991e2ae1",
+                       "counter":  0,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  75000,
+                       "n":  249119,
+                       "k_min":  "20696491",
+                       "k_max":  "21213835",
+                       "k_step":  2,
+                       "candidate_count":  "258673",
+                       "digit_count_min":  75000,
+                       "digit_count_max":  75000,
+                       "generation_hash":  "67a09a06068ebe937b677fe16d035472e97d9031c1be27024ffc0fcefe997f61",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995755640648620",
+                                                       "probability_at_least_one":  "0.950001168341081",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "QUICK_FILTER_PASS",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "PROTH20_DOCUMENTED_DOMAIN",
+                       "benchmark_status":  "ONE_FULL_SIZE_PROBE_PASS;DOMINATED_BY_20000_DIGIT_OPTIONS",
+                       "gate_status":  "DOMINATED_NOT_ADVANCED_TO_LEVEL_B",
+                       "coverage_evidence":  {
+                                                 "level":  "A_QUICK_FILTER",
+                                                 "checked_source_ids":  [
+                                                                            "est-proth",
+                                                                            "fermatsearch-done",
+                                                                            "fermatsearch-running",
+                                                                            "fermatsearch-merged",
+                                                                            "primegrid-pps",
+                                                                            "primegrid-ppse"
+                                                                        ],
+                                                 "documented_overlap_count":  0,
+                                                 "limitations":  [
+                                                                     "This is a structural quick filter, not the full novelty preflight.",
+                                                                     "Private, deleted, offline and unindexed computations cannot be observed.",
+                                                                     "ProthSearch, T5K exact queries and broad exact searches remain pending for finalists."
+                                                                 ]
+                                             },
+                       "probe_metrics":  {
+                                             "representative_engine_seconds":  32,
+                                             "representative_sieve_bound":  10000000,
+                                             "representative_survivors":  18185,
+                                             "inference":  "Single-candidate band probe; sufficient only for elimination, not a p90 claim."
+                                         }
+                   },
+                   {
+                       "range_id":  "fp-75000-c1-9f1fa3e676b2",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=75000|counter=1|k-domain=10000001..99999999|candidate-count=258673",
+                       "seed_sha256":  "df6bd49c7aac7bf7cc4444ab0458741c1168b90c0d668c188896a94d541499d7",
+                       "counter":  1,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  75000,
+                       "n":  249116,
+                       "k_min":  "50878127",
+                       "k_max":  "51395471",
+                       "k_step":  2,
+                       "candidate_count":  "258673",
+                       "digit_count_min":  75000,
+                       "digit_count_max":  75000,
+                       "generation_hash":  "9f1fa3e676b27567d2db5056e1e2d28b0172b59eee5eac149a703b0adf155b32",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995776237614980",
+                                                       "probability_at_least_one":  "0.950002198154729",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "QUICK_FILTER_PASS",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "PROTH20_DOCUMENTED_DOMAIN",
+                       "benchmark_status":  "BAND_COST_TRANSFERRED;DOMINATED_BY_20000_DIGIT_OPTIONS",
+                       "gate_status":  "DOMINATED_NOT_ADVANCED_TO_LEVEL_B",
+                       "coverage_evidence":  {
+                                                 "level":  "A_QUICK_FILTER",
+                                                 "checked_source_ids":  [
+                                                                            "est-proth",
+                                                                            "fermatsearch-done",
+                                                                            "fermatsearch-running",
+                                                                            "fermatsearch-merged",
+                                                                            "primegrid-pps",
+                                                                            "primegrid-ppse"
+                                                                        ],
+                                                 "documented_overlap_count":  0,
+                                                 "limitations":  [
+                                                                     "This is a structural quick filter, not the full novelty preflight.",
+                                                                     "Private, deleted, offline and unindexed computations cannot be observed.",
+                                                                     "ProthSearch, T5K exact queries and broad exact searches remain pending for finalists."
+                                                                 ]
+                                             },
+                       "probe_metrics":  {
+                                             "representative_engine_seconds":  32,
+                                             "representative_sieve_bound":  10000000,
+                                             "representative_survivors":  18185,
+                                             "inference":  "Single-candidate band probe; sufficient only for elimination, not a p90 claim."
+                                         }
+                   },
+                   {
+                       "range_id":  "fp-75000-c2-4fc2aaed0162",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=75000|counter=2|k-domain=10000001..99999999|candidate-count=258673",
+                       "seed_sha256":  "dec3231d74815069752646c52f189b3f3f81fdcb7b33e17bc28c29dd87b902b5",
+                       "counter":  2,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  75000,
+                       "n":  249120,
+                       "k_min":  "24421107",
+                       "k_max":  "24938451",
+                       "k_step":  2,
+                       "candidate_count":  "258673",
+                       "digit_count_min":  75000,
+                       "digit_count_max":  75000,
+                       "generation_hash":  "4fc2aaed016236b195e79f456ef4c6fa660aa2cf9e849ffcee1609361887db1f",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995740778493430",
+                                                       "probability_at_least_one":  "0.950000425245164",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "QUICK_FILTER_PASS",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "PROTH20_DOCUMENTED_DOMAIN",
+                       "benchmark_status":  "BAND_COST_TRANSFERRED;DOMINATED_BY_20000_DIGIT_OPTIONS",
+                       "gate_status":  "DOMINATED_NOT_ADVANCED_TO_LEVEL_B",
+                       "coverage_evidence":  {
+                                                 "level":  "A_QUICK_FILTER",
+                                                 "checked_source_ids":  [
+                                                                            "est-proth",
+                                                                            "fermatsearch-done",
+                                                                            "fermatsearch-running",
+                                                                            "fermatsearch-merged",
+                                                                            "primegrid-pps",
+                                                                            "primegrid-ppse"
+                                                                        ],
+                                                 "documented_overlap_count":  0,
+                                                 "limitations":  [
+                                                                     "This is a structural quick filter, not the full novelty preflight.",
+                                                                     "Private, deleted, offline and unindexed computations cannot be observed.",
+                                                                     "ProthSearch, T5K exact queries and broad exact searches remain pending for finalists."
+                                                                 ]
+                                             },
+                       "probe_metrics":  {
+                                             "representative_engine_seconds":  32,
+                                             "representative_sieve_bound":  10000000,
+                                             "representative_survivors":  18185,
+                                             "inference":  "Single-candidate band probe; sufficient only for elimination, not a p90 claim."
+                                         }
+                   },
+                   {
+                       "range_id":  "fp-100000-c0-b002191e8cce",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=100000|counter=0|k-domain=10000001..99999999|candidate-count=344897",
+                       "seed_sha256":  "be9c7cfa2c13eac8cc0a03f1d80166441c2eb8eb78c637e2684418aa49ce5507",
+                       "counter":  0,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  100000,
+                       "n":  332167,
+                       "k_min":  "46967825",
+                       "k_max":  "47657617",
+                       "k_step":  2,
+                       "candidate_count":  "344897",
+                       "digit_count_min":  100000,
+                       "digit_count_max":  100000,
+                       "generation_hash":  "b002191e8cce5e370c327b57f92b0d6a637f8a9421590c1bc1ad7e26dbbb620a",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995740108046860",
+                                                       "probability_at_least_one":  "0.950000391723109",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "QUICK_FILTER_PASS",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "PROTH20_DOCUMENTED_DOMAIN",
+                       "benchmark_status":  "ONE_FULL_SIZE_PROBE_PASS;DOMINATED_BY_20000_DIGIT_OPTIONS",
+                       "gate_status":  "DOMINATED_NOT_ADVANCED_TO_LEVEL_B",
+                       "coverage_evidence":  {
+                                                 "level":  "A_QUICK_FILTER",
+                                                 "checked_source_ids":  [
+                                                                            "est-proth",
+                                                                            "fermatsearch-done",
+                                                                            "fermatsearch-running",
+                                                                            "fermatsearch-merged",
+                                                                            "primegrid-pps",
+                                                                            "primegrid-ppse"
+                                                                        ],
+                                                 "documented_overlap_count":  0,
+                                                 "limitations":  [
+                                                                     "This is a structural quick filter, not the full novelty preflight.",
+                                                                     "Private, deleted, offline and unindexed computations cannot be observed.",
+                                                                     "ProthSearch, T5K exact queries and broad exact searches remain pending for finalists."
+                                                                 ]
+                                             },
+                       "probe_metrics":  {
+                                             "representative_engine_seconds":  42,
+                                             "representative_sieve_bound":  10000000,
+                                             "representative_survivors":  24043,
+                                             "inference":  "Single-candidate band probe; sufficient only for elimination, not a p90 claim."
+                                         }
+                   },
+                   {
+                       "range_id":  "fp-100000-c1-c036036a80c6",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=100000|counter=1|k-domain=10000001..99999999|candidate-count=344897",
+                       "seed_sha256":  "bd46b48835f0677279b3585658818314aa849494a184f9b29e026307bf31f52f",
+                       "counter":  1,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  100000,
+                       "n":  332165,
+                       "k_min":  "25216357",
+                       "k_max":  "25906149",
+                       "k_step":  2,
+                       "candidate_count":  "344897",
+                       "digit_count_min":  100000,
+                       "digit_count_max":  100000,
+                       "generation_hash":  "c036036a80c6da5e7ccf6cff5ffdb7df81462944a0d3cd65beace86c3300015f",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995766154933380",
+                                                       "probability_at_least_one":  "0.950001694040271",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "QUICK_FILTER_PASS",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "PROTH20_DOCUMENTED_DOMAIN",
+                       "benchmark_status":  "BAND_COST_TRANSFERRED;DOMINATED_BY_20000_DIGIT_OPTIONS",
+                       "gate_status":  "DOMINATED_NOT_ADVANCED_TO_LEVEL_B",
+                       "coverage_evidence":  {
+                                                 "level":  "A_QUICK_FILTER",
+                                                 "checked_source_ids":  [
+                                                                            "est-proth",
+                                                                            "fermatsearch-done",
+                                                                            "fermatsearch-running",
+                                                                            "fermatsearch-merged",
+                                                                            "primegrid-pps",
+                                                                            "primegrid-ppse"
+                                                                        ],
+                                                 "documented_overlap_count":  0,
+                                                 "limitations":  [
+                                                                     "This is a structural quick filter, not the full novelty preflight.",
+                                                                     "Private, deleted, offline and unindexed computations cannot be observed.",
+                                                                     "ProthSearch, T5K exact queries and broad exact searches remain pending for finalists."
+                                                                 ]
+                                             },
+                       "probe_metrics":  {
+                                             "representative_engine_seconds":  42,
+                                             "representative_sieve_bound":  10000000,
+                                             "representative_survivors":  24043,
+                                             "inference":  "Single-candidate band probe; sufficient only for elimination, not a p90 claim."
+                                         }
+                   },
+                   {
+                       "range_id":  "fp-100000-c2-539dfe172e90",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=100000|counter=2|k-domain=10000001..99999999|candidate-count=344897",
+                       "seed_sha256":  "20cfb4d45b6a98018cb874c5730f117c39ffcab1601130b34ad7922bba164ec9",
+                       "counter":  2,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  100000,
+                       "n":  332166,
+                       "k_min":  "77633155",
+                       "k_max":  "78322947",
+                       "k_step":  2,
+                       "candidate_count":  "344897",
+                       "digit_count_min":  100000,
+                       "digit_count_max":  100000,
+                       "generation_hash":  "539dfe172e90e3dcba81aa9cde54c49ccb20a28e403caa3c6b2e44d7d7bd3b1f",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995742625537870",
+                                                       "probability_at_least_one":  "0.950000517596515",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "QUICK_FILTER_PASS",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "PROTH20_DOCUMENTED_DOMAIN",
+                       "benchmark_status":  "BAND_COST_TRANSFERRED;DOMINATED_BY_20000_DIGIT_OPTIONS",
+                       "gate_status":  "DOMINATED_NOT_ADVANCED_TO_LEVEL_B",
+                       "coverage_evidence":  {
+                                                 "level":  "A_QUICK_FILTER",
+                                                 "checked_source_ids":  [
+                                                                            "est-proth",
+                                                                            "fermatsearch-done",
+                                                                            "fermatsearch-running",
+                                                                            "fermatsearch-merged",
+                                                                            "primegrid-pps",
+                                                                            "primegrid-ppse"
+                                                                        ],
+                                                 "documented_overlap_count":  0,
+                                                 "limitations":  [
+                                                                     "This is a structural quick filter, not the full novelty preflight.",
+                                                                     "Private, deleted, offline and unindexed computations cannot be observed.",
+                                                                     "ProthSearch, T5K exact queries and broad exact searches remain pending for finalists."
+                                                                 ]
+                                             },
+                       "probe_metrics":  {
+                                             "representative_engine_seconds":  42,
+                                             "representative_sieve_bound":  10000000,
+                                             "representative_survivors":  24043,
+                                             "inference":  "Single-candidate band probe; sufficient only for elimination, not a p90 claim."
+                                         }
+                   },
+                   {
+                       "range_id":  "fp-250000-c0-7b14feb55165",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=250000|counter=0|k-domain=10000001..99999999|candidate-count=862242",
+                       "seed_sha256":  "d1c38806c3c0a80433889195cbc7c94f7f9f66de32b3f02323b631893e994566",
+                       "counter":  0,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  250000,
+                       "n":  830457,
+                       "k_min":  "30653539",
+                       "k_max":  "32378021",
+                       "k_step":  2,
+                       "candidate_count":  "862242",
+                       "digit_count_min":  250000,
+                       "digit_count_max":  250000,
+                       "generation_hash":  "7b14feb551658790042c41fa7820d0560510612a04b6a960a147c3e96dcfee88",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995735953089490",
+                                                       "probability_at_least_one":  "0.950000183976437",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "QUICK_FILTER_PASS",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "PROTH20_DOCUMENTED_DOMAIN",
+                       "benchmark_status":  "ONE_FULL_SIZE_PROBE_PASS;DOMINATED_BY_20000_DIGIT_OPTIONS",
+                       "gate_status":  "DOMINATED_NOT_ADVANCED_TO_LEVEL_B",
+                       "coverage_evidence":  {
+                                                 "level":  "A_QUICK_FILTER",
+                                                 "checked_source_ids":  [
+                                                                            "est-proth",
+                                                                            "fermatsearch-done",
+                                                                            "fermatsearch-running",
+                                                                            "fermatsearch-merged",
+                                                                            "primegrid-pps",
+                                                                            "primegrid-ppse"
+                                                                        ],
+                                                 "documented_overlap_count":  0,
+                                                 "limitations":  [
+                                                                     "This is a structural quick filter, not the full novelty preflight.",
+                                                                     "Private, deleted, offline and unindexed computations cannot be observed.",
+                                                                     "ProthSearch, T5K exact queries and broad exact searches remain pending for finalists."
+                                                                 ]
+                                             },
+                       "probe_metrics":  {
+                                             "representative_engine_seconds":  108,
+                                             "representative_sieve_bound":  10000000,
+                                             "representative_survivors":  60056,
+                                             "inference":  "Single-candidate band probe; sufficient only for elimination, not a p90 claim."
+                                         }
+                   },
+                   {
+                       "range_id":  "fp-250000-c1-ca237b4f5c67",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=250000|counter=1|k-domain=10000001..99999999|candidate-count=862242",
+                       "seed_sha256":  "f68ec3259db9c9abf3c05838fc2b351f00981ebc13959ada0ac25c949ddb2827",
+                       "counter":  1,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  250000,
+                       "n":  830457,
+                       "k_min":  "31055123",
+                       "k_max":  "32779605",
+                       "k_step":  2,
+                       "candidate_count":  "862242",
+                       "digit_count_min":  250000,
+                       "digit_count_max":  250000,
+                       "generation_hash":  "ca237b4f5c677a8531cef690a196748ad7ad79398a896fcb4ccb8f67776b2295",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995735887195800",
+                                                       "probability_at_least_one":  "0.950000180681764",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "QUICK_FILTER_PASS",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "PROTH20_DOCUMENTED_DOMAIN",
+                       "benchmark_status":  "BAND_COST_TRANSFERRED;DOMINATED_BY_20000_DIGIT_OPTIONS",
+                       "gate_status":  "DOMINATED_NOT_ADVANCED_TO_LEVEL_B",
+                       "coverage_evidence":  {
+                                                 "level":  "A_QUICK_FILTER",
+                                                 "checked_source_ids":  [
+                                                                            "est-proth",
+                                                                            "fermatsearch-done",
+                                                                            "fermatsearch-running",
+                                                                            "fermatsearch-merged",
+                                                                            "primegrid-pps",
+                                                                            "primegrid-ppse"
+                                                                        ],
+                                                 "documented_overlap_count":  0,
+                                                 "limitations":  [
+                                                                     "This is a structural quick filter, not the full novelty preflight.",
+                                                                     "Private, deleted, offline and unindexed computations cannot be observed.",
+                                                                     "ProthSearch, T5K exact queries and broad exact searches remain pending for finalists."
+                                                                 ]
+                                             },
+                       "probe_metrics":  {
+                                             "representative_engine_seconds":  108,
+                                             "representative_sieve_bound":  10000000,
+                                             "representative_survivors":  60056,
+                                             "inference":  "Single-candidate band probe; sufficient only for elimination, not a p90 claim."
+                                         }
+                   },
+                   {
+                       "range_id":  "fp-250000-c2-318577ae8f40",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=250000|counter=2|k-domain=10000001..99999999|candidate-count=862242",
+                       "seed_sha256":  "f8eaa3fb8ce0e4a44d8e1e0379ab2e4104c07bd4cf628f4e5d2a45cfcb56f8dc",
+                       "counter":  2,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  250000,
+                       "n":  830455,
+                       "k_min":  "33884181",
+                       "k_max":  "35608663",
+                       "k_step":  2,
+                       "candidate_count":  "862242",
+                       "digit_count_min":  250000,
+                       "digit_count_max":  250000,
+                       "generation_hash":  "318577ae8f40e0a4199889a50d11fd66c49416316ac7b2ad0710ff1b3e089762",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995742659695000",
+                                                       "probability_at_least_one":  "0.950000519304354",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "QUICK_FILTER_PASS",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "PROTH20_DOCUMENTED_DOMAIN",
+                       "benchmark_status":  "BAND_COST_TRANSFERRED;DOMINATED_BY_20000_DIGIT_OPTIONS",
+                       "gate_status":  "DOMINATED_NOT_ADVANCED_TO_LEVEL_B",
+                       "coverage_evidence":  {
+                                                 "level":  "A_QUICK_FILTER",
+                                                 "checked_source_ids":  [
+                                                                            "est-proth",
+                                                                            "fermatsearch-done",
+                                                                            "fermatsearch-running",
+                                                                            "fermatsearch-merged",
+                                                                            "primegrid-pps",
+                                                                            "primegrid-ppse"
+                                                                        ],
+                                                 "documented_overlap_count":  0,
+                                                 "limitations":  [
+                                                                     "This is a structural quick filter, not the full novelty preflight.",
+                                                                     "Private, deleted, offline and unindexed computations cannot be observed.",
+                                                                     "ProthSearch, T5K exact queries and broad exact searches remain pending for finalists."
+                                                                 ]
+                                             },
+                       "probe_metrics":  {
+                                             "representative_engine_seconds":  108,
+                                             "representative_sieve_bound":  10000000,
+                                             "representative_survivors":  60056,
+                                             "inference":  "Single-candidate band probe; sufficient only for elimination, not a p90 claim."
+                                         }
+                   },
+                   {
+                       "range_id":  "fp-500000-c0-de2ebdf1bb76",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=500000|counter=0|k-domain=10000001..99999999|candidate-count=1724483",
+                       "seed_sha256":  "6205e5ee2c595eb8492d76309e7c84112a89d2162b7f9ec143528ead9879ed1f",
+                       "counter":  0,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  500000,
+                       "n":  1660937,
+                       "k_min":  "46620741",
+                       "k_max":  "50069705",
+                       "k_step":  2,
+                       "candidate_count":  "1724483",
+                       "digit_count_min":  500000,
+                       "digit_count_max":  500000,
+                       "generation_hash":  "de2ebdf1bb764ff507493b7e4bd858e79436b241407aa3293291c81aa323c2e8",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995736546670490",
+                                                       "probability_at_least_one":  "0.950000213655368",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "QUICK_FILTER_PASS",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "PROTH20_DOCUMENTED_DOMAIN",
+                       "benchmark_status":  "NOT_RUN;DOMINATED_BEFORE_EXPENSIVE_FULL_SIZE_PROBE",
+                       "gate_status":  "DOMINATED_NOT_ADVANCED_TO_LEVEL_B",
+                       "coverage_evidence":  {
+                                                 "level":  "A_QUICK_FILTER",
+                                                 "checked_source_ids":  [
+                                                                            "est-proth",
+                                                                            "fermatsearch-done",
+                                                                            "fermatsearch-running",
+                                                                            "fermatsearch-merged",
+                                                                            "primegrid-pps",
+                                                                            "primegrid-ppse"
+                                                                        ],
+                                                 "documented_overlap_count":  0,
+                                                 "limitations":  [
+                                                                     "This is a structural quick filter, not the full novelty preflight.",
+                                                                     "Private, deleted, offline and unindexed computations cannot be observed.",
+                                                                     "ProthSearch, T5K exact queries and broad exact searches remain pending for finalists."
+                                                                 ]
+                                             }
+                   },
+                   {
+                       "range_id":  "fp-500000-c1-67be132671e8",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=500000|counter=1|k-domain=10000001..99999999|candidate-count=1724483",
+                       "seed_sha256":  "81f4435a46be4442e1dceb9fd3c248bc6da489bc898c559827f35f2889cbb466",
+                       "counter":  1,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  500000,
+                       "n":  1660937,
+                       "k_min":  "39856041",
+                       "k_max":  "43305005",
+                       "k_step":  2,
+                       "candidate_count":  "1724483",
+                       "digit_count_min":  500000,
+                       "digit_count_max":  500000,
+                       "generation_hash":  "67be132671e8c418628b0ed0ec936e6037ee91e48a91e433ffb1e7a11e8f07d4",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995736938894420",
+                                                       "probability_at_least_one":  "0.950000233266477",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "QUICK_FILTER_PASS",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "PROTH20_DOCUMENTED_DOMAIN",
+                       "benchmark_status":  "NOT_RUN;DOMINATED_BEFORE_EXPENSIVE_FULL_SIZE_PROBE",
+                       "gate_status":  "DOMINATED_NOT_ADVANCED_TO_LEVEL_B",
+                       "coverage_evidence":  {
+                                                 "level":  "A_QUICK_FILTER",
+                                                 "checked_source_ids":  [
+                                                                            "est-proth",
+                                                                            "fermatsearch-done",
+                                                                            "fermatsearch-running",
+                                                                            "fermatsearch-merged",
+                                                                            "primegrid-pps",
+                                                                            "primegrid-ppse"
+                                                                        ],
+                                                 "documented_overlap_count":  0,
+                                                 "limitations":  [
+                                                                     "This is a structural quick filter, not the full novelty preflight.",
+                                                                     "Private, deleted, offline and unindexed computations cannot be observed.",
+                                                                     "ProthSearch, T5K exact queries and broad exact searches remain pending for finalists."
+                                                                 ]
+                                             }
+                   },
+                   {
+                       "range_id":  "fp-500000-c2-2c9ab0704548",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=500000|counter=2|k-domain=10000001..99999999|candidate-count=1724483",
+                       "seed_sha256":  "4e2e550eecec9ae0c52da687ca9cc0c2654426808c834928f8eae5e43f220eec",
+                       "counter":  2,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  500000,
+                       "n":  1660937,
+                       "k_min":  "17124633",
+                       "k_max":  "20573597",
+                       "k_step":  2,
+                       "candidate_count":  "1724483",
+                       "digit_count_min":  500000,
+                       "digit_count_max":  500000,
+                       "generation_hash":  "2c9ab07045486fe15dc76da93477015e1e9a128de414fdee3dd75253342e41f9",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995738997562320",
+                                                       "probability_at_least_one":  "0.950000336199286",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "QUICK_FILTER_PASS",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "PROTH20_DOCUMENTED_DOMAIN",
+                       "benchmark_status":  "NOT_RUN;DOMINATED_BEFORE_EXPENSIVE_FULL_SIZE_PROBE",
+                       "gate_status":  "DOMINATED_NOT_ADVANCED_TO_LEVEL_B",
+                       "coverage_evidence":  {
+                                                 "level":  "A_QUICK_FILTER",
+                                                 "checked_source_ids":  [
+                                                                            "est-proth",
+                                                                            "fermatsearch-done",
+                                                                            "fermatsearch-running",
+                                                                            "fermatsearch-merged",
+                                                                            "primegrid-pps",
+                                                                            "primegrid-ppse"
+                                                                        ],
+                                                 "documented_overlap_count":  0,
+                                                 "limitations":  [
+                                                                     "This is a structural quick filter, not the full novelty preflight.",
+                                                                     "Private, deleted, offline and unindexed computations cannot be observed.",
+                                                                     "ProthSearch, T5K exact queries and broad exact searches remain pending for finalists."
+                                                                 ]
+                                             }
+                   },
+                   {
+                       "range_id":  "fp-750000-c0-334661a1a811",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=750000|counter=0|k-domain=10000001..99999999|candidate-count=2586724",
+                       "seed_sha256":  "12e200ca0a5c002943a3c5c5772ac9f4a094702a3c9895a3f46b9b38e69e1c02",
+                       "counter":  0,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  750000,
+                       "n":  2491418,
+                       "k_min":  "53204917",
+                       "k_max":  "58378363",
+                       "k_step":  2,
+                       "candidate_count":  "2586724",
+                       "digit_count_min":  750000,
+                       "digit_count_max":  750000,
+                       "generation_hash":  "334661a1a811a8a8359e4c32579b447420bac25ee50b61a36acf803c3a7a90b8",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995736035858680",
+                                                       "probability_at_least_one":  "0.950000188114881",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "QUICK_FILTER_PASS",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "PROTH20_DOCUMENTED_DOMAIN",
+                       "benchmark_status":  "NOT_RUN;DOMINATED_BEFORE_EXPENSIVE_FULL_SIZE_PROBE",
+                       "gate_status":  "DOMINATED_NOT_ADVANCED_TO_LEVEL_B",
+                       "coverage_evidence":  {
+                                                 "level":  "A_QUICK_FILTER",
+                                                 "checked_source_ids":  [
+                                                                            "est-proth",
+                                                                            "fermatsearch-done",
+                                                                            "fermatsearch-running",
+                                                                            "fermatsearch-merged",
+                                                                            "primegrid-pps",
+                                                                            "primegrid-ppse"
+                                                                        ],
+                                                 "documented_overlap_count":  0,
+                                                 "limitations":  [
+                                                                     "This is a structural quick filter, not the full novelty preflight.",
+                                                                     "Private, deleted, offline and unindexed computations cannot be observed.",
+                                                                     "ProthSearch, T5K exact queries and broad exact searches remain pending for finalists."
+                                                                 ]
+                                             }
+                   },
+                   {
+                       "range_id":  "fp-750000-c1-2d2d413fbe93",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=750000|counter=1|k-domain=10000001..99999999|candidate-count=2586724",
+                       "seed_sha256":  "0e06b5a064384077f46d4627150fbdc3dcd75826bc27ebe352cb6f75d6e826ff",
+                       "counter":  1,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  750000,
+                       "n":  2491417,
+                       "k_min":  "68430607",
+                       "k_max":  "73604053",
+                       "k_step":  2,
+                       "candidate_count":  "2586724",
+                       "digit_count_min":  750000,
+                       "digit_count_max":  750000,
+                       "generation_hash":  "2d2d413fbe931c6acc6aea8aecfcba27e90a39025fb83e35a623efbb70e79e69",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995736819683100",
+                                                       "probability_at_least_one":  "0.950000227305939",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "QUICK_FILTER_PASS",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "PROTH20_DOCUMENTED_DOMAIN",
+                       "benchmark_status":  "NOT_RUN;DOMINATED_BEFORE_EXPENSIVE_FULL_SIZE_PROBE",
+                       "gate_status":  "DOMINATED_NOT_ADVANCED_TO_LEVEL_B",
+                       "coverage_evidence":  {
+                                                 "level":  "A_QUICK_FILTER",
+                                                 "checked_source_ids":  [
+                                                                            "est-proth",
+                                                                            "fermatsearch-done",
+                                                                            "fermatsearch-running",
+                                                                            "fermatsearch-merged",
+                                                                            "primegrid-pps",
+                                                                            "primegrid-ppse"
+                                                                        ],
+                                                 "documented_overlap_count":  0,
+                                                 "limitations":  [
+                                                                     "This is a structural quick filter, not the full novelty preflight.",
+                                                                     "Private, deleted, offline and unindexed computations cannot be observed.",
+                                                                     "ProthSearch, T5K exact queries and broad exact searches remain pending for finalists."
+                                                                 ]
+                                             }
+                   },
+                   {
+                       "range_id":  "fp-750000-c2-8f57750e5a40",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=750000|counter=2|k-domain=10000001..99999999|candidate-count=2586724",
+                       "seed_sha256":  "49da08aa21d8e8af60326efa78f4498d50692ca9d3478dca373183e63a2e302f",
+                       "counter":  2,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  750000,
+                       "n":  2491420,
+                       "k_min":  "16169333",
+                       "k_max":  "21342779",
+                       "k_step":  2,
+                       "candidate_count":  "2586724",
+                       "digit_count_min":  750000,
+                       "digit_count_max":  750000,
+                       "generation_hash":  "8f57750e5a40909488321e35fb45acab37c5a669bf5032302312bf1e103cc9b2",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995735522060060",
+                                                       "probability_at_least_one":  "0.950000162425040",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "QUICK_FILTER_PASS",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "PROTH20_DOCUMENTED_DOMAIN",
+                       "benchmark_status":  "NOT_RUN;DOMINATED_BEFORE_EXPENSIVE_FULL_SIZE_PROBE",
+                       "gate_status":  "DOMINATED_NOT_ADVANCED_TO_LEVEL_B",
+                       "coverage_evidence":  {
+                                                 "level":  "A_QUICK_FILTER",
+                                                 "checked_source_ids":  [
+                                                                            "est-proth",
+                                                                            "fermatsearch-done",
+                                                                            "fermatsearch-running",
+                                                                            "fermatsearch-merged",
+                                                                            "primegrid-pps",
+                                                                            "primegrid-ppse"
+                                                                        ],
+                                                 "documented_overlap_count":  0,
+                                                 "limitations":  [
+                                                                     "This is a structural quick filter, not the full novelty preflight.",
+                                                                     "Private, deleted, offline and unindexed computations cannot be observed.",
+                                                                     "ProthSearch, T5K exact queries and broad exact searches remain pending for finalists."
+                                                                 ]
+                                             }
+                   },
+                   {
+                       "range_id":  "fp-1000000-c0-fb3dafafa77a",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=1000000|counter=0|k-domain=10000001..99999999|candidate-count=3448965",
+                       "seed_sha256":  "204ca6ee43dc462675832fffa7fd55edb37d00eed1b7c22937a981cfdd3baad0",
+                       "counter":  0,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  1000000,
+                       "n":  3321903,
+                       "k_min":  "18203829",
+                       "k_max":  "25101757",
+                       "k_step":  2,
+                       "candidate_count":  "3448965",
+                       "digit_count_min":  1000000,
+                       "digit_count_max":  1000000,
+                       "generation_hash":  "fb3dafafa77ad3325e54d6b776cffa786853ccdb6815d0143985e42139b44aeb",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995733591021140",
+                                                       "probability_at_least_one":  "0.950000065873314",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "QUICK_FILTER_PASS",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "PROTH20_DOCUMENTED_DOMAIN",
+                       "benchmark_status":  "NOT_RUN;DOMINATED_BEFORE_EXPENSIVE_FULL_SIZE_PROBE",
+                       "gate_status":  "DOMINATED_NOT_ADVANCED_TO_LEVEL_B",
+                       "coverage_evidence":  {
+                                                 "level":  "A_QUICK_FILTER",
+                                                 "checked_source_ids":  [
+                                                                            "est-proth",
+                                                                            "fermatsearch-done",
+                                                                            "fermatsearch-running",
+                                                                            "fermatsearch-merged",
+                                                                            "primegrid-pps",
+                                                                            "primegrid-ppse"
+                                                                        ],
+                                                 "documented_overlap_count":  0,
+                                                 "limitations":  [
+                                                                     "This is a structural quick filter, not the full novelty preflight.",
+                                                                     "Private, deleted, offline and unindexed computations cannot be observed.",
+                                                                     "ProthSearch, T5K exact queries and broad exact searches remain pending for finalists."
+                                                                 ]
+                                             }
+                   },
+                   {
+                       "range_id":  "fp-1000000-c1-e45387e29130",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=1000000|counter=1|k-domain=10000001..99999999|candidate-count=3448965",
+                       "seed_sha256":  "819a8364f995a7c7b83ec1cc252fe06b8f3fbddb9c2a664c87f13eb756ac20d6",
+                       "counter":  1,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  1000000,
+                       "n":  3321903,
+                       "k_min":  "21040455",
+                       "k_max":  "27938383",
+                       "k_step":  2,
+                       "candidate_count":  "3448965",
+                       "digit_count_min":  1000000,
+                       "digit_count_max":  1000000,
+                       "generation_hash":  "e45387e29130e66923e48336d906867af844dfcfb7e8fb18eeee0a0bcb6eb083",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995733430855540",
+                                                       "probability_at_least_one":  "0.950000057865044",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "QUICK_FILTER_PASS",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "PROTH20_DOCUMENTED_DOMAIN",
+                       "benchmark_status":  "NOT_RUN;DOMINATED_BEFORE_EXPENSIVE_FULL_SIZE_PROBE",
+                       "gate_status":  "DOMINATED_NOT_ADVANCED_TO_LEVEL_B",
+                       "coverage_evidence":  {
+                                                 "level":  "A_QUICK_FILTER",
+                                                 "checked_source_ids":  [
+                                                                            "est-proth",
+                                                                            "fermatsearch-done",
+                                                                            "fermatsearch-running",
+                                                                            "fermatsearch-merged",
+                                                                            "primegrid-pps",
+                                                                            "primegrid-ppse"
+                                                                        ],
+                                                 "documented_overlap_count":  0,
+                                                 "limitations":  [
+                                                                     "This is a structural quick filter, not the full novelty preflight.",
+                                                                     "Private, deleted, offline and unindexed computations cannot be observed.",
+                                                                     "ProthSearch, T5K exact queries and broad exact searches remain pending for finalists."
+                                                                 ]
+                                             }
+                   },
+                   {
+                       "range_id":  "fp-1000000-c2-12b4c8128fcd",
+                       "generator_version":  "primeforge.fast-prime-range.v1",
+                       "seed":  "PrimeForge|SashaLempers|FAST_PUBLICLY_UNCOVERED_PRIME|2026-08-13|c7a1a3812ec03a0f3e7be08549816c847ffee3ba|primeforge.fast-prime-range.v1|digits=1000000|counter=2|k-domain=10000001..99999999|candidate-count=3448965",
+                       "seed_sha256":  "a1825e1eaf8e63428802e1662ce978c66765108dab80104829cba3faf1077255",
+                       "counter":  2,
+                       "base_commit":  "c7a1a3812ec03a0f3e7be08549816c847ffee3ba",
+                       "digit_band":  1000000,
+                       "n":  3321900,
+                       "k_min":  "82572365",
+                       "k_max":  "89470293",
+                       "k_step":  2,
+                       "candidate_count":  "3448965",
+                       "digit_count_min":  1000000,
+                       "digit_count_max":  1000000,
+                       "generation_hash":  "12b4c8128fcd86b134c722420eddeeb816ff94fea41840b44e2404031857dd84",
+                       "odd_candidate_heuristic":  {
+                                                       "model":  "lambda=2*candidate_count/ln(k_mid*2^n); P=1-exp(-lambda)",
+                                                       "lambda":  "2.995734501717920",
+                                                       "probability_at_least_one":  "0.950000111408073",
+                                                       "guarantee":  "HEURISTIC_NOT_GUARANTEED"
+                                                   },
+                       "coverage_status":  "QUICK_FILTER_PASS",
+                       "coverage_reasons":  [
+
+                                            ],
+                       "engine_status":  "PROTH20_DOCUMENTED_DOMAIN",
+                       "benchmark_status":  "NOT_RUN;DOMINATED_BEFORE_EXPENSIVE_FULL_SIZE_PROBE",
+                       "gate_status":  "DOMINATED_NOT_ADVANCED_TO_LEVEL_B",
+                       "coverage_evidence":  {
+                                                 "level":  "A_QUICK_FILTER",
+                                                 "checked_source_ids":  [
+                                                                            "est-proth",
+                                                                            "fermatsearch-done",
+                                                                            "fermatsearch-running",
+                                                                            "fermatsearch-merged",
+                                                                            "primegrid-pps",
+                                                                            "primegrid-ppse"
+                                                                        ],
+                                                 "documented_overlap_count":  0,
+                                                 "limitations":  [
+                                                                     "This is a structural quick filter, not the full novelty preflight.",
+                                                                     "Private, deleted, offline and unindexed computations cannot be observed.",
+                                                                     "ProthSearch, T5K exact queries and broad exact searches remain pending for finalists."
+                                                                 ]
+                                             }
+                   }
+               ],
+    "quick_coverage":  {
+                           "schema":  "primeforge.fast_prime.quick_coverage.v1",
+                           "evaluated_utc":  "2026-08-13T10:40:15Z",
+                           "evidence_directory":  "docs/reports/novelty_sources/2026-08-13-exact-k21952207-n33326",
+                           "evidence_manifest_sha256":  "0a117de07f1a9fa7ed66579a586166bdf47c7662105ae18a448ca86331547702",
+                           "sources":  [
+                                           {
+                                               "id":  "est-proth",
+                                               "url":  "https://pzktupel.de/Primetables/Table_EST_Proth.php",
+                                               "fetched_utc":  "2026-08-13T01:44:26Z",
+                                               "displayed_update":  "2026-06-21",
+                                               "http_status":  200,
+                                               "bytes":  642600,
+                                               "sha256":  "af6582c463000aa352434d1e3aa2e1e777dc428a1299bf7d3d7ddb28d62e7ebc"
+                                           },
+                                           {
+                                               "id":  "fermatsearch-done",
+                                               "url":  "https://www.fermatsearch.org/stat/done.php",
+                                               "fetched_utc":  "2026-08-13T01:44:26Z",
+                                               "displayed_update":  "2026-03-31",
+                                               "http_status":  200,
+                                               "bytes":  3260347,
+                                               "sha256":  "0b7093da37fbb3ebf478ca6a1decb50e638b30b03aa0fca48f20f290dbb47884"
+                                           },
+                                           {
+                                               "id":  "fermatsearch-running",
+                                               "url":  "https://www.fermatsearch.org/stat/running.php",
+                                               "fetched_utc":  "2026-08-13T01:44:27Z",
+                                               "displayed_update":  "2026-03-31",
+                                               "http_status":  200,
+                                               "bytes":  19859,
+                                               "sha256":  "4f3df7a10d4676d9caeb60dbf0431bffdd760e32abd350d713058ac776af1f60"
+                                           },
+                                           {
+                                               "id":  "fermatsearch-merged",
+                                               "url":  "https://www.fermatsearch.org/stat/merge.php",
+                                               "fetched_utc":  "2026-08-13T01:44:28Z",
+                                               "displayed_update":  "2026-03-31",
+                                               "http_status":  200,
+                                               "bytes":  2851331,
+                                               "sha256":  "738cc3d5f956d9f9f1e18eecdbb09882c8dfaf67dd50a2e09c8f75e01df99528"
+                                           },
+                                           {
+                                               "id":  "primegrid-pps",
+                                               "url":  "https://www.primegrid.com/stats_pps_llr.php",
+                                               "fetched_utc":  "2026-08-13T01:44:30Z",
+                                               "displayed_update":  "NOT_DISPLAYED",
+                                               "http_status":  200,
+                                               "bytes":  93180,
+                                               "sha256":  "ece9f0e9a63d3fb5a42376876bbd4d4ef4645f157adf19e077673461873f20ff"
+                                           },
+                                           {
+                                               "id":  "primegrid-ppse",
+                                               "url":  "https://www.primegrid.com/stats_ppse_llr.php",
+                                               "fetched_utc":  "2026-08-13T01:44:30Z",
+                                               "displayed_update":  "NOT_DISPLAYED",
+                                               "http_status":  200,
+                                               "bytes":  688518,
+                                               "sha256":  "f38e62ee46dc13d5ee9b92b307fe58950f96c37e3b7874b280a9db3df7386662"
+                                           }
+                                       ],
+                           "pass_count":  27,
+                           "rejected_count":  0,
+                           "status":  "QUICK_FILTER_COMPLETE"
+                       },
+    "decision":  {
+                     "finalized_utc":  "2026-08-13T11:30:30Z",
+                     "ranked_top_three":  [
+                                              {
+                                                  "rank":  1,
+                                                  "range_id":  "fp-20000-c0-a210bbba7489",
+                                                  "n":  66411,
+                                                  "k_min":  "75939069",
+                                                  "k_max":  "76077027",
+                                                  "digits":  20000,
+                                                  "initial_candidates":  "68980",
+                                                  "measured_survivors_at_2b":  3563,
+                                                  "coverage_status":  "PUBLICLY_UNCOVERED_CANDIDATE",
+                                                  "audit_level":  "B_FULL_PREFLIGHT",
+                                                  "estimated_full_range_hours":  "6.801873",
+                                                  "prudent_full_range_hours":  "8.216021",
+                                                  "probability_at_least_one":  "0.950004669308208"
+                                              },
+                                              {
+                                                  "rank":  2,
+                                                  "range_id":  "fp-20000-c1-e50987f5e688",
+                                                  "n":  66412,
+                                                  "k_min":  "33402579",
+                                                  "k_max":  "33540537",
+                                                  "digits":  20000,
+                                                  "initial_candidates":  "68980",
+                                                  "measured_survivors_at_2b":  3569,
+                                                  "coverage_status":  "QUICK_FILTER_PASS",
+                                                  "audit_level":  "A_QUICK_FILTER",
+                                                  "estimated_full_range_hours":  "6.813080",
+                                                  "prudent_full_range_hours":  "8.229610",
+                                                  "probability_at_least_one":  "0.950005082354502"
+                                              },
+                                              {
+                                                  "rank":  3,
+                                                  "range_id":  "fp-20000-c2-da62410639c5",
+                                                  "n":  66411,
+                                                  "k_min":  "99718115",
+                                                  "k_max":  "99856073",
+                                                  "digits":  20000,
+                                                  "initial_candidates":  "68980",
+                                                  "measured_survivors_at_2b":  3604,
+                                                  "coverage_status":  "QUICK_FILTER_PASS",
+                                                  "audit_level":  "A_QUICK_FILTER",
+                                                  "estimated_full_range_hours":  "6.880043",
+                                                  "prudent_full_range_hours":  "8.310465",
+                                                  "probability_at_least_one":  "0.950003783992567"
+                                              }
+                                          ],
+                     "recommended_range":  "fp-20000-c0-a210bbba7489",
+                     "selected_sieve_bound":  2000000000,
+                     "selected_gpu_workers":  2,
+                     "independent_agreement":  "5/5 Proth20 versus PARI/GP 2.17.4",
+                     "stop_resume":  "PASS; deliberate stop after 2/5, durable resume to 5/5",
+                     "no_gaps":  "PASS",
+                     "no_duplicates":  "PASS",
+                     "hardware_stability":  "PASS_ON_SHORT_VALIDATION",
+                     "status":  "AWAITING_SASHA_GO",
+                     "campaign_started":  false
+                 }
+}

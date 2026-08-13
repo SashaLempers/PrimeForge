@@ -597,3 +597,12 @@ Each future entry must include:
 - **Failure criterion:** the batch protocol must expose each durable completion marker while the process is still running so a watchdog or operator can stop between candidates.
 - **Conclusion:** the mathematical results are retained only as a 3/3 classification check; the interruption/restart claim is rejected. The pinned patch now flushes stdout immediately after each `PRIMEFORGE_BATCH_COMPLETE` marker.
 - **Retry condition:** rebuild the pinned Proth20 executable, use a fresh campaign identity, require a nonterminal prefix checkpoint, then resume exactly the unprocessed suffix with no duplicate result row.
+
+## NR-0065 - General FLINT verification exhausted the safe RAM budget
+
+- **Date:** 2026-08-13
+- **Change tested:** supplemental FLINT 3.6.0 `fmpz` primality classification of the 10,040-digit integer `21952207*2^33326+1`, after the Proth proof and independent PARI verification had already passed.
+- **Evidence:** the oracle remained active for 273.953 CPU seconds, reached a 36,851,220,480-byte working set and reduced available RAM to 746,930,176 bytes. The 8-GiB available-RAM gate therefore stopped only this PrimeForge child process. Available RAM recovered to 55,910,178,816 bytes. The attempt record is preserved in the local discovery dossier.
+- **Failure criterion:** an optional verifier must not starve the host or cross the existing minimum-RAM gate; absence of a FLINT verdict must never be promoted to independent verification.
+- **Conclusion:** the FLINT attempt is `ABORTED_RESOURCE_LIMIT` and contributes no mathematical verdict. The exact Proth witness remains independently verified by PARI/GP 2.17.4 and, additionally, CPython 3.12.13.
+- **Retry condition:** retry FLINT only through a bounded-memory implementation or on a host with a separately measured memory budget; do not repeat the current general call on this machine.

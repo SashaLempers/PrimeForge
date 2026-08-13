@@ -729,3 +729,12 @@ future campaigns.
 - **Failure criterion:** authenticated search results must not be called public overlap merely because they expose the auditor's own private evidence.
 - **Conclusion:** the unqualified analysis is rejected. The analyzer now accepts an explicit first-party private repository, retains those hits as excluded evidence, and does not subtract hits from any other repository. Without the explicit exclusion the same capture still exits 2 with four overlaps; with it the capture has zero public overlap, zero critical fetch failure and zero integrity failure.
 - **Retry condition:** if repository visibility changes or a different repository contains either boundary, rerun without this exclusion and fail closed on every resulting public hit.
+
+## NR-0079 - Linux inferred the Windows-only production executor as void
+
+- **Date:** 2026-08-13
+- **Change tested:** GitHub Actions build of production native B=8 commit `019d3da1e0ece211ad86b7ee21a5d8081cd5dd0a`.
+- **Evidence:** workflow run `31744112028`, job `linux-gcc`; GCC rejected conversion of the Linux lambda to `BatchExecutor` and reported `read_watchdog_status` unused under `-Werror`.
+- **Failure criterion:** the scheduler must compile on Linux CI even though actual Proth20 GPU execution is intentionally Windows-only.
+- **Conclusion:** that Linux build is rejected. The lambda now declares `BatchExecution` explicitly, and the watchdog-status helper is compiled only on Windows. No Windows execution path or mathematical operation changed. A fresh clean Windows Debug/Release run passes 43/43 tests in each configuration.
+- **Retry condition:** both the Linux/GCC and Windows/MSVC jobs for the corrective commit must complete successfully before launch.

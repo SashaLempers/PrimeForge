@@ -59,6 +59,8 @@ void on_signal(int) { signal_stop.store(true); }
     return fields;
 }
 
+#if defined(_WIN32)
+
 [[nodiscard]] TelemetryFields read_watchdog_status(const std::filesystem::path& path) {
     TelemetryFields values;
     if (!std::filesystem::exists(path)) { return values; }
@@ -74,8 +76,6 @@ void on_signal(int) { signal_stop.store(true); }
     if (values["schema_version"] != "1") { return {}; }
     return values;
 }
-
-#if defined(_WIN32)
 
 [[nodiscard]] std::wstring widen(const std::string& value) {
     if (value.empty()) { return {}; }
@@ -280,7 +280,8 @@ int main(int argc, char** argv) {
             [&](const primeforge::discovery::native_b8::BatchRequest& request,
                 const primeforge::discovery::native_b8::ResourceSink& resource_sink,
                 const primeforge::discovery::native_b8::RuntimeIdsSink& runtime_sink,
-                const primeforge::discovery::native_b8::StopRequested& external_stop) {
+                const primeforge::discovery::native_b8::StopRequested& external_stop)
+                -> primeforge::discovery::native_b8::BatchExecution {
 #if defined(_WIN32)
                 const auto batch_directory = arguments.campaign_directory / "work" /
                     ("batch-" + std::to_string(request.batch_id) + "-attempt-" +

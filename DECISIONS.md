@@ -783,3 +783,19 @@ External installation files are read with one sized binary read and fail closed
 if their size changes. Together these changes improve the retained complete
 pipeline medians by 18.782 % to 23.624 %. No OpenSSL or redistributed dependency
 is introduced.
+
+## D-0088 - Proth20 optimizations follow measured phase cost
+
+**Status:** Accepted - 2026-08-13
+
+PrimeForge instruments the pinned Proth20 source behind disabled-by-default
+`--phase-profile` and `--kernel-profile` switches. A structural optimization is
+not retained merely because it removes setup work; it must reduce measured
+end-to-end time with identical witnesses and `RES64` values.
+
+On the retained 20-survivor AB/BA profile, `gpmp` construction is 2.791607% of
+mixed one/two-worker candidate time while the main squaring loop is 96.385219%.
+Two independent workers improve effective throughput by 25.3287%, not 100%.
+The next structural GPU target is consequently native shared-context/batch NTT
+work. Cache and sieve changes remain eligible only when their complete-campaign
+marginal benefit is positive.

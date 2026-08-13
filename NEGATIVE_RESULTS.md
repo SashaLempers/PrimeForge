@@ -660,3 +660,21 @@ Each future entry must include:
 - **Failure criterion:** an engine-domain gate must not depend on an ignored checkout outside the evidence manifest.
 - **Conclusion:** the first analysis is rejected and its capture was moved under ignored `out/` rather than committed twice. The capture script now archives the pinned upstream README at revision `6771325939a7ceef2c75644c79981c7df4a61882` as critical evidence. The fresh 80-source rerun passed with zero overlaps and zero integrity or critical-fetch failures.
 - **Retry condition:** every external fact used by the machine preflight must be inside the hashed evidence set.
+
+## NR-0072 - Software power-cap telemetry stopped the authorized campaign
+
+- **Date:** 2026-08-13
+- **Change tested:** two-worker authorized discovery campaign at `n=66411`, `k=75939069..76077027` with the existing watchdog policy.
+- **Evidence:** the durable global checkpoint is `ERROR` at `1300/3563`, with 650 completed candidates per worker and no proven prime. Both watchdogs requested a graceful stop after NVIDIA reported `SW_POWER_CAP`; GPU temperature was 58–61 °C, CPU temperature 72–74 °C and WHEA count zero.
+- **Failure criterion:** a watchdog decision must distinguish an unsafe thermal or hardware condition from a normal NVIDIA performance-cap reason.
+- **Conclusion:** no campaign result is lost, but the run is terminal and was not resumed. `SW_POWER_CAP` alone is insufficient evidence of overheating. The campaign controller's rejection of the watchdog decision is preserved instead of silently relabeling the terminal event.
+- **Retry condition:** change this policy only in a separate validated milestone; never alter it during a campaign. A future policy must retain thermal, WHEA, memory and calculation-error stops while classifying software power-cap telemetry explicitly.
+
+## NR-0073 - Two profile attempts were excluded before the AB/BA gate
+
+- **Date:** 2026-08-13
+- **Change tested:** initial A1/B1 attempts for the 20-survivor Proth20 phase profile.
+- **Evidence:** the first retained-looking A1 began at 55 °C while the later variants began at 43 °C, exceeding the preregistered 3 °C spread. The first B1 produced 19/20 durable markers before the harness treated an unavailable redirected Windows `ExitCode` property as failure.
+- **Failure criterion:** AB/BA variants must use identical complete candidate sets and start within a 3 °C GPU-temperature spread.
+- **Conclusion:** neither attempt contributes to the retained statistics. Both remain in the local ignored output tree. A1 was rerun at 42 °C; B1 was rerun from zero with 20/20 markers. The final A1/B1/B2/A2 set passes exact witness/residue and thermal gates.
+- **Retry condition:** reuse only complete variants; a missing native exit property is not itself failure when exact markers and empty stderr prove completion.

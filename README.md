@@ -315,6 +315,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 ```
 
 See `docs/BUILD_WINDOWS.md` and `docs/CANONICAL_JSON.md`.
+The measured Proth20 phase decomposition and the resulting optimization
+decision are documented in `docs/reports/BREAKTHROUGH_JALON_A.md`.
 The guarded long-run component contract and exact commands are in
 `docs/pivot/RUNTIME_SAFETY.md`. No massive or prolonged benchmark has run yet.
 

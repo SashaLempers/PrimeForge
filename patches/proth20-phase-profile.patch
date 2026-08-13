@@ -1,0 +1,305 @@
+diff --git a/src/gpmp.h b/src/gpmp.h
+index 408618a..ecc6c72 100644
+--- a/src/gpmp.h
++++ b/src/gpmp.h
+@@ -13,0 +14 @@ Please give feedback to the authors if improvement is realized. It is distribute
++#include "primeforge_profile.h"
+@@ -78,0 +80,13 @@ private:
++	const bool _phaseProfile;
++	const size_t _profileIndex;
++
++private:
++	void _emitPhase(const char * const name, const primeforge_profile::time_point & start) const
++	{
++		primeforge_profile::emitPhase(_phaseProfile, _profileIndex, _k, _n, name,
++			primeforge_profile::elapsedNanoseconds(start));
++	}
++	void _emitCounter(const char * const name, const uint64_t value) const
++	{
++		primeforge_profile::emitCounter(_phaseProfile, _profileIndex, _k, _n, name, value);
++	}
+@@ -191,0 +206 @@ private:
++		const primeforge_profile::time_point sourceStart = primeforge_profile::now();
+@@ -224 +239,6 @@ private:
+-		_engine.loadProgram(src.str());
++		_emitPhase("PROGRAM_SOURCE_GENERATION", sourceStart);
++		const std::string programSource = src.str();
++		_emitCounter("PROGRAM_SOURCE_BYTES", uint64_t(programSource.size()));
++		const primeforge_profile::time_point programStart = primeforge_profile::now();
++		_engine.loadProgram(programSource);
++		_emitPhase("PROGRAM_BUILD", programStart);
+@@ -225,0 +246 @@ private:
++		const primeforge_profile::time_point bufferStart = primeforge_profile::now();
+@@ -226,0 +248,2 @@ private:
++		_emitPhase("BUFFER_ALLOCATE", bufferStart);
++		const primeforge_profile::time_point kernelStart = primeforge_profile::now();
+@@ -227,0 +251 @@ private:
++		_emitPhase("KERNEL_CREATE", kernelStart);
+@@ -229,0 +254 @@ private:
++		const primeforge_profile::time_point rootBuildStart = primeforge_profile::now();
+@@ -258,0 +284,2 @@ private:
++		_emitPhase("ROOT_TABLE_BUILD", rootBuildStart);
++		const primeforge_profile::time_point rootUploadStart = primeforge_profile::now();
+@@ -261 +288,8 @@ private:
+-
++		_emitCounter("ROOT_TABLE_UPLOAD_BYTES",
++			uint64_t(r1ir1.size() * sizeof(cl_uint4) + r2.size() * sizeof(cl_uint2) +
++				ir2.size() * sizeof(cl_uint2) + cr1.size() * sizeof(cl_uint4) +
++				cir1.size() * sizeof(cl_uint4) + cr2.size() * sizeof(cl_uint4) +
++				cir2.size() * sizeof(cl_uint4)));
++		_emitPhase("ROOT_TABLE_UPLOAD", rootUploadStart);
++
++		const primeforge_profile::time_point kTableBuildStart = primeforge_profile::now();
+@@ -271,0 +306,2 @@ private:
++		_emitPhase("K_DEPENDENT_TABLE_BUILD", kTableBuildStart);
++		const primeforge_profile::time_point kTableUploadStart = primeforge_profile::now();
+@@ -272,0 +309,3 @@ private:
++		_emitCounter("K_DEPENDENT_TABLE_UPLOAD_BYTES",
++			uint64_t((bp.size() + ibp.size()) * sizeof(cl_uint)));
++		_emitPhase("K_DEPENDENT_TABLE_UPLOAD", kTableUploadStart);
+@@ -279,0 +319 @@ private:
++		const primeforge_profile::time_point kernelStart = primeforge_profile::now();
+@@ -280,0 +321,2 @@ private:
++		_emitPhase("KERNEL_RELEASE", kernelStart);
++		const primeforge_profile::time_point bufferStart = primeforge_profile::now();
+@@ -281,0 +324,2 @@ private:
++		_emitPhase("BUFFER_RELEASE", bufferStart);
++		const primeforge_profile::time_point programStart = primeforge_profile::now();
+@@ -282,0 +327 @@ private:
++		_emitPhase("PROGRAM_CLEAR", programStart);
+@@ -286 +331,3 @@ public:
+-	gpmp(const uint32_t k, const uint32_t n, engine & engine, const bool isBoinc, const bool bestPlan = true, const bool profile = false) :
++	gpmp(const uint32_t k, const uint32_t n, engine & engine, const bool isBoinc,
++		const bool bestPlan = true, const bool profile = false,
++		const bool phaseProfile = false, const size_t profileIndex = 0) :
+@@ -289 +336 @@ public:
+-		_engine(engine), _mem(_size)
++		_engine(engine), _mem(_size), _phaseProfile(phaseProfile), _profileIndex(profileIndex)
+@@ -302,0 +350 @@ reset:
++		const primeforge_profile::time_point planStart = primeforge_profile::now();
+@@ -303,0 +352 @@ reset:
++		_emitPhase("PLAN_ENUMERATION", planStart);
+@@ -310,0 +360 @@ reset:
++			const primeforge_profile::time_point autotuneStart = primeforge_profile::now();
+@@ -355,0 +406 @@ reset:
++			_emitPhase("PLAN_AUTOTUNE", autotuneStart);
+@@ -380,0 +432,7 @@ public:
++	void displayKernelProfiles() const
++	{
++		_engine.displayProfilesMachine(_profileIndex, _k, _n);
++	}
++	void resetKernelProfiles() { _engine.resetProfiles(); }
++	void emitCounter(const char * const name, const uint64_t value) const { _emitCounter(name, value); }
++	void emitPhase(const char * const name, const primeforge_profile::time_point & start) const { _emitPhase(name, start); }
+@@ -726,0 +785 @@ public:
++		const primeforge_profile::time_point normStart = primeforge_profile::now();
+@@ -727,0 +787 @@ public:
++		_emitPhase("FINAL_NORMALIZATION", normStart);
+@@ -728,0 +789 @@ public:
++		const primeforge_profile::time_point readbackStart = primeforge_profile::now();
+@@ -736,0 +798 @@ public:
++		_emitCounter("RESULT_READBACK_BYTES", uint64_t(sizeof(cl_uint2) * _size / 2));
+@@ -748,0 +811 @@ public:
++		_emitPhase("RESULT_READBACK", readbackStart);
+diff --git a/src/main.cpp b/src/main.cpp
+index 60fc16f..62dc513 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -12,0 +13 @@ Please give feedback to the authors if improvement is realized. It is distribute
++#include "primeforge_profile.h"
+@@ -106,0 +108,2 @@ private:
++		ss << "  --phase-profile         emit PrimeForge monotonic phase timings" << std::endl;
++		ss << "  --kernel-profile        also emit synchronized OpenCL kernel events" << std::endl;
+@@ -123,0 +127,5 @@ public:
++		const primeforge_profile::time_point processStart = primeforge_profile::now();
++		const bool bKernelProfile = std::find(args.begin(), args.end(), "--kernel-profile") != args.end();
++		const bool bPhaseProfile = bKernelProfile ||
++			(std::find(args.begin(), args.end(), "--phase-profile") != args.end());
++
+@@ -154,0 +163 @@ public:
++		const primeforge_profile::time_point platformStart = primeforge_profile::now();
+@@ -155,0 +165,2 @@ public:
++		primeforge_profile::emitPhase(bPhaseProfile, 0, 0, 0, "OPENCL_PLATFORM_DISCOVERY",
++			primeforge_profile::elapsedNanoseconds(platformStart));
+@@ -167,0 +179 @@ public:
++			else if ((arg == "--phase-profile") || (arg == "--kernel-profile")) {}
+@@ -219 +231,6 @@ public:
+-			engine engine(platform, d);
++			const primeforge_profile::time_point contextStart = primeforge_profile::now();
++			primeforge_profile::time_point cleanupStart;
++			{
++				engine engine(platform, d);
++				primeforge_profile::emitPhase(bPhaseProfile, 0, 0, 0, "OPENCL_CONTEXT_CREATE",
++					primeforge_profile::elapsedNanoseconds(contextStart));
+@@ -246,0 +264,2 @@ public:
++					const size_t candidateIndex = completed + 1;
++					const primeforge_profile::time_point candidateStart = primeforge_profile::now();
+@@ -248 +267,5 @@ public:
+-					if (!p.check(normalizedK, normalizedN, engine, false, 0, &isPrime))
++					const bool checkCompleted = p.check(normalizedK, normalizedN, engine, false, 0,
++						&isPrime, bPhaseProfile, bKernelProfile, candidateIndex);
++					primeforge_profile::emitPhase(bPhaseProfile, candidateIndex, normalizedK, normalizedN,
++						"CANDIDATE_TOTAL", primeforge_profile::elapsedNanoseconds(candidateStart));
++					if (!checkCompleted)
+@@ -273 +296,11 @@ public:
+-			else p.check(k, n, engine);
++			else
++			{
++				const primeforge_profile::time_point candidateStart = primeforge_profile::now();
++				p.check(k, n, engine, false, 0, nullptr, bPhaseProfile, bKernelProfile, 1);
++				primeforge_profile::emitPhase(bPhaseProfile, 1, k, n, "CANDIDATE_TOTAL",
++					primeforge_profile::elapsedNanoseconds(candidateStart));
++			}
++			cleanupStart = primeforge_profile::now();
++			}
++			primeforge_profile::emitPhase(bPhaseProfile, 0, 0, 0, "PROCESS_CLEANUP",
++				primeforge_profile::elapsedNanoseconds(cleanupStart));
+@@ -274,0 +308,2 @@ public:
++		primeforge_profile::emitPhase(bPhaseProfile, 0, 0, 0, "PROCESS_TOTAL",
++			primeforge_profile::elapsedNanoseconds(processStart));
+diff --git a/src/ocl.h b/src/ocl.h
+index d29c5e1..309d4d4 100644
+--- a/src/ocl.h
++++ b/src/ocl.h
+@@ -346,0 +347,16 @@ public:
++public:
++	void displayProfilesMachine(const size_t candidateIndex, const uint32_t k, const uint32_t n) const
++	{
++		std::ostringstream ss;
++		for (auto it : _profileMap)
++		{
++			const profile & prof = it.second;
++			if (prof.count != 0)
++			{
++				ss << "PRIMEFORGE_KERNEL\t" << candidateIndex << "\t" << k << "\t" << n
++					<< "\t" << prof.name << "\t" << prof.count << "\t" << prof.time << std::endl;
++			}
++		}
++		pio::print(ss.str());
++	}
++
+diff --git a/src/primeforge_profile.h b/src/primeforge_profile.h
+new file mode 100644
+index 0000000..4cb5961
+--- /dev/null
++++ b/src/primeforge_profile.h
+@@ -0,0 +1,48 @@
++/*
++PrimeForge phase instrumentation for the pinned Proth20 integration.
++SPDX-License-Identifier: Apache-2.0
++*/
++
++#pragma once
++
++#include "pio.h"
++
++#include <chrono>
++#include <cstddef>
++#include <cstdint>
++#include <sstream>
++
++namespace primeforge_profile
++{
++
++using clock = std::chrono::steady_clock;
++using time_point = clock::time_point;
++
++inline time_point now() { return clock::now(); }
++
++inline uint64_t elapsedNanoseconds(const time_point & start)
++{
++	return uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(now() - start).count());
++}
++
++inline void emitPhase(const bool enabled, const size_t candidateIndex,
++	const uint32_t k, const uint32_t n, const char * const phase, const uint64_t wallNanoseconds)
++{
++	if (!enabled) return;
++	std::ostringstream ss;
++	ss << "PRIMEFORGE_PHASE\t" << candidateIndex << "\t" << k << "\t" << n
++		<< "\t" << phase << "\t" << wallNanoseconds << std::endl;
++	pio::print(ss.str());
++}
++
++inline void emitCounter(const bool enabled, const size_t candidateIndex,
++	const uint32_t k, const uint32_t n, const char * const counter, const uint64_t value)
++{
++	if (!enabled) return;
++	std::ostringstream ss;
++	ss << "PRIMEFORGE_COUNTER\t" << candidateIndex << "\t" << k << "\t" << n
++		<< "\t" << counter << "\t" << value << std::endl;
++	pio::print(ss.str());
++}
++
++}
+diff --git a/src/proth.h b/src/proth.h
+index e735e9f..ee79e2d 100644
+--- a/src/proth.h
++++ b/src/proth.h
+@@ -159 +159,3 @@ public:
+-		const uint64_t r64 = 0, bool * const primeResult = nullptr)
++		const uint64_t r64 = 0, bool * const primeResult = nullptr,
++		const bool phaseProfile = false, const bool kernelProfile = false,
++		const size_t profileIndex = 0)
+@@ -160,0 +163 @@ public:
++		const primeforge_profile::time_point witnessStart = primeforge_profile::now();
+@@ -162 +165,3 @@ public:
+-		if (!arith::proth_prime_quad_nonres(k, n, 3, a))
++		const bool witnessFound = arith::proth_prime_quad_nonres(k, n, 3, a);
++		primeforge_profile::emitPhase(phaseProfile, profileIndex, k, n, "WITNESS_SELECTION", primeforge_profile::elapsedNanoseconds(witnessStart));
++		if (!witnessFound)
+@@ -176 +181,3 @@ public:
+-		gpmp X(k, n, engine, _isBoinc);
++		const primeforge_profile::time_point constructStart = primeforge_profile::now();
++		gpmp X(k, n, engine, _isBoinc, true, kernelProfile, phaseProfile, profileIndex);
++		primeforge_profile::emitPhase(phaseProfile, profileIndex, k, n, "GPMP_CONSTRUCT_TOTAL", primeforge_profile::elapsedNanoseconds(constructStart));
+@@ -179,0 +187 @@ public:
++		const primeforge_profile::time_point restoreStart = primeforge_profile::now();
+@@ -180,0 +189,2 @@ public:
++		X.emitPhase("CHECKPOINT", restoreStart);
++		X.emitCounter("CHECKPOINT_RESTORED", found ? 1 : 0);
+@@ -188,0 +199 @@ public:
++			const primeforge_profile::time_point apowkStart = primeforge_profile::now();
+@@ -191,0 +203 @@ public:
++			X.emitPhase("A_POW_K", apowkStart);
+@@ -202,0 +215,4 @@ public:
++		if (kernelProfile) X.resetKernelProfiles();
++		const primeforge_profile::time_point mainLoopStart = primeforge_profile::now();
++		uint64_t gerbiczStepCount = 0;
++		uint64_t gerbiczEnqueueNanoseconds = 0;
+@@ -217,0 +234,4 @@ public:
++				X.emitPhase("MAIN_SQUARING_LOOP", mainLoopStart);
++				X.emitCounter("MAIN_SQUARING_COUNT", uint64_t(i - i0));
++				X.emitCounter("GERBICZ_STEP_COUNT", gerbiczStepCount);
++				if (kernelProfile) X.displayKernelProfiles();
+@@ -225 +245,7 @@ public:
+-			if ((i & (L - 1)) == 0) X.Gerbicz_step();
++			if ((i & (L - 1)) == 0)
++			{
++				const primeforge_profile::time_point gerbiczStart = primeforge_profile::now();
++				X.Gerbicz_step();
++				gerbiczEnqueueNanoseconds += primeforge_profile::elapsedNanoseconds(gerbiczStart);
++				++gerbiczStepCount;
++			}
+@@ -283 +309,8 @@ public:
+-
++		if (phaseProfile) checkError(X);
++		X.emitPhase("MAIN_SQUARING_LOOP", mainLoopStart);
++		X.emitCounter("MAIN_SQUARING_COUNT", uint64_t(n - i0 - 1));
++		X.emitCounter("GERBICZ_STEP_COUNT", gerbiczStepCount);
++		primeforge_profile::emitPhase(phaseProfile, profileIndex, k, n,
++			"GERBICZ_CHECKS_CPU_ENQUEUE", gerbiczEnqueueNanoseconds);
++
++		const primeforge_profile::time_point residueStart = primeforge_profile::now();
+@@ -287,0 +321 @@ public:
++		X.emitPhase("FINAL_RESIDUE_TOTAL", residueStart);
+@@ -290,0 +325 @@ public:
++		const primeforge_profile::time_point gerbiczFinalStart = primeforge_profile::now();
+@@ -301,0 +337 @@ public:
++		X.emitPhase("GERBICZ_FINAL_CHECK", gerbiczFinalStart);
+@@ -304,0 +341 @@ public:
++		const primeforge_profile::time_point resultStart = primeforge_profile::now();
+@@ -312,0 +350,3 @@ public:
++
++		X.emitPhase("RESULT_FORMAT_AND_WRITE", resultStart);
++		if (kernelProfile) X.displayKernelProfiles();

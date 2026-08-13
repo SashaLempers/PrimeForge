@@ -737,6 +737,14 @@ benchmark\.candidate_count=65536]=]
                 -SelfTestPath $<TARGET_FILE:primeforge-selftest>
                 -WorkingDirectory ${CMAKE_CURRENT_BINARY_DIR}/hardware-profile-test
         )
+        add_test(
+            NAME primeforge.proth20_phase_profile_analyzer
+            COMMAND powershell.exe
+                -NoProfile
+                -ExecutionPolicy Bypass
+                -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_proth20_phase_profile.ps1
+                -WorkingDirectory ${CMAKE_CURRENT_BINARY_DIR}/proth20-phase-profile-analyzer-test
+        )
     endif()
 endif()
 

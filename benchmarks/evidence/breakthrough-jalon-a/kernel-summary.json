@@ -1,0 +1,31 @@
+{
+    "schema":  "primeforge.proth20.kernel-profile.summary.v1",
+    "generated_utc":  "2026-08-13T16:50:53Z",
+    "input_sha256":  "7888c043dfa55107bc3c52f3a7116dd9f47ba7ff5146a99db4b865e187f5d56e",
+    "candidate_k":  75939141,
+    "candidate_n":  66411,
+    "quick_probe":  true,
+    "main_squaring_count":  10000,
+    "kernel_types":  23,
+    "kernel_launches":  121053,
+    "summed_opencl_event_gpu_nanoseconds":  2175621888,
+    "profiled_main_loop_wall_nanoseconds":  4578489700,
+    "serialized_opencl_event_fraction_percent":  47.518330946556461,
+    "profiled_host_wait_and_instrumentation_fraction_percent":  52.481669053443539,
+    "interpretation":  [
+                           "The OpenCL queue is in-order, so summed event durations estimate serialized device work.",
+                           "Event profiling waits for every kernel and therefore changes wall time.",
+                           "The residual is host wait plus profiling overhead; it is not a production GPU-idle claim.",
+                           "The quick probe stops after a bounded main-loop prefix and does not classify primality."
+                       ],
+    "nsight":  {
+                   "status":  "CAPTURED_WITH_LIMITATIONS",
+                   "path":  "C:\\Users\\sashack\\source\\repos\\PrimeForge-breakthrough\\out\\benchmarks\\proth20-phase-profile-20260813-r2\\kernel-probe\\nsight-quick-probe.nsys-rep",
+                   "sha256":  "fa36423f081d074a36d48f453a1d4a63e287131002bd355e4caadb23b856981d",
+                   "opencl_activity_trace":  "UNAVAILABLE_IN_NSYS_REPORT_SET",
+                   "cpu_sampling":  "UNAVAILABLE_REQUIRES_ADMINISTRATIVE_PRIVILEGES",
+                   "cpu_context_switch_trace":  "UNAVAILABLE_REQUIRES_ADMINISTRATIVE_PRIVILEGES",
+                   "gpu_driver_metrics":  "UNAVAILABLE_ERR_NVGPUCTRPERM"
+               },
+    "status":  "PASS_WITH_DOCUMENTED_PROFILING_OVERHEAD"
+}

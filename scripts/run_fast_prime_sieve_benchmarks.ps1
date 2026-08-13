@@ -4,6 +4,7 @@
 param(
     [string]$PortfolioFile = 'docs\reports\CANDIDATE_RANGE_PORTFOLIO.json',
     [string]$OutputDirectory = 'out\fast-prime\sieve-benchmark',
+    [string]$SieveExecutable = 'out\build\msvc-release\primeforge-discovery-sieve.exe',
     [uint32[]]$Bounds = @(1000000, 10000000),
     [uint32[]]$DigitBands = @(),
     [uint32[]]$Counters = @(0)
@@ -24,7 +25,7 @@ function Resolve-ProjectPath {
 
 $portfolioPath = Resolve-ProjectPath $PortfolioFile
 $outputPath = Resolve-ProjectPath $OutputDirectory
-$sieve = Join-Path $repositoryRoot 'out\build\msvc-release\primeforge-discovery-sieve.exe'
+$sieve = Resolve-ProjectPath $SieveExecutable
 $monitor = Join-Path $repositoryRoot 'out\build\msvc-release\hardware_monitor.exe'
 foreach ($file in @($portfolioPath, $sieve, $monitor)) {
     if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Required file missing: $file" }

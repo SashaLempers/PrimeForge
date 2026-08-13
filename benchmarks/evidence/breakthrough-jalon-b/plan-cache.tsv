@@ -1,0 +1,2 @@
+candidates	cache_misses	cache_hits	autotune_nanoseconds	exact_residues	log_sha256	status
+3	1	2	125808700	PASS	98ff38cdcd0ff8b6c7eeed2cc4ddf412765ae40d1e2379a9dd21416d141d2623	PASS

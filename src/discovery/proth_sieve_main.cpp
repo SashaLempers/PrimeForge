@@ -119,6 +119,9 @@ int main(const int argc, char** argv) {
                   << "discovery.sieve.eliminated=" << result.eliminated_count << '\n'
                   << "discovery.sieve.survivors=" << result.survivors.size() << '\n'
                   << "discovery.sieve.primes_applied=" << result.primes_applied << '\n'
+                  << "discovery.sieve.prime_source=primesieve-12.15-segmented\n"
+                  << "discovery.sieve.inverse=direct-2^-n\n"
+                  << "discovery.sieve.candidate_storage=uint64-bitset\n"
                   << "discovery.sieve.output=" << std::filesystem::absolute(arguments.output).string()
                   << '\n'
                   << "discovery.sieve.sha256=" << primeforge::sha256_to_hex(digest) << '\n'

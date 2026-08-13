@@ -799,3 +799,24 @@ Two independent workers improve effective throughput by 25.3287%, not 100%.
 The next structural GPU target is consequently native shared-context/batch NTT
 work. Cache and sieve changes remain eligible only when their complete-campaign
 marginal benefit is positive.
+
+## D-0089 - Proth sieve depth follows absolute marginal time
+
+**Status:** Accepted - 2026-08-13
+
+The Proth-family sieve statically uses the pinned primesieve 12.15 segmented
+iterator, computes `2^-n` directly and stores candidate marks in `uint64_t`
+words. primesieve remains separately BSD-2-Clause licensed and its notice is
+included in every redistributed package.
+
+Depth selection compares measured extra sieve time with measured Proth20 time
+avoided; no relative percentage threshold is applied. On the 20,000-digit
+target class, the 2–4 billion block costs 3.78276165 seconds and avoids
+751.259344851 seconds of projected two-worker Proth20 work. Four billion is
+therefore retained for future campaigns of this measured class. This decision
+does not change or resume the stopped campaign, and it does not claim that the
+marginal optimum lies at the current `uint32_t` ceiling.
+
+Within a Proth20 process, an autotuned plan is cached by transform size, digit
+width and supported work-group class. Cross-process persistence is deferred
+until the key also authenticates GPU UUID, driver and kernel source.

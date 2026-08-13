@@ -16,6 +16,7 @@ $expectedRevision = '6771325939a7ceef2c75644c79981c7df4a61882'
 $sourceUrl = 'https://github.com/galloty/proth20.git'
 $batchPatch = Join-Path $repositoryRoot 'patches\proth20-persistent-batch.patch'
 $profilePatch = Join-Path $repositoryRoot 'patches\proth20-phase-profile.patch'
+$planCachePatch = Join-Path $repositoryRoot 'patches\proth20-plan-cache.patch'
 
 function Resolve-ProjectPath {
     param([Parameter(Mandatory = $true)][string]$Path)
@@ -43,8 +44,30 @@ $openClPath = [System.IO.Path]::GetFullPath($OpenClLibrary)
 if (-not (Test-Path -LiteralPath $batchPatch -PathType Leaf)) {
     throw "Pinned proth20 batch patch is missing: $batchPatch"
 }
+
+function Test-ReversePatch {
+    param(
+        [Parameter(Mandatory = $true)][string]$SourcePath,
+        [Parameter(Mandatory = $true)][string]$PatchPath,
+        [switch]$ZeroContext
+    )
+    $arguments = @('-C', $SourcePath, 'apply')
+    if ($ZeroContext) { $arguments += @('--recount', '--unidiff-zero') }
+    $arguments += @('--reverse', '--check', $PatchPath)
+    $savedPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        & git @arguments 2>$null
+        return $LASTEXITCODE -eq 0
+    } finally {
+        $ErrorActionPreference = $savedPreference
+    }
+}
 if (-not (Test-Path -LiteralPath $profilePatch -PathType Leaf)) {
     throw "Pinned proth20 profiling patch is missing: $profilePatch"
+}
+if (-not (Test-Path -LiteralPath $planCachePatch -PathType Leaf)) {
+    throw "Pinned proth20 plan-cache patch is missing: $planCachePatch"
 }
 if (-not (Test-Path -LiteralPath $openClPath -PathType Leaf)) {
     throw "OpenCL import library is missing: $openClPath"
@@ -70,17 +93,24 @@ if (-not $sourceChanged -and -not (Test-Path -LiteralPath $profileHeader -PathTy
     Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', '--recount', '--unidiff-zero', '--check', $profilePatch)
     Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', '--recount', '--unidiff-zero', $profilePatch)
 } else {
-    & git -C $sourcePath apply --recount --unidiff-zero --reverse --check $profilePatch 2>$null
-    $profileApplied = $LASTEXITCODE -eq 0
+    $profileApplied = Test-ReversePatch -SourcePath $sourcePath -PatchPath $profilePatch -ZeroContext
     if (-not $profileApplied) {
-        & git -C $sourcePath apply --reverse --check $batchPatch 2>$null
-        $batchApplied = $LASTEXITCODE -eq 0
+        $batchApplied = Test-ReversePatch -SourcePath $sourcePath -PatchPath $batchPatch
         if (-not $batchApplied) {
             throw 'The proth20 source has local changes other than the pinned PrimeForge patches.'
         }
         Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', '--recount', '--unidiff-zero', '--check', $profilePatch)
         Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', '--recount', '--unidiff-zero', $profilePatch)
     }
+}
+
+$planCacheApplied = Test-ReversePatch `
+    -SourcePath $sourcePath -PatchPath $planCachePatch -ZeroContext
+if (-not $planCacheApplied) {
+    Invoke-Checked -Executable git -Arguments @(
+        '-C', $sourcePath, 'apply', '--recount', '--unidiff-zero', '--check', $planCachePatch)
+    Invoke-Checked -Executable git -Arguments @(
+        '-C', $sourcePath, 'apply', '--recount', '--unidiff-zero', $planCachePatch)
 }
 
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'

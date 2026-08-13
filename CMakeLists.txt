@@ -23,6 +23,26 @@ if(NOT PRIMEFORGE_BUILD_COMMIT_LENGTH EQUAL 40 OR
 endif()
 
 include(CTest)
+include(FetchContent)
+
+# PrimeForge's Proth-family sieve consumes primes as a bounded stream.  Pin the
+# exact upstream revision already audited in SOURCES.lock.  Third-party targets
+# deliberately do not inherit PrimeForge's /WX or -Werror policy.
+set(BUILD_PRIMESIEVE OFF CACHE BOOL "Build the primesieve command-line tool" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared third-party libraries" FORCE)
+set(BUILD_STATIC_LIBS ON CACHE BOOL "Build static libprimesieve" FORCE)
+set(BUILD_DOC OFF CACHE BOOL "Build third-party documentation" FORCE)
+set(BUILD_EXAMPLES OFF CACHE BOOL "Build third-party examples" FORCE)
+set(BUILD_TESTS OFF CACHE BOOL "Build third-party tests" FORCE)
+FetchContent_Declare(
+    primesieve
+    SYSTEM
+    EXCLUDE_FROM_ALL
+    GIT_REPOSITORY https://github.com/kimwalisch/primesieve.git
+    GIT_TAG 4f85384851da23c36c01ec01ef85b5d9d246e556
+    GIT_SHALLOW FALSE
+)
+FetchContent_MakeAvailable(primesieve)
 
 option(PRIMEFORGE_ENABLE_CUDA "Build the local CUDA validation target" OFF)
 set(PRIMEFORGE_CUDA_ROOT "" CACHE PATH "Pinned local CUDA Toolkit root")
@@ -111,6 +131,7 @@ target_include_directories(primeforge_core
         $<INSTALL_INTERFACE:include>
 )
 target_compile_features(primeforge_core PUBLIC cxx_std_23)
+target_link_libraries(primeforge_core PRIVATE primesieve::primesieve)
 primeforge_enable_strict_warnings(primeforge_core)
 
 add_library(primeforge_benchmark STATIC src/benchmark/benchmark.cpp)

@@ -19,6 +19,13 @@ Such material requires an explicit, separate notice or license.
 
 Every dependency is reviewed individually. The review records its authoritative source, exact revision and hashes, license text and hash, provenance, redistribution terms, linking or process relationship, build options, and any patches. An external-process boundary is an architectural fact, not a license conclusion.
 
+PrimeForge statically links the pinned primesieve 12.15 revision only for
+segmented prime generation in the Proth-family sieve. Its BSD-2-Clause license
+is compatible with this distribution when the upstream notice is retained; the
+exact notice is stored in `licenses/primesieve-BSD-2-Clause.txt` and packaged
+with the executables. This grant is separate from Apache-2.0 and does not alter
+the license of original PrimeForge code.
+
 ## Stage 3 license choice review
 
 Apache License 2.0 remains the license for original PrimeForge code. This is a project governance decision, not legal advice. The review retained it because the unmodified standard license is reusable, includes explicit copyright/patent terms, permits broad use of the original code, and has a well-defined notice mechanism. The authoritative English license text remains in LICENSE; NOTICE identifies the original work.

@@ -643,6 +643,12 @@ Each future entry must include:
 - **Conclusion:** one to two billion improves projected complete time by about 3.02% and is retained. Two to four billion improves it by about 2.99% after added sieve time and is rejected; the supported and recommended ceiling remains two billion.
 - **Retry condition:** retry above two billion only after a faster streaming/residue sieve changes the marginal cost or a substantially slower proof workload changes the complete-time ratio.
 
+**Superseded 2026-08-13:** D-0089 satisfies this retry condition. The new
+streaming/direct-inverse implementation reduces the 4 G median to 7.5807339 s;
+the 2–4 G block now has 747.476583201 s of positive measured net value. The
+historical rejection remains recorded, but its 3 % policy no longer governs
+future campaigns.
+
 ## NR-0070 - Three GPU workers regressed aggregate throughput
 
 - **Date:** 2026-08-13

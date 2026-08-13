@@ -1,0 +1,39 @@
+diff --git a/src/gpmp.h b/src/gpmp.h
+index ecc6c72..00e7a70 100644
+--- a/src/gpmp.h
++++ b/src/gpmp.h
+@@ -17,0 +18 @@ Please give feedback to the authors if improvement is realized. It is distribute
++#include <map>
+@@ -18,0 +20 @@ Please give feedback to the authors if improvement is realized. It is distribute
++#include <tuple>
+@@ -31,0 +34,15 @@ class gpmp
++private:
++	struct cached_plan
++	{
++		size_t square_sequence;
++		size_t poly2int_function;
++	};
++
++	using plan_class = std::tuple<size_t, int, bool, bool>;
++
++	static std::map<plan_class, cached_plan> & planCache()
++	{
++		static std::map<plan_class, cached_plan> cache;
++		return cache;
++	}
++
+@@ -355 +372,9 @@ reset:
+-		if (bestPlan)
++		const plan_class cacheKey(size, _digit_bit, _ext512, _ext1024);
++		const std::map<plan_class, cached_plan>::const_iterator cached = planCache().find(cacheKey);
++		if (bestPlan && (cached != planCache().end()))
++		{
++			bestSq_i = cached->second.square_sequence;
++			bestP2i_i = cached->second.poly2int_function;
++			_emitCounter("PLAN_CACHE_HIT", 1);
++		}
++		else if (bestPlan)
+@@ -356,0 +382 @@ reset:
++			_emitCounter("PLAN_CACHE_HIT", 0);
+@@ -406,0 +433 @@ reset:
++			planCache()[cacheKey] = cached_plan{bestSq_i, bestP2i_i};

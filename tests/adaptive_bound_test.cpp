@@ -43,6 +43,26 @@ int main() {
         check(curve[0].eliminated_count != curve[0].candidate_count / 7U,
               "fixture explicitly contradicts a 1/q assumption");
 
+        // Jalon B's measured 20,000-digit Proth curve.  The decision uses
+        // absolute end-to-end time saved, not the former arbitrary 3% gate.
+        const std::vector<adaptive::BoundObservation> proth_curve{
+            {250'000'000U, 549'993'750U, 68'980U, 65'053U},
+            {500'000'000U, 1'021'892'500U, 68'980U, 65'179U},
+            {1'000'000'000U, 1'936'894'100U, 68'980U, 65'305U},
+            {2'000'000'000U, 3'797'972'250U, 68'980U, 65'417U},
+            {4'000'000'000U, 7'580'733'900U, 68'980U, 65'525U},
+        };
+        constexpr std::uint64_t measured_proth20_nanoseconds_per_survivor =
+            6'956'105'045U;
+        const auto proth_offline = adaptive::select_offline_bound(
+            proth_curve, measured_proth20_nanoseconds_per_survivor);
+        const auto proth_online = adaptive::select_online_bound(
+            proth_curve, measured_proth20_nanoseconds_per_survivor);
+        check(proth_offline.upper_prime == 4'000'000'000U,
+              "measured end-to-end model did not select the net-fastest bound");
+        check(proth_online.upper_prime == 4'000'000'000U,
+              "positive marginal sieve value was rejected by an arbitrary threshold");
+
         const primeforge::benchmark::SummaryStatistics faster{
             10U, 20U, 15U, 1U, 10U, 20U};
         const primeforge::benchmark::SummaryStatistics slower{
@@ -75,6 +95,7 @@ int main() {
 
         std::cout << "adaptive_offline_bound=" << offline.upper_prime << '\n'
                   << "adaptive_online_bound=" << online.upper_prime << '\n'
+                  << "measured_proth_bound=" << proth_offline.upper_prime << '\n'
                   << "prp_1373653_status=PROBABLE_PRIME\n"
                   << "proven_1373653_status=COMPOSITE\n"
                   << "PrimeForge adaptive-bound tests: PASS\n";

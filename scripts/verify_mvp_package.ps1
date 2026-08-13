@@ -37,6 +37,7 @@ try {
         'docs/RESULTS.md',
         'docs/SEARCH_CONFIG.md',
         'licenses/DISTRIBUTION_MANIFEST.tsv',
+        'licenses/primesieve-BSD-2-Clause.txt',
         'primeforge.exe',
         'primeforge-launcher.exe',
         'run_known_campaign.ps1',
@@ -63,6 +64,11 @@ try {
     $licenseHash = (Get-FileHash -LiteralPath (Join-Path $root 'LICENSE') -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($licenseHash -ne '04d223ddc28f864ff52adf675d7c02b359af9bd54f9cc074d4491185786f1a6f') {
         throw 'The Apache-2.0 license hash does not match the governed PrimeForge license.'
+    }
+    $primesieveLicenseHash = (Get-FileHash -LiteralPath `
+        (Join-Path $root 'licenses/primesieve-BSD-2-Clause.txt') -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($primesieveLicenseHash -ne '1d0355365c701b03207764278849f37f12cefcf5ed167428093985e7a24d6701') {
+        throw 'The bundled primesieve BSD-2-Clause notice hash is invalid.'
     }
 
     $manifestPath = Join-Path $root 'PACKAGE_MANIFEST.sha256'

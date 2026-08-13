@@ -1,0 +1,5 @@
+attempt	variant	batch_1_wall_ms	batch_2_wall_ms	median_batch_wall_ms	slowdown_percent	resource_interval_seconds	status
+initial	baseline	11125.621600	10100.129700	10612.875650	0.000000	0	REFERENCE
+initial	instrumented	11190.047000	11212.438000	11201.242500	5.543897	2	REJECTED_OVERHEAD
+repeat	baseline	10116.377000	11117.631500	10617.004250	0.000000	0	REFERENCE
+repeat	instrumented	10402.782000	10373.354000	10388.068000	-2.156317	4	PASS

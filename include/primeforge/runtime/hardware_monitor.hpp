@@ -25,6 +25,8 @@ struct HardwareSnapshot {
     Metric cpu_power_watts;
     Metric ram_used_bytes;
     Metric ram_available_bytes;
+    Metric gpu_name;
+    Metric gpu_uuid;
     Metric gpu_temperature_celsius;
     Metric gpu_memory_temperature_celsius;
     Metric gpu_power_watts;
@@ -35,7 +37,9 @@ struct HardwareSnapshot {
     Metric gpu_memory_utilization_percent;
     Metric vram_used_mib;
     Metric vram_free_mib;
+    Metric vram_total_mib;
     Metric whea_errors_recent;
+    Metric nvidia_xid_errors_recent;
     bool throttling_detected{};
     std::string throttling_reasons{"UNKNOWN"};
 

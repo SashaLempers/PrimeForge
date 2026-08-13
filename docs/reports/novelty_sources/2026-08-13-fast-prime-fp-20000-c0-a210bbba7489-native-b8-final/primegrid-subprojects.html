@@ -1,0 +1,643 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd"><html><head><title>Subproject status</title>
+<link rel=stylesheet type="text/css" href="/main.css" media="all" />
+        <link rel=stylesheet type="text/css" href="/style3.css">
+        <link rel=alternate type="application/rss+xml" title="PrimeGrid RSS 2.0" href="/rss_main.php">
+	<meta name="verify-webtopay" content="a53556e8b51f31fd2a93e126f459277e">
+        <link rel=stylesheet type="text/css" href="/navbar.css" media="all" />
+        
+        </head>
+    <body>
+        <link rel="icon" type="image/png" href="/images/favicon_16.png" />
+        <script>
+        if(window.location.host.split(".")[0] !== "www") {
+            window.location.replace(
+                [window.location.protocol, 
+                 ["www"].concat(window.location.host.split(".")).join(".")].join("//"));
+        }
+        </script>
+
+    <div id="top">&nbsp;
+    <div id="message">
+        <a href="/" class="header">
+            <img src="/img/primegrid_logo_2023.svg" width="468" height="60" alt="PrimeGrid" title="PrimeGrid" />
+        </a><br/>
+        <a href="/donations.php" style="color: #ffffff; padding-left: 10px;">Please visit donation page to help the project cover running costs for this month</a>
+        <div style="padding-left: 45px;">
+            </div>
+    </div> <div id="boincstats">
+</div>
+
+      </div><table style="position: absolute; clear: both; margin-top: 85px; left: 0; width: calc(100% - 4px)"><tr>
+    <td class="table_nb" style="width: 270px;"><h2><a href="/server_status_subprojects.php?menu=top">Toggle Menu</a></h2><h2>Join PrimeGrid</h2>
+
+    <div>
+        <ol>
+            <li class="menu_r1">Read our <a href="/info.php">rules and policies</a>.</li>
+            <li class="menu_r2"><a href="https://boinc.berkeley.edu/download.php">Download</a>,
+                <strong>install</strong> and <strong>run</strong> the BOINC software used
+                by PrimeGrid.</li>
+            <li class="menu_r1">When prompted, enter the URL:<br />
+                <strong>http://www.primegrid.com/</strong></li>
+            <li class="menu_r2">Select which <strong>subprojects</strong> to run via the
+                <a href="/prefs.php?subset=project">PrimeGrid Preferences</a>.
+        </ol>
+        <ul>
+            <li class="menu_r1">If you are not using graphics enabled BOINC client, you may use
+                <a href="https://www.primegrid.com/create_account_form.php">manual registration form</a>.
+            </li>
+        </ul>
+    </div>
+
+      <h2>Returning Participants</h2>
+
+      <ul>
+        <li class="menu_r1"><a href="/home.php">Your account</a></li>
+        <li class="menu_r2"><a href="http://prpnet.primegrid.com" target="_blank">PRPNet server</a></li>
+        <li class="menu_r1"><a href="/show_sieving.php">Manual Sieving</a></li>
+        <li class="menu_r2"><a href="/team.php">Create or Join a Team</a></li>
+        <li class="menu_r1"><a href="https://boinc.berkeley.edu/download.php">Download BOINC</a></li>
+        <li class="menu_r2"><a href="/apps.php">Applications</a></li>
+        <li class="menu_r1"><a href="/donations.php"><b>Make a donation</b></a></li>
+      </ul>
+
+      <h2>Community</h2>
+      <ul>        <li class="menu_r1"><a href="/profile_menu.php">Participant Profiles</a></li>
+        <li class="menu_r2"><a href="/forum_index.php">PrimeGrid Message boards</a></li>  <li class="menu_r1"><a href="https://discord.gg/N2mCaQz" target="_blank">PrimeGrid Discord chat server [external]</a></li>        <li class="menu_r2"><a href="http://primegrid.wikia.com/wiki/PrimeGrid_Wiki" target="_blank">PrimeGrid Wiki [external]</a></li>
+        <li class="menu_r1"><a href="https://www.mersenneforum.org/forumdisplay.php?f=67" target="_blank">Mersenneforum.org Forums [external]</a></li>
+      </ul>
+
+      <h2>Leader Boards</h2>
+      <ul>
+        <li class="menu_r1"><a href="/challenge/challenge.php">Challenge Series</a></li>
+        <li class="menu_r2"><a href="/top_countries.php">Top Countries</a></li>
+        <li class="menu_r1"><a href="/top_users.php">Top Participants</a></li>
+        <li class="menu_r2"><a href="/top_hosts.php">Top Computers</a></li>
+        <li class="menu_r1"><a href="/top_teams.php">Top Teams</a></li>
+        <li class="menu_r2"><a href="/primes/?section=topusers&amp;by=score">Top Prime Finders</a></li>
+      </ul>
+
+      <h2>Results</h2>
+      <ul>
+        <li class="menu_r1"><a href="/primes/mega_primes.php">PrimeGrid Mega Primes</a></li>
+        <li class="menu_r2"><a href="/primes/primes.php">PrimeGrid Primes by Project</a></li>
+        <li class="menu_r1"><a href="/stats_ap26.php">PrimeGrid AP27</a></li>
+        <li class="menu_r2"><a href="/stats_ww.php">PrimeGrid Wieferich &amp; WSS</a></li>
+        <li class="menu_r1"><a href="/pubresults.php">Published results</a></li>
+      </ul>
+
+      <h2>Other</h2>
+      <ul><li class="menu_r1"><a href="/server_status.php">Server status</a></li><li class="menu_r2"><a href="/server_status_subprojects.php">Subproject status</a></li><li class="menu_r1"><a href="/server_status_tasks.php">Task status</a></li><li class="menu_r2"><a href="/gpu_list.php">Fastest GPUs</a></li><li class="menu_r1"><a href="/cpu_list.php">Fastest CPUs</a></li><li class="menu_r2"><a href="/host_stats.php">Computer types</a></li>      </ul>
+    <a href="/amuck.php"><span style="display: none;">drummers-lowrise</span></a>
+
+<br />    </td><td class="table_nb"><div style="margin-bottom: 10px;"><a href="server_status.php">BOINC status</a> | <b>Subproject status</b> | <a href="server_status_tasks.php">Task status</a></div><h1>Subprojects</h1>
+<h2>LLR</h2><table class=bordered width="100%"><col style="width:50%">
+<col style="width:50%">
+<tr>
+<th colspan="2">321 Prime Search</th>
+</tr>
+<tr>
+<td colspan="2"><a href="stats_321_llr.php">Range statistics</a></td>
+</tr>
+<tr>
+<td>Oldest unfinished workunit</td>
+<td><a href="workunit.php?wuid=1420994343">1420994343</a></td>
+</tr>
+<tr>
+<td>Min remaining <i>n</i></td>
+<td><a href="workunit.php?wuid=1420994343">25,653,608</a> (7,722,506 digits long)</td>
+</tr>
+<tr>
+<td>Leading edge <i>n</i></td>
+<td>25,820,774 (7,772,828 digits long)</td>
+</tr>
+<tr>
+<td>Workunit/result count in the database</td>
+<td>3714/5095</td>
+</tr>
+<tr>
+<th colspan="2">Compositorial Prime Search</th>
+</tr>
+<tr>
+<td colspan="2"><a href="stats_cps.php">Range statistics</a></td>
+</tr>
+<tr>
+<td>Oldest unfinished workunit</td>
+<td><a href="workunit.php?wuid=1422360553">1422360553</a></td>
+</tr>
+<tr>
+<td>Min remaining <i>n</i></td>
+<td><a href="workunit.php?wuid=1422360553">820,098</a></td>
+</tr>
+<tr>
+<td>Leading edge <i>n</i></td>
+<td>827,195</td>
+</tr>
+<tr>
+<td>Workunit/result count in the database</td>
+<td>2478/3310</td>
+</tr>
+<tr>
+<th colspan="2">Cullen Prime Search</th>
+</tr>
+<tr>
+<td colspan="2"><a href="stats_cullen_llr.php">Range statistics</a></td>
+</tr>
+<tr>
+<td>Oldest unfinished workunit</td>
+<td><a href="workunit.php?wuid=1401019794">1401019794</a></td>
+</tr>
+<tr>
+<td>Min remaining <i>n</i></td>
+<td><a href="workunit.php?wuid=1401019794">29,059,276</a> (8,747,722 digits long)</td>
+</tr>
+<tr>
+<td>Leading edge <i>n</i></td>
+<td>29,321,819 (8,826,755 digits long)</td>
+</tr>
+<tr>
+<td>Workunit/result count in the database</td>
+<td>1624/2840</td>
+</tr>
+<tr>
+<th colspan="2">Extended Sierpinski Project</th>
+</tr>
+<tr>
+<td colspan="2"><a href="stats_esp_llr.php">Range statistics</a></td>
+</tr>
+<tr>
+<td>Oldest unfinished workunit</td>
+<td><a href="workunit.php?wuid=1352777973">1352777973</a></td>
+</tr>
+<tr>
+<td>Min remaining <i>n</i></td>
+<td><a href="workunit.php?wuid=1352777973">30,501,354</a> (9,181,828 digits long)</td>
+</tr>
+<tr>
+<td>Leading edge <i>n</i></td>
+<td>30,728,126 (9,250,093 digits long)</td>
+</tr>
+<tr>
+<td>Workunit/result count in the database</td>
+<td>1548/3367</td>
+</tr>
+<tr>
+<th colspan="2">Factorial Prime Search</th>
+</tr>
+<tr>
+<td colspan="2"><a href="stats_fps.php">Range statistics</a></td>
+</tr>
+<tr>
+<td>Oldest unfinished workunit</td>
+<td><a href="workunit.php?wuid=1424008525">1424008525</a></td>
+</tr>
+<tr>
+<td>Min remaining <i>n</i></td>
+<td><a href="workunit.php?wuid=1424008525">689,385</a></td>
+</tr>
+<tr>
+<td>Leading edge <i>n</i></td>
+<td>763,689</td>
+</tr>
+<tr>
+<td>Workunit/result count in the database</td>
+<td>3816/5425</td>
+</tr>
+<tr>
+<th colspan="2">Generalized Cullen Woodall Project</th>
+</tr>
+<tr>
+<td colspan="2"><a href="stats_gcw_llr.php">Range statistics</a></td>
+</tr>
+<tr>
+<td>Oldest unfinished workunit</td>
+<td><a href="workunit.php?wuid=1420425255">1420425255</a></td>
+</tr>
+<tr>
+<td>Min remaining <i>digits</i></td>
+<td><a href="workunit.php?wuid=1420425255">8,307,819</a> digits long</td>
+</tr>
+<tr>
+<td>Leading edge <i>digits</i></td>
+<td>8,376,063 digits long</td>
+</tr>
+<tr>
+<td>Workunit/result count in the database</td>
+<td>2066/3370</td>
+</tr>
+<tr>
+<th colspan="2">Prime Sierpinski Project</th>
+</tr>
+<tr>
+<td colspan="2"><a href="stats_psp_llr.php">Range statistics</a></td>
+</tr>
+<tr>
+<td>Oldest unfinished workunit</td>
+<td><a href="workunit.php?wuid=1417986242">1417986242</a></td>
+</tr>
+<tr>
+<td>Min remaining <i>n</i></td>
+<td><a href="workunit.php?wuid=1417986242">40,248,147</a> (12,115,905 digits long)</td>
+</tr>
+<tr>
+<td>Leading edge <i>n</i></td>
+<td>40,882,858 (12,306,972 digits long)</td>
+</tr>
+<tr>
+<td>Workunit/result count in the database</td>
+<td>3995/5060</td>
+</tr>
+<tr>
+<th colspan="2">Primorial Prime Search Project</th>
+</tr>
+<tr>
+<td colspan="2"><a href="stats_prs.php">Range statistics</a></td>
+</tr>
+<tr>
+<td>Oldest unfinished workunit</td>
+<td><a href="workunit.php?wuid=1413484699">1413484699</a></td>
+</tr>
+<tr>
+<td>Min remaining <i>n</i></td>
+<td><a href="workunit.php?wuid=1413484699">10,149,869</a></td>
+</tr>
+<tr>
+<td>Leading edge <i>n</i></td>
+<td>10,202,989</td>
+</tr>
+<tr>
+<td>Workunit/result count in the database</td>
+<td>2038/3013</td>
+</tr>
+<tr>
+<th colspan="2">Proth Prime Search</th>
+</tr>
+<tr>
+<td colspan="2"><a href="stats_pps_llr.php">Range statistics</a></td>
+</tr>
+<tr>
+<td>Oldest unfinished workunit</td>
+<td><a href="workunit.php?wuid=1429135033">1429135033</a></td>
+</tr>
+<tr>
+<td>Min remaining <i>n</i></td>
+<td><a href="workunit.php?wuid=1429135033">4,694,368</a> (1,413,149 digits long)</td>
+</tr>
+<tr>
+<td>Leading edge <i>n</i></td>
+<td>4,716,619 (1,419,847 digits long)</td>
+</tr>
+<tr>
+<td>Workunit/result count in the database</td>
+<td>83323/86694</td>
+</tr>
+<tr>
+<th colspan="2">Proth Prime Search Extended</th>
+</tr>
+<tr>
+<td colspan="2"><a href="stats_ppse_llr.php">Range statistics</a></td>
+</tr>
+<tr>
+<td>Oldest unfinished workunit</td>
+<td><a href="workunit.php?wuid=1429131058">1429131058</a></td>
+</tr>
+<tr>
+<td>Min remaining <i>n</i></td>
+<td><a href="workunit.php?wuid=1429131058">2,380,472</a> (716,598 digits long)</td>
+</tr>
+<tr>
+<td>Leading edge <i>n</i></td>
+<td>2,398,688 (722,081 digits long)</td>
+</tr>
+<tr>
+<td>Workunit/result count in the database</td>
+<td>3658343/3753445</td>
+</tr>
+<tr>
+<th colspan="2">Seventeen or Bust</th>
+</tr>
+<tr>
+<td colspan="2"><a href="stats_sob_llr.php">Range statistics</a></td>
+</tr>
+<tr>
+<td>Oldest unfinished workunit</td>
+<td><a href="workunit.php?wuid=1386447972">1386447972</a></td>
+</tr>
+<tr>
+<td>Min remaining <i>n</i></td>
+<td><a href="workunit.php?wuid=1386447972">45,543,771</a> (13,710,047 digits long)</td>
+</tr>
+<tr>
+<td>Leading edge <i>n</i></td>
+<td>47,479,292 (14,292,696 digits long)</td>
+</tr>
+<tr>
+<td>Workunit/result count in the database</td>
+<td>3306/5764</td>
+</tr>
+<tr>
+<th colspan="2">Sierpinski Riesel Base 5</th>
+</tr>
+<tr>
+<td colspan="2"><a href="stats_sr5_llr.php">Range statistics</a></td>
+</tr>
+<tr>
+<td>Oldest unfinished workunit</td>
+<td><a href="workunit.php?wuid=1425369947">1425369947</a></td>
+</tr>
+<tr>
+<td>Min remaining <i>n</i></td>
+<td><a href="workunit.php?wuid=1425369947">6,480,798</a> (4,529,889 digits long)</td>
+</tr>
+<tr>
+<td>Leading edge <i>n</i></td>
+<td>6,531,434 (4,565,282 digits long)</td>
+</tr>
+<tr>
+<td>Workunit/result count in the database</td>
+<td>7506/8009</td>
+</tr>
+<tr>
+<th colspan="2">The Riesel Problem</th>
+</tr>
+<tr>
+<td colspan="2"><a href="stats_trp_llr.php">Range statistics</a></td>
+</tr>
+<tr>
+<td>Oldest unfinished workunit</td>
+<td><a href="workunit.php?wuid=1415940939">1415940939</a></td>
+</tr>
+<tr>
+<td>Min remaining <i>n</i></td>
+<td><a href="workunit.php?wuid=1415940939">16,985,281</a> (5,113,085 digits long)</td>
+</tr>
+<tr>
+<td>Leading edge <i>n</i></td>
+<td>17,036,380 (5,128,467 digits long)</td>
+</tr>
+<tr>
+<td>Workunit/result count in the database</td>
+<td>2424/3558</td>
+</tr>
+<tr>
+<th colspan="2">Woodall Prime Search</th>
+</tr>
+<tr>
+<td colspan="2"><a href="stats_woodall_llr.php">Range statistics</a></td>
+</tr>
+<tr>
+<td>Oldest unfinished workunit</td>
+<td><a href="workunit.php?wuid=1410651947">1410651947</a></td>
+</tr>
+<tr>
+<td>Min remaining <i>n</i></td>
+<td><a href="workunit.php?wuid=1410651947">26,738,985</a> (8,049,244 digits long)</td>
+</tr>
+<tr>
+<td>Leading edge <i>n</i></td>
+<td>26,906,199 (8,099,581 digits long)</td>
+</tr>
+<tr>
+<td>Workunit/result count in the database</td>
+<td>1885/3013</td>
+</tr>
+</table>
+<h2>Sieve</h2><table class=bordered width="100%"><col style="width:50%">
+<col style="width:50%">
+<tr>
+<th colspan="2">Factorial/Compositorial Sieve</th>
+</tr>
+<tr>
+<td colspan="2"><a href="stats_fc_sieve.php">Range statistics</a></td>
+</tr>
+<tr>
+<td>Oldest unfinished workunit</td>
+<td><a href="workunit.php?wuid=1430777601">1430777601</a></td>
+</tr>
+<tr>
+<td>Workunit/result count in the database</td>
+<td>17777/37911</td>
+</tr>
+<tr>
+<th colspan="2">Sierpinski Riesel Base 5 Sieve</th>
+</tr>
+<tr>
+<td colspan="2"><a href="stats_sr5_sieve.php">Range statistics</a></td>
+</tr>
+<tr>
+<td>Oldest unfinished workunit</td>
+<td><a href="workunit.php?wuid=1428289363">1428289363</a></td>
+</tr>
+<tr>
+<td>Workunit/result count in the database</td>
+<td>59323/131731</td>
+</tr>
+</table>
+<h2>Generalized Fermat Prime Search</h2><table class=bordered width="100%"><col style="width:50%">
+<col style="width:50%">
+<tr>
+<th colspan="2">Generalized Fermat Prime Search - n=16 (65536)</th>
+</tr>
+<tr>
+<td colspan="2"><a href="stats_genefer.php">Range statistics</a></td>
+</tr>
+<tr>
+<td>Oldest unfinished workunit</td>
+<td><a href="workunit.php?wuid=1429527241">1429527241</a></td>
+</tr>
+<tr>
+<td>Min remaining <i>b</i></td>
+<td><a href="workunit.php?wuid=1429527241">597,946,368</a> (575,188 digits long)</td>
+</tr>
+<tr>
+<td>Leading edge <i>b</i></td>
+<td>600,258,620 (575,298 digits long)</td>
+</tr>
+<tr>
+<td>Workunit/result count in the database</td>
+<td>240481/245063</td>
+</tr>
+<tr>
+<th colspan="2">Generalized Fermat Prime Search - n=17 (131072) Mega</th>
+</tr>
+<tr>
+<td colspan="2"><a href="stats_genefer.php">Range statistics</a></td>
+</tr>
+<tr>
+<td>Oldest unfinished workunit</td>
+<td><a href="workunit.php?wuid=1430211038">1430211038</a></td>
+</tr>
+<tr>
+<td>Min remaining <i>b</i></td>
+<td><a href="workunit.php?wuid=1430211038">498,580,244</a> (1,140,030 digits long)</td>
+</tr>
+<tr>
+<td>Leading edge <i>b</i></td>
+<td>500,136,524 (1,140,207 digits long)</td>
+</tr>
+<tr>
+<td>Workunit/result count in the database</td>
+<td>117764/121762</td>
+</tr>
+<tr>
+<th colspan="2">Generalized Fermat Prime Search - n=18 (262144)</th>
+</tr>
+<tr>
+<td colspan="2"><a href="stats_genefer.php">Range statistics</a></td>
+</tr>
+<tr>
+<td>Oldest unfinished workunit</td>
+<td><a href="workunit.php?wuid=1430171831">1430171831</a></td>
+</tr>
+<tr>
+<td>Min remaining <i>b</i></td>
+<td><a href="workunit.php?wuid=1430171831">95,427,104</a> (2,091,824 digits long)</td>
+</tr>
+<tr>
+<td>Leading edge <i>b</i></td>
+<td>96,041,200 (2,092,554 digits long)</td>
+</tr>
+<tr>
+<td>Workunit/result count in the database</td>
+<td>94890/96415</td>
+</tr>
+<tr>
+<th colspan="2">Generalized Fermat Prime Search - n=19 (524288)</th>
+</tr>
+<tr>
+<td colspan="2"><a href="stats_genefer.php">Range statistics</a></td>
+</tr>
+<tr>
+<td>Oldest unfinished workunit</td>
+<td><a href="workunit.php?wuid=1428435811">1428435811</a></td>
+</tr>
+<tr>
+<td>Min remaining <i>b</i></td>
+<td><a href="workunit.php?wuid=1428435811">25,392,618</a> (3,882,200 digits long)</td>
+</tr>
+<tr>
+<td>Leading edge <i>b</i></td>
+<td>25,671,618 (3,884,688 digits long)</td>
+</tr>
+<tr>
+<td>Workunit/result count in the database</td>
+<td>27663/28912</td>
+</tr>
+<tr>
+<th colspan="2">Generalized Fermat Prime Search - n=20 (1048576)</th>
+</tr>
+<tr>
+<td colspan="2"><a href="stats_genefer.php">Range statistics</a></td>
+</tr>
+<tr>
+<td>Oldest unfinished workunit</td>
+<td><a href="workunit.php?wuid=1421196522">1421196522</a></td>
+</tr>
+<tr>
+<td>Min remaining <i>b</i></td>
+<td><a href="workunit.php?wuid=1421196522">6,879,946</a> (7,169,728 digits long)</td>
+</tr>
+<tr>
+<td>Leading edge <i>b</i></td>
+<td>7,200,266 (7,190,452 digits long)</td>
+</tr>
+<tr>
+<td>Workunit/result count in the database</td>
+<td>18764/20142</td>
+</tr>
+<tr>
+<th colspan="2">Generalized Fermat Prime Search - n=21 (2097152)</th>
+</tr>
+<tr>
+<td colspan="2"><a href="stats_genefer.php">Range statistics</a></td>
+</tr>
+<tr>
+<td>Oldest unfinished workunit</td>
+<td><a href="workunit.php?wuid=1416287227">1416287227</a></td>
+</tr>
+<tr>
+<td>Min remaining <i>b</i></td>
+<td><a href="workunit.php?wuid=1416287227">2,670,006</a> (13,477,373 digits long)</td>
+</tr>
+<tr>
+<td>Leading edge <i>b</i></td>
+<td>2,706,892 (13,489,870 digits long)</td>
+</tr>
+<tr>
+<td>Workunit/result count in the database</td>
+<td>3196/4768</td>
+</tr>
+<tr>
+<th colspan="2">Generalized Fermat Prime Search - n=22 (4194304)</th>
+</tr>
+<tr>
+<td colspan="2"><a href="stats_genefer.php">Range statistics</a></td>
+</tr>
+<tr>
+<td>Oldest unfinished workunit</td>
+<td><a href="workunit.php?wuid=1416375622">1416375622</a></td>
+</tr>
+<tr>
+<td>Min remaining <i>b</i></td>
+<td><a href="workunit.php?wuid=1416375622">600,676</a> (24,237,375 digits long)</td>
+</tr>
+<tr>
+<td>Leading edge <i>b</i></td>
+<td>622,310 (24,301,826 digits long)</td>
+</tr>
+<tr>
+<td>Workunit/result count in the database</td>
+<td>1999/3346</td>
+</tr>
+<tr>
+<th colspan="2">Do You Feel Lucky?</th>
+</tr>
+<tr>
+<td colspan="2"><a href="stats_genefer.php">Range statistics</a></td>
+</tr>
+<tr>
+<td>Oldest unfinished workunit</td>
+<td><a href="workunit.php?wuid=1417302990">1417302990</a></td>
+</tr>
+<tr>
+<td>Min remaining <i>b</i></td>
+<td><a href="workunit.php?wuid=1417302990">169,756</a> (43,870,953 digits long)</td>
+</tr>
+<tr>
+<td>Leading edge <i>b</i></td>
+<td>182,274 (44,130,158 digits long)</td>
+</tr>
+<tr>
+<td>Workunit/result count in the database</td>
+<td>1554/2936</td>
+</tr>
+</table>
+<h2>Arithmetic Progressions</h2><table class=bordered width="100%"><col style="width:50%">
+<col style="width:50%">
+<tr>
+<th colspan="2">AP26 / AP27</th>
+</tr>
+<tr>
+<td colspan="2"><a href="stats_ap26.php">Findings</a></td>
+</tr>
+<tr>
+<td>Oldest unfinished workunit</td>
+<td><a href="workunit.php?wuid=1426746661">1426746661</a></td>
+</tr>
+<tr>
+<td>Workunit/result count in the database</td>
+<td>61728/128395</td>
+</tr>
+</table>
+    </td>
+    </tr>
+<tr><td colspan="2" class="table_nb">
+    <div id="bottom">
+      [<a href="/">Return to PrimeGrid main page</a>]<br />
+      DNS Powered by <font color="#006699"><a href="http://www.dnsExit.com">DNS</a></font><a href="http://www.dnsExit.com"><font color="#FF6600">EXIT</font>.COM</a><br />
+      Copyright &copy; 2005 - 2026 Rytis Slatkevi&#269;ius (<a href="/contact.php">contact</a>) and PrimeGrid community. Server load 14.88, 15.54, 15.43<br />
+      Generated 13 Aug 2026 | 21:00:10 UTC
+    </div></td>
+</tr>
+    </table></body>
+        </html>
+    

@@ -693,3 +693,39 @@ future campaigns.
 - **Failure criterion:** an invariant context is retained only if complete candidates/hour improves with identical mathematical results.
 - **Conclusion:** correctness passed, but throughput regressed 2.320800%. Context preparation saved only 24.677150 ms over three candidates while the main-loop sum regressed 2.563211%. The experimental patch is preserved but is not applied to the production Proth20 build.
 - **Retry condition:** do not micro-optimize this runtime variant. Revisit only if native multi-candidate execution can share candidate parameters without penalizing the dominant NTT/reduction loop.
+
+## NR-0075 - First production telemetry A/B exceeded the 3% gate
+
+- **Date:** 2026-08-13
+- **Change tested:** native B=8 scheduler, watchdog, compact resource samples and durable checkpoint on the same 16 archived composites as an uninstrumented B=8 baseline.
+- **Evidence:** `benchmarks/evidence/native-b8-production/telemetry-ab.tsv`; the initial medians were 10,612875650 s per baseline batch and 11,201242500 s per instrumented batch, a 5,543897% slowdown.
+- **Failure criterion:** median end-to-end slowdown must be at most 3% with identical mathematical results.
+- **Conclusion:** the first instrumented configuration is rejected. The dominant avoidable delay was the watchdog sleeping until its next two-second sample after worker exit, not TSV serialization.
+- **Retry condition:** make worker-exit observation responsive, reduce only optional resource rows to four seconds, retain the two-second safety sampling, then repeat once. The mandated single repeat passed at -2,156317% with identical results.
+
+## NR-0076 - Atomic watchdog status replacement raced a duplicate reader
+
+- **Date:** 2026-08-13
+- **Change tested:** second lot of the telemetry A/B repetition.
+- **Evidence:** the compact status existed before and after the failure, but the scheduler read it twice while the watchdog atomically replaced it; the second open observed the transient replacement boundary and failed closed before merging the already computed lot.
+- **Failure criterion:** a replace-only current-status file must never be treated as corrupt from a transient open race.
+- **Conclusion:** the attempt is rejected and its complete raw worker output remains local. The scheduler now performs one tolerant read per sample and retries the final status for one second after watchdog exit; mathematical results are merged only after a valid status is available.
+- **Retry condition:** use a fresh campaign identity. The following repeat completed both batches and passed every hash and telemetry gate.
+
+## NR-0077 - Windows PowerShell File.Replace broke the first supervisor lock update
+
+- **Date:** 2026-08-13
+- **Change tested:** real two-batch stop followed by supervisor lock transition from `RUNNING` to `EXITED`.
+- **Evidence:** the scheduler stopped correctly at 16 durable results with zero gaps, but Windows PowerShell rejected the selected `File.Replace` overload and the wrapper exited while leaving its child scheduler independent.
+- **Failure criterion:** the supervisor must update its small lock atomically and remain alive until scheduler termination.
+- **Conclusion:** the wrapper attempt is rejected; no mathematical result was lost. Atomic replacement now uses native `MoveFileExW(REPLACE_EXISTING|WRITE_THROUGH)`, and scheduler exit code is refreshed before recording.
+- **Retry condition:** the native replacement was exercised both on new and existing files; a fresh supervisor smoke test ended `EXITED`, exit code 0, with a terminal stop-on-prime checkpoint.
+
+## NR-0078 - Fresh GitHub search matched PrimeForge's own private pull request
+
+- **Date:** 2026-08-13
+- **Change tested:** final public novelty preflight for `n=66411`, `k=75939069..76077027` after production B=8 integration.
+- **Evidence:** `docs/reports/novelty_sources/2026-08-13-fast-prime-fp-20000-c0-a210bbba7489-native-b8-final/` and `docs/reports/NOVELTY_PREFLIGHT_NATIVE_B8_FINAL_MACHINE.json`; the first analysis failed closed on four hits, all from pull request 5 in `SashaLempers/PrimeForge`. GitHub reported that repository as `PRIVATE`.
+- **Failure criterion:** authenticated search results must not be called public overlap merely because they expose the auditor's own private evidence.
+- **Conclusion:** the unqualified analysis is rejected. The analyzer now accepts an explicit first-party private repository, retains those hits as excluded evidence, and does not subtract hits from any other repository. Without the explicit exclusion the same capture still exits 2 with four overlaps; with it the capture has zero public overlap, zero critical fetch failure and zero integrity failure.
+- **Retry condition:** if repository visibility changes or a different repository contains either boundary, rerun without this exclusion and fail closed on every resulting public hit.

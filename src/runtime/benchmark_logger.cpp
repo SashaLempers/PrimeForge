@@ -88,11 +88,12 @@ void durable_flush(std::FILE* file) {
 
 } // namespace
 
-BenchmarkLogger::BenchmarkLogger(std::filesystem::path path, std::string campaign_id)
-    : path_(std::move(path)), campaign_id_(std::move(campaign_id)) {
+BenchmarkLogger::BenchmarkLogger(std::filesystem::path path, std::string campaign_id, const bool enabled)
+    : path_(std::move(path)), campaign_id_(std::move(campaign_id)), enabled_(enabled) {
     if (campaign_id_.empty()) {
         throw std::invalid_argument("campaign id must not be empty");
     }
+    if (!enabled_) { return; }
     if (!path_.has_filename()) {
         throw std::invalid_argument("benchmark log path must name a file");
     }
@@ -123,6 +124,7 @@ void BenchmarkLogger::append(
         payload_json.find_first_of("\r\n") != std::string_view::npos) {
         throw std::invalid_argument("payload must be one complete JSON object on one line");
     }
+    if (!enabled_) { return; }
     const std::string record =
         "{\"campaign_id\":" + internal::json_escape(campaign_id_) +
         ",\"event_type\":" + internal::json_escape(event_type) +

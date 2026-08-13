@@ -1,0 +1,268 @@
+diff --git a/src/ocl.h b/src/ocl.h
+--- a/src/ocl.h
++++ b/src/ocl.h
+@@ -445,6 +445,9 @@ private:
+ 		oclFatal(clFinish(_queue));
+ 	}
+ 
++public:
++	void synchronize() { _sync(); }
++
+ protected:
+ 	cl_mem _createBuffer(const cl_mem_flags flags, const size_t size, const bool clear = true) const
+ 	{
+diff --git a/src/gpmp.h b/src/gpmp.h
+--- a/src/gpmp.h
++++ b/src/gpmp.h
+@@ -510,6 +510,7 @@ public:
+ 		_engine.displayProfilesMachine(_profileIndex, _k, _n);
+ 	}
+ 	void resetKernelProfiles() { _engine.resetProfiles(); }
++	void synchronize() { _engine.synchronize(); }
+ 	void emitCounter(const char * const name, const uint64_t value) const { _emitCounter(name, value); }
+ 	void emitPhase(const char * const name, const primeforge_profile::time_point & start) const { _emitPhase(name, start); }
+ 	size_t getPlanPoly2intCount() const { return _plan.getPoly2intCount(); }
+@@ -745,7 +746,7 @@ public:
+ 	void activateNativeBatch(const std::vector<uint32_t> & batchKs,
+ 		const std::vector<std::vector<cl_uint2>> & initialStates)
+ 	{
+-		if ((batchKs.size() < 2) || (batchKs.size() > 8) || (initialStates.size() != batchKs.size()))
++		if ((batchKs.size() < 1) || (batchKs.size() > 8) || (initialStates.size() != batchKs.size()))
+ 			throw std::runtime_error("invalid native batch activation");
+ 		for (size_t lane = 0; lane < batchKs.size(); ++lane)
+ 		{
+@@ -940,26 +941,36 @@ public:
+ 		return isPrime;
+ 	}
+ 
+-	std::vector<bool> isMinusOneBatch(std::vector<uint64_t> & res64s)
++	std::vector<bool> isMinusOneBatch(std::vector<uint64_t> & res64s,
++		uint64_t * const finalReduceMicroseconds = nullptr,
++		uint64_t * const deviceToHostMicroseconds = nullptr)
+ 	{
+ 		const size_t batchCount = _engine.getBatchCount();
+-		if (batchCount < 2) throw std::runtime_error("native batch residue requested in scalar mode");
++		if ((batchCount < 1) || (batchCount > 8)) throw std::runtime_error("native batch residue count is invalid");
+ 
+ 		const primeforge_profile::time_point normStart = primeforge_profile::now();
+ 		norm();
+-		_emitPhase("FINAL_NORMALIZATION", normStart);
+-
+-		const primeforge_profile::time_point readbackStart = primeforge_profile::now();
+ 		_engine.copy_x_m1();
+ 		_engine.add1_m1(1);
+ 		_engine.reduce_z_m1();
++		_engine.synchronize();
++		const uint64_t finalReduce = primeforge_profile::elapsedNanoseconds(normStart) / 1000;
++		if (finalReduceMicroseconds != nullptr) *finalReduceMicroseconds = finalReduce;
++		_emitPhase("FINAL_NORMALIZATION", normStart);
+ 
+ 		std::vector<bool> primeResults(batchCount, true);
+ 		res64s.assign(batchCount, 0);
++		const primeforge_profile::time_point readbackStart = primeforge_profile::now();
+ 		for (size_t lane = 0; lane < batchCount; ++lane)
+ 		{
+ 			cl_uint2 * const res = _mem.data() + lane * _size;
+ 			_engine.readMemory_m1(res, lane);
++		}
++		const uint64_t deviceToHost = primeforge_profile::elapsedNanoseconds(readbackStart) / 1000;
++		if (deviceToHostMicroseconds != nullptr) *deviceToHostMicroseconds = deviceToHost;
++		for (size_t lane = 0; lane < batchCount; ++lane)
++		{
++			cl_uint2 * const res = _mem.data() + lane * _size;
+ 			for (size_t i = 0; i < _size / 2; ++i) primeResults[lane] = primeResults[lane] && (res[i].s[0] == 0);
+ 
+ 			uint64_t r = 0, b = 1;
+diff --git a/src/proth.h b/src/proth.h
+--- a/src/proth.h
++++ b/src/proth.h
+@@ -15,6 +15,7 @@ Please give feedback to the authors if improvement is realized. It is distribute
+ 
+ #include <thread>
+ #include <chrono>
++#include <filesystem>
+ 
+ // #define quick_bench	1
+ 
+@@ -382,15 +383,17 @@ public:
+ 	}
+ 
+ public:
+-	bool checkNativeBatch(const std::vector<uint32_t> & batchKs, const uint32_t n, engine & engine)
++	bool checkNativeBatch(const std::vector<uint32_t> & batchKs, const uint32_t n, engine & engine,
++		const std::string & stopFile = std::string(), const bool stopOnPrime = false)
+ 	{
+-		if ((batchKs.size() != 2) && (batchKs.size() != 4) && (batchKs.size() != 8))
+-			throw std::runtime_error("native batch prototype requires 2, 4 or 8 candidates");
++		if ((batchKs.size() < 1) || (batchKs.size() > 8))
++			throw std::runtime_error("native batch production mode requires 1 to 8 candidates");
+ 		for (size_t i = 0; i < batchKs.size(); ++i)
+ 			for (size_t j = i + 1; j < batchKs.size(); ++j)
+ 				if (batchKs[i] == batchKs[j]) throw std::runtime_error("native batch prototype requires distinct candidates");
+ 
+ 		const std::chrono::steady_clock::time_point totalStart = std::chrono::steady_clock::now();
++		const std::chrono::steady_clock::time_point witnessStart = std::chrono::steady_clock::now();
+ 		std::vector<uint32_t> witnesses(batchKs.size(), 0);
+ 		for (size_t lane = 0; lane < batchKs.size(); ++lane)
+ 		{
+@@ -404,13 +407,19 @@ public:
+ 				throw std::runtime_error(ss.str());
+ 			}
+ 		}
++		const uint64_t witnessSelectionMicroseconds = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
++			std::chrono::steady_clock::now() - witnessStart).count());
+ 
++		const std::chrono::steady_clock::time_point parameterBuildStart = std::chrono::steady_clock::now();
+ 		gpmp X(batchKs.front(), n, engine, false, true, false, false, 0, batchKs);
++		X.synchronize();
++		const uint64_t parameterBuildMicroseconds = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
++			std::chrono::steady_clock::now() - parameterBuildStart).count());
+ 		std::ostringstream planMarker;
+ 		planMarker << "PRIMEFORGE_NATIVE_BATCH_PLAN\t" << X.getPlanString() << std::endl;
+ 		pio::print(planMarker.str());
+ 
+-		const std::chrono::steady_clock::time_point preparationStart = std::chrono::steady_clock::now();
++		const std::chrono::steady_clock::time_point aPowKStart = std::chrono::steady_clock::now();
+ 		std::vector<std::vector<cl_uint2>> initialStates(batchKs.size());
+ 		for (size_t lane = 0; lane < batchKs.size(); ++lane)
+ 		{
+@@ -419,9 +428,14 @@ public:
+ 			checkError(X);
+ 			X.readMainState(initialStates[lane]);
+ 		}
++		X.synchronize();
++		const uint64_t aPowKMicroseconds = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
++			std::chrono::steady_clock::now() - aPowKStart).count());
++		const std::chrono::steady_clock::time_point hostToDeviceStart = std::chrono::steady_clock::now();
+ 		X.activateNativeBatch(batchKs, initialStates);
+-		const double preparationSeconds = std::chrono::duration<double>(
+-			std::chrono::steady_clock::now() - preparationStart).count();
++		X.synchronize();
++		const uint64_t hostToDeviceMicroseconds = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
++			std::chrono::steady_clock::now() - hostToDeviceStart).count());
+ 
+ 		const uint32_t L = 1 << (arith::log2(n) / 2);
+ 		const std::chrono::steady_clock::time_point mainStart = std::chrono::steady_clock::now();
+@@ -429,15 +443,24 @@ public:
+ 		{
+ 			X.square();
+ 			if ((i & (L - 1)) == 0) X.Gerbicz_step();
++			if (!stopFile.empty() && ((i & 4095) == 0) && std::filesystem::exists(stopFile))
++			{
++				X.synchronize();
++				pio::print("PRIMEFORGE_NATIVE_BATCH_STOPPED\n");
++				return false;
++			}
+ 			if (_quit) return false;
+ 		}
++		X.synchronize();
+ 		for (size_t lane = 0; lane < batchKs.size(); ++lane)
+ 			if (X.getError(lane) != 0) throw std::runtime_error("GPU error detected in native batch main loop");
+-		const double mainSeconds = std::chrono::duration<double>(
+-			std::chrono::steady_clock::now() - mainStart).count();
++		const uint64_t mainMicroseconds = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
++			std::chrono::steady_clock::now() - mainStart).count());
+ 
+ 		std::vector<uint64_t> res64s;
+-		const std::vector<bool> primeResults = X.isMinusOneBatch(res64s);
++		uint64_t finalReduceMicroseconds = 0, deviceToHostMicroseconds = 0;
++		const std::vector<bool> primeResults = X.isMinusOneBatch(
++			res64s, &finalReduceMicroseconds, &deviceToHostMicroseconds);
+ 		for (size_t lane = 0; lane < batchKs.size(); ++lane)
+ 			if (X.getError(lane) != 0) throw std::runtime_error("GPU error detected in native batch residue");
+ 
+@@ -445,21 +468,30 @@ public:
+ 		for (uint32_t i = n; true; ++i)
+ 		{
+ 			X.square();
++			if (!stopFile.empty() && std::filesystem::exists(stopFile))
++			{
++				X.synchronize();
++				pio::print("PRIMEFORGE_NATIVE_BATCH_STOPPED\n");
++				return false;
++			}
+ 			if ((i & (L - 1)) == 0)
+ 			{
+ 				X.Gerbicz_check(L);
+ 				break;
+ 			}
+ 		}
++		X.synchronize();
+ 		for (size_t lane = 0; lane < batchKs.size(); ++lane)
+ 			if (X.getError(lane) != 0) throw std::runtime_error("Gerbicz check failed in native batch");
+-		const double gerbiczSeconds = std::chrono::duration<double>(
+-			std::chrono::steady_clock::now() - gerbiczStart).count();
+-		const double totalSeconds = std::chrono::duration<double>(
+-			std::chrono::steady_clock::now() - totalStart).count();
++		const uint64_t gerbiczMicroseconds = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
++			std::chrono::steady_clock::now() - gerbiczStart).count());
++		const uint64_t workerTotalMicroseconds = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
++			std::chrono::steady_clock::now() - totalStart).count());
+ 
++		bool primeFound = false;
+ 		for (size_t lane = 0; lane < batchKs.size(); ++lane)
+ 		{
++			primeFound = primeFound || primeResults[lane];
+ 			std::ostringstream result;
+ 			result << "PRIMEFORGE_NATIVE_BATCH_RESULT\t" << lane << "\t" << batchKs[lane]
+ 				<< "\t" << n << "\t" << witnesses[lane] << "\t"
+@@ -467,13 +499,19 @@ public:
+ 				<< res64String(res64s[lane]) << std::endl;
+ 			pio::print(result.str());
+ 		}
++		if (stopOnPrime && primeFound) pio::print("PRIMEFORGE_NATIVE_BATCH_PRIME_FOUND\n");
+ 		std::ostringstream timing;
+-		timing << std::fixed << std::setprecision(9)
+-			<< "PRIMEFORGE_NATIVE_BATCH_TIMING\tpreparation_seconds=" << preparationSeconds
+-			<< "\tmain_seconds=" << mainSeconds
+-			<< "\tgerbicz_seconds=" << gerbiczSeconds
+-			<< "\ttotal_seconds=" << totalSeconds
+-			<< "\tcandidates_per_hour=" << (batchKs.size() * 3600.0 / totalSeconds) << std::endl;
++		timing << "PRIMEFORGE_NATIVE_BATCH_TIMING"
++			<< "\tparameter_build_us=" << parameterBuildMicroseconds
++			<< "\thost_to_device_us=" << hostToDeviceMicroseconds
++			<< "\twitness_selection_us=" << witnessSelectionMicroseconds
++			<< "\ta_pow_k_gpu_us=" << aPowKMicroseconds
++			<< "\tmain_ntt_gpu_us=" << mainMicroseconds
++			<< "\tgerbicz_gpu_us=" << gerbiczMicroseconds
++			<< "\tfinal_reduce_gpu_us=" << finalReduceMicroseconds
++			<< "\tdevice_to_host_us=" << deviceToHostMicroseconds
++			<< "\tworker_total_us=" << workerTotalMicroseconds
++			<< "\tgerbicz_status=PASS" << std::endl;
+ 		pio::print(timing.str());
+ 		return true;
+ 	}
+diff --git a/src/main.cpp b/src/main.cpp
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -108,7 +108,7 @@ private:
+ 		ss << "  --phase-profile         emit PrimeForge monotonic phase timings" << std::endl;
+ 		ss << "  --kernel-profile        also emit synchronized OpenCL kernel events" << std::endl;
+ 		ss << "  --batch <file>           test whitespace-separated k n pairs with one OpenCL context" << std::endl;
+-		ss << "  --native-batch <file>    test 2, 4 or 8 same-size candidates in one native NTT batch" << std::endl;
++		ss << "  --native-batch <file>    test 1 to 8 same-size candidates in one native NTT batch" << std::endl;
+ 		ss << "  --native-batch2 <file>   compatibility alias for a two-candidate native batch" << std::endl;
+ 		ss << "  --stop-on-prime          stop a batch after its first proven prime" << std::endl;
+ 		ss << "  --stop-file <file>       stop a batch cleanly between candidates when file exists" << std::endl;
+@@ -234,8 +234,6 @@ public:
+ 			throw std::runtime_error("--stop-on-prime requires --batch");
+ 		if (!stopFile.empty() && !bBatch)
+ 			throw std::runtime_error("--stop-file requires --batch");
+-		if (bNativeBatch && (bStopOnPrime || !stopFile.empty()))
+-			throw std::runtime_error("native batch prototype does not support batch stop options");
+ 
+ 		if (bPrime)
+ 		{
+@@ -275,9 +273,9 @@ public:
+ 					if (!input.eof()) throw std::runtime_error("malformed native batch file");
+ 					if (bNativeBatch2Alias && (nativeKs.size() != 2))
+ 						throw std::runtime_error("--native-batch2 requires exactly two candidates");
+-					if ((nativeKs.size() != 2) && (nativeKs.size() != 4) && (nativeKs.size() != 8))
+-						throw std::runtime_error("native batch prototype requires 2, 4 or 8 candidates");
+-					p.checkNativeBatch(nativeKs, nativeN, engine);
++					if ((nativeKs.size() < 1) || (nativeKs.size() > 8))
++						throw std::runtime_error("native batch production mode requires 1 to 8 candidates");
++					p.checkNativeBatch(nativeKs, nativeN, engine, stopFile, bStopOnPrime);
+ 				}
+ 				else
+ 				{

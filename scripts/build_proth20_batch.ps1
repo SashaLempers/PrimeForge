@@ -4,6 +4,7 @@
 param(
     [string]$SourceDirectory = 'out\third_party\proth20-src',
     [string]$OutputDirectory = 'out\oracles\proth20-batch',
+    [string]$ExecutableName = 'proth20-batch.exe',
     [string]$OpenClLibrary = 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.3\lib\x64\OpenCL.lib',
     [switch]$BuildQuickKernelProbe
 )
@@ -17,6 +18,9 @@ $sourceUrl = 'https://github.com/galloty/proth20.git'
 $batchPatch = Join-Path $repositoryRoot 'patches\proth20-persistent-batch.patch'
 $profilePatch = Join-Path $repositoryRoot 'patches\proth20-phase-profile.patch'
 $planCachePatch = Join-Path $repositoryRoot 'patches\proth20-plan-cache.patch'
+$invariantPatch = Join-Path $repositoryRoot 'patches\proth20-invariant-context-prototype.patch'
+$nativeBatchPatch = Join-Path $repositoryRoot 'patches\proth20-native-batch-prototype.patch'
+$nativeProductionPatch = Join-Path $repositoryRoot 'patches\proth20-native-b8-production.patch'
 
 function Resolve-ProjectPath {
     param([Parameter(Mandatory = $true)][string]$Path)
@@ -69,6 +73,11 @@ if (-not (Test-Path -LiteralPath $profilePatch -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $planCachePatch -PathType Leaf)) {
     throw "Pinned proth20 plan-cache patch is missing: $planCachePatch"
 }
+foreach ($requiredPatch in @($invariantPatch, $nativeBatchPatch, $nativeProductionPatch)) {
+    if (-not (Test-Path -LiteralPath $requiredPatch -PathType Leaf)) {
+        throw "Pinned proth20 production patch is missing: $requiredPatch"
+    }
+}
 if (-not (Test-Path -LiteralPath $openClPath -PathType Leaf)) {
     throw "OpenCL import library is missing: $openClPath"
 }
@@ -113,6 +122,14 @@ if (-not $planCacheApplied) {
         '-C', $sourcePath, 'apply', '--recount', '--unidiff-zero', $planCachePatch)
 }
 
+foreach ($productionPatch in @($invariantPatch, $nativeBatchPatch, $nativeProductionPatch)) {
+    $alreadyApplied = Test-ReversePatch -SourcePath $sourcePath -PatchPath $productionPatch
+    if (-not $alreadyApplied) {
+        Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', '--check', $productionPatch)
+        Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', $productionPatch)
+    }
+}
+
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 if (-not (Test-Path -LiteralPath $vswhere -PathType Leaf)) {
     throw "vswhere was not found: $vswhere"
@@ -126,7 +143,7 @@ $developerShell = Join-Path $visualStudioPath 'Common7\Tools\Launch-VsDevShell.p
 & $developerShell -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
 
 New-Item -ItemType Directory -Path $outputPath -Force | Out-Null
-$executable = Join-Path $outputPath 'proth20-batch.exe'
+$executable = Join-Path $outputPath $ExecutableName
 $object = Join-Path $outputPath 'main.obj'
 $main = Join-Path $sourcePath 'src\main.cpp'
 $include = '/I' + (Join-Path $sourcePath 'Khronos')

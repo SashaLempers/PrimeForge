@@ -199,6 +199,17 @@ target_compile_features(primeforge_runtime PUBLIC cxx_std_23)
 primeforge_enable_strict_warnings(primeforge_runtime)
 target_link_libraries(primeforge_mvp PUBLIC PrimeForge::runtime)
 
+add_library(primeforge_native_b8 STATIC src/discovery/native_b8_campaign.cpp)
+add_library(PrimeForge::native_b8 ALIAS primeforge_native_b8)
+target_include_directories(primeforge_native_b8
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(primeforge_native_b8 PUBLIC PrimeForge::core)
+target_compile_features(primeforge_native_b8 PUBLIC cxx_std_23)
+primeforge_enable_strict_warnings(primeforge_native_b8)
+
 add_library(primeforge_pipeline STATIC src/pipeline/modular_pipeline.cpp)
 add_library(PrimeForge::pipeline ALIAS primeforge_pipeline)
 target_include_directories(primeforge_pipeline
@@ -320,6 +331,16 @@ target_link_libraries(primeforge-discovery-sieve-tests PRIVATE PrimeForge::core)
 target_compile_features(primeforge-discovery-sieve-tests PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge-discovery-sieve-tests)
 
+add_executable(primeforge-native-b8-scheduler src/discovery/native_b8_main.cpp)
+target_link_libraries(primeforge-native-b8-scheduler PRIVATE PrimeForge::native_b8)
+target_compile_features(primeforge-native-b8-scheduler PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-native-b8-scheduler)
+
+add_executable(primeforge-native-b8-tests tests/native_b8_campaign_test.cpp)
+target_link_libraries(primeforge-native-b8-tests PRIVATE PrimeForge::native_b8)
+target_compile_features(primeforge-native-b8-tests PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-native-b8-tests)
+
 add_executable(primeforge-work-unit-tests tests/work_unit_test.cpp)
 target_link_libraries(primeforge-work-unit-tests PRIVATE PrimeForge::core)
 target_compile_features(primeforge-work-unit-tests PRIVATE cxx_std_23)
@@ -408,6 +429,9 @@ primeforge_enable_strict_warnings(checkpoint_manager)
 
 add_executable(benchmark_watchdog src/runtime/benchmark_watchdog_main.cpp)
 target_link_libraries(benchmark_watchdog PRIVATE PrimeForge::runtime)
+if(WIN32)
+    target_link_libraries(benchmark_watchdog PRIVATE psapi)
+endif()
 target_compile_features(benchmark_watchdog PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(benchmark_watchdog)
 
@@ -586,6 +610,7 @@ if(BUILD_TESTING)
     )
     add_test(NAME primeforge.proth_cli COMMAND primeforge-proth --k 43 --n 32 --max-witness 255)
     add_test(NAME primeforge.discovery_sieve COMMAND primeforge-discovery-sieve-tests)
+    add_test(NAME primeforge.native_b8 COMMAND primeforge-native-b8-tests)
     set_tests_properties(
         primeforge.proth_cli
         PROPERTIES PASS_REGULAR_EXPRESSION "proth.primality_status=PROVEN_PRIME"

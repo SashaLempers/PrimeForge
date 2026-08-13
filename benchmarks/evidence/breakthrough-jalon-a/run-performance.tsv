@@ -1,0 +1,5 @@
+run	workers	candidates	summed_candidate_seconds	mean_candidate_seconds	effective_candidates_per_hour
+A1-one-worker	1	20	175.296232	8.764812	410.733
+B1-two-workers	2	20	278.243998	13.912200	517.531
+B2-two-workers	2	20	277.175558	13.858778	519.526
+A2-one-worker	1	20	172.770858	8.638543	416.737

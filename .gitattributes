@@ -15,12 +15,15 @@ CMakeLists.txt text eol=lf
 *.lock text eol=lf
 *.pf text eol=lf
 *.patch text eol=lf
+patches/proth20-invariant-context-prototype.patch binary
+patches/proth20-native-b8-production.patch binary
 *.ps1 text eol=crlf
 *.yml text eol=lf
 *.yaml text eol=lf
 LICENSE text eol=lf
 NOTICE text eol=lf
 THIRD_PARTY_NOTICES.txt text eol=lf
+licenses/primesieve-BSD-2-Clause.txt text eol=lf
 corpus/v1/certificates/*.txt text eol=lf
 docs/specifications/*.txt -text
 docs/reports/novelty_sources/** -text -diff

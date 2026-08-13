@@ -52,6 +52,7 @@ public:
     snapshot.gpu_power_watts = {"fake.power", "100"};
     snapshot.vram_free_mib = {"fake.vram.free", "12000"};
     snapshot.whea_errors_recent = {"fake.whea", "0"};
+    snapshot.nvidia_xid_errors_recent = {"fake.xid", "0"};
     snapshot.throttling_reasons = "NONE";
     return snapshot;
 }
@@ -59,27 +60,37 @@ public:
 void test_hardware_monitor() {
     bool nvidia_invoked = false;
     bool whea_invoked = false;
+    bool xid_invoked = false;
     const auto lconnect = std::string{"{\"LastTime\":\""} + primeforge::runtime::utc_now() +
         "\",\"CPUTemperature\":63.25,\"CPUPower\":107.5,\"CPUClockRate\":5550}";
     primeforge::runtime::HardwareMonitor monitor(
-        [&nvidia_invoked, &whea_invoked](const std::string_view command) -> std::optional<std::string> {
+        [&nvidia_invoked, &whea_invoked, &xid_invoked](const std::string_view command) -> std::optional<std::string> {
             if (command.find("wevtutil") != std::string_view::npos) {
+                if (command.find("nvlddmkm") != std::string_view::npos) {
+                    xid_invoked = true;
+                    return "";
+                }
                 whea_invoked = true;
                 return "";
             }
             nvidia_invoked = command.find("clocks_event_reasons") != std::string_view::npos;
-            return "71, N/A, 250.50, 360.00, 2700, 15001, 99, 20, 4096, 12207, Active, Not Active, Not Active, Not Active\n";
+            return "NVIDIA GeForce RTX 5080, GPU-test, 71, N/A, 250.50, 360.00, 2700, 15001, 99, 20, 4096, 12207, 16384, Active, Not Active, Not Active, Not Active\n";
         },
         [&lconnect]() -> std::optional<std::string> { return lconnect; });
     const auto snapshot = monitor.sample();
     check(nvidia_invoked, "hardware monitor uses the fixed NVIDIA query");
 #ifdef _WIN32
-    check(whea_invoked && snapshot.whea_errors_recent.value == "0",
-          "Windows hardware monitor checks recent WHEA events");
+    check(whea_invoked && xid_invoked && snapshot.whea_errors_recent.value == "0" &&
+              snapshot.nvidia_xid_errors_recent.value == "0",
+          "Windows hardware monitor checks recent WHEA and NVIDIA Xid events");
 #else
-    check(!whea_invoked && !snapshot.whea_errors_recent.available(),
-          "non-Windows hardware monitor keeps WHEA unavailable");
+    check(!whea_invoked && !xid_invoked && !snapshot.whea_errors_recent.available() &&
+              !snapshot.nvidia_xid_errors_recent.available(),
+          "non-Windows hardware monitor keeps WHEA and Xid unavailable");
 #endif
+    check(snapshot.gpu_name.value == "NVIDIA GeForce RTX 5080" && snapshot.gpu_uuid.value == "GPU-test",
+          "GPU identity parsed");
+    check(snapshot.vram_total_mib.value == "16384", "total VRAM parsed");
     check(snapshot.gpu_temperature_celsius.value == "71", "GPU temperature parsed");
     check(snapshot.gpu_memory_temperature_celsius.value == "UNKNOWN", "N/A remains UNKNOWN");
     check(snapshot.gpu_sm_clock_mhz.value == "2700", "GPU frequency parsed");
@@ -119,15 +130,67 @@ void test_hardware_monitor() {
 void test_logger(const std::filesystem::path& directory) {
     const auto path = directory / "events.jsonl";
     {
+        MockWorker worker;
+        primeforge::runtime::BenchmarkLogger logger(directory / "xid-error.jsonl", "xid-error");
+        primeforge::runtime::WatchdogPolicy policy;
+        policy.require_nvidia_xid_status = true;
+        primeforge::runtime::BenchmarkWatchdog watchdog(policy, worker, logger);
+        auto snapshot = safe_snapshot();
+        snapshot.nvidia_xid_errors_recent.value = "1";
+        const auto hardware = watchdog.tick(1U, snapshot);
+        check(hardware.reason == "NVIDIA_XID_DETECTED", "recent NVIDIA Xid event stops safely");
+    }
+    {
+        MockWorker worker;
+        primeforge::runtime::BenchmarkLogger logger(directory / "xid-lost.jsonl", "xid-lost");
+        primeforge::runtime::WatchdogPolicy policy;
+        policy.require_nvidia_xid_status = true;
+        primeforge::runtime::BenchmarkWatchdog watchdog(policy, worker, logger);
+        auto snapshot = safe_snapshot();
+        snapshot.nvidia_xid_errors_recent.value = "UNKNOWN";
+        const auto hardware = watchdog.tick(1U, snapshot);
+        check(hardware.reason == "NVIDIA_XID_STATUS_LOST", "lost NVIDIA Xid provider stops safely");
+    }
+    {
         primeforge::runtime::BenchmarkLogger logger(path, "campaign-test");
         logger.append("start", "{\"state\":\"RUNNING\"}", "2026-08-02T00:00:00.000Z");
         logger.append("sample", "{\"value\":\"1\"}", "2026-08-02T00:00:01.000Z");
         check(logger.next_sequence() == 3U, "logger sequence advances");
     }
     {
+        MockWorker worker;
+        primeforge::runtime::BenchmarkLogger logger(directory / "sw-power-cap.jsonl", "sw-power-cap");
+        primeforge::runtime::BenchmarkWatchdog watchdog({}, worker, logger);
+        auto snapshot = safe_snapshot();
+        snapshot.throttling_detected = true;
+        snapshot.throttling_reasons = "SW_POWER_CAP";
+        const auto result = watchdog.tick(1U, snapshot);
+        check(result.decision == primeforge::runtime::WatchdogDecision::continue_monitoring &&
+                  result.reason == "NONE" && result.performance_valid && worker.graceful_requests == 0U,
+              "SW_POWER_CAP alone is recorded but is not fatal by default");
+    }
+    {
+        MockWorker worker;
+        primeforge::runtime::BenchmarkLogger logger(directory / "sw-power-cap-fatal.jsonl", "sw-power-cap-fatal");
+        primeforge::runtime::WatchdogPolicy policy;
+        policy.software_power_cap_is_fatal = true;
+        primeforge::runtime::BenchmarkWatchdog watchdog(policy, worker, logger);
+        auto snapshot = safe_snapshot();
+        snapshot.throttling_detected = true;
+        snapshot.throttling_reasons = "SW_POWER_CAP";
+        check(watchdog.tick(1U, snapshot).reason == "GPU_THROTTLING:SW_POWER_CAP",
+              "explicit policy can still make SW_POWER_CAP fatal");
+    }
+    {
         primeforge::runtime::BenchmarkLogger resumed(path, "campaign-test");
         check(resumed.next_sequence() == 3U, "logger resumes after reopen");
         resumed.append("resume", "{}", "2026-08-02T00:00:02.000Z");
+    }
+    {
+        const auto disabled_path = directory / "disabled-detailed-log.jsonl";
+        primeforge::runtime::BenchmarkLogger disabled(disabled_path, "disabled-log", false);
+        disabled.append("sample", "{}", "2026-08-02T00:00:03.000Z");
+        check(!std::filesystem::exists(disabled_path), "disabled detailed logger created an accumulating file");
     }
     expect_throw(
         [&] { primeforge::runtime::BenchmarkLogger wrong(path, "another-campaign"); },
@@ -389,7 +452,7 @@ int main() {
         test_watchdog(directory);
         std::filesystem::remove_all(directory);
         std::cout << "primeforge-runtime-tests: PASS\n";
-        std::cout << "covered=local/GPU/WHEA monitor availability/loss/staleness, CPU/GPU temperature/frequency/power, RAM/VRAM thresholds, throttling, "
+        std::cout << "covered=local/GPU/WHEA/Xid monitor availability/loss/staleness, CPU/GPU temperature/frequency/power, RAM/VRAM thresholds, SW/HW throttling policy, "
                      "durable logs, log resume/truncation, checkpoint resume/corruption, graceful/forced stop, "
                      "worker exit status, multi-day monotonic time\n";
         return 0;

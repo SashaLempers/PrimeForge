@@ -1,0 +1,14 @@
+kernel	registers	barriers	shared_bytes	spill_stores_bytes	spill_loads_bytes
+intt1024_2	40	1	16392	0	0
+intt1024_4	49	1	32776	0	0
+intt256_16	47	1	32776	0	0
+lst_intt1024_2	40	1	16392	0	0
+lst_intt1024_4	45	1	32776	0	0
+lst_intt256_16	41	1	32776	0	0
+ntt1024_2	40	1	16392	0	0
+ntt1024_4	50	1	32776	0	0
+ntt256_16	48	1	32776	0	0
+square2048	68	1	16392	0	0
+square4096	64	1	32776	0	0
+sub_ntt1024_4	40	1	32776	0	0
+sub_ntt256_16	40	1	32776	0	0

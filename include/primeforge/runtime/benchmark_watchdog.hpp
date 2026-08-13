@@ -53,6 +53,8 @@ struct WatchdogPolicy {
     bool require_ram_available{};
     bool require_vram_free{};
     bool require_whea_status{};
+    bool require_nvidia_xid_status{};
+    bool software_power_cap_is_fatal{};
 };
 
 enum class WatchdogDecision {

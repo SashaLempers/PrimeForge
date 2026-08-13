@@ -1,0 +1,72 @@
+{
+    "schema":  "primeforge.proth20.phase-profile.summary.v1",
+    "generated_utc":  "2026-08-13T16:51:26Z",
+    "candidate_cohort_size":  20,
+    "candidate_executions":  80,
+    "schedule":  "A1_ONE_WORKER;B1_TWO_WORKERS;B2_TWO_WORKERS;A2_ONE_WORKER",
+    "run_candidate_counts":  {
+                                 "A1-one-worker":  20,
+                                 "B1-two-workers":  20,
+                                 "B2-two-workers":  20,
+                                 "A2-one-worker":  20
+                             },
+    "candidate_sets_identical":  true,
+    "verdicts_identical":  true,
+    "exact_witness_and_res64_gate":  "PASS",
+    "minimum_coverage_percent":  99.996629189520533,
+    "mean_coverage_percent":  99.998326783409169,
+    "required_coverage_percent":  95,
+    "mean_candidate_ns":  11293583066.25,
+    "mean_gpmp_construct_ns":  315272430,
+    "mean_main_squaring_ns":  10885344792.5,
+    "mean_gpmp_construct_percent":  2.7916067748433826,
+    "mean_main_squaring_percent":  96.385219187256979,
+    "run_performance":  [
+                            {
+                                "run":  "A1-one-worker",
+                                "workers":  1,
+                                "candidates":  20,
+                                "summed_candidate_seconds":  175.2962318,
+                                "mean_candidate_seconds":  8.76481159,
+                                "effective_candidates_per_hour":  410.73330134184897
+                            },
+                            {
+                                "run":  "B1-two-workers",
+                                "workers":  2,
+                                "candidates":  20,
+                                "summed_candidate_seconds":  278.2439975,
+                                "mean_candidate_seconds":  13.912199875,
+                                "effective_candidates_per_hour":  517.5313799896079
+                            },
+                            {
+                                "run":  "B2-two-workers",
+                                "workers":  2,
+                                "candidates":  20,
+                                "summed_candidate_seconds":  277.1755581,
+                                "mean_candidate_seconds":  13.858777905,
+                                "effective_candidates_per_hour":  519.52632832093866
+                            },
+                            {
+                                "run":  "A2-one-worker",
+                                "workers":  1,
+                                "candidates":  20,
+                                "summed_candidate_seconds":  172.7708579,
+                                "mean_candidate_seconds":  8.638542895,
+                                "effective_candidates_per_hour":  416.73694785768612
+                            }
+                        ],
+    "direct_vs_persistent_batch":  {
+                                       "direct_processes":  3,
+                                       "direct_mean_end_to_end_ns_per_candidate":  8860809900,
+                                       "persistent_batch_candidates":  20,
+                                       "persistent_batch_mean_end_to_end_ns_per_candidate":  8769376250,
+                                       "persistent_batch_speedup":  1.010426471324001,
+                                       "interpretation":  "Includes process, platform and OpenCL context startup; direct uses one process per candidate."
+                                   },
+    "start_gpu_temperature_spread_c":  1,
+    "maximum_start_temperature_spread_c":  3,
+    "hardware_gate":  "PASS",
+    "p0_100_survivor_gate":  "NOT_RUN",
+    "jalon_a_20_to_100_candidate_gate":  "PASS",
+    "status":  "PASS"
+}

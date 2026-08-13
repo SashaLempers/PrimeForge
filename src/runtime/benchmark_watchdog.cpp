@@ -5,6 +5,7 @@
 #include "primeforge/work/work_unit.hpp"
 #include "runtime_internal.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <filesystem>
 #include <stdexcept>
@@ -135,7 +136,14 @@ BenchmarkWatchdog::BenchmarkWatchdog(
 std::optional<std::string> BenchmarkWatchdog::unsafe_reason(
     const HardwareSnapshot& snapshot) const {
     if (snapshot.throttling_detected) {
-        return "GPU_THROTTLING:" + snapshot.throttling_reasons;
+        const auto reasons = internal::split_csv(snapshot.throttling_reasons);
+        const bool software_power_cap_only = !reasons.empty() &&
+            std::ranges::all_of(reasons, [](const std::string& reason) {
+                return reason == "SW_POWER_CAP";
+            });
+        if (!software_power_cap_only || policy_.software_power_cap_is_fatal) {
+            return "GPU_THROTTLING:" + snapshot.throttling_reasons;
+        }
     }
     const auto cpu_temperature = metric_value(snapshot.cpu_temperature_celsius);
     if (policy_.require_cpu_temperature && !cpu_temperature) {
@@ -189,6 +197,13 @@ std::optional<std::string> BenchmarkWatchdog::unsafe_reason(
     }
     if (whea_errors && *whea_errors > 0.0) {
         return "WHEA_ERROR_DETECTED";
+    }
+    const auto xid_errors = metric_value(snapshot.nvidia_xid_errors_recent);
+    if (policy_.require_nvidia_xid_status && !xid_errors) {
+        return "NVIDIA_XID_STATUS_LOST";
+    }
+    if (xid_errors && *xid_errors > 0.0) {
+        return "NVIDIA_XID_DETECTED";
     }
     return std::nullopt;
 }

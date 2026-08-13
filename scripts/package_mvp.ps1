@@ -72,7 +72,8 @@ $copies = @(
     @{ Source = (Join-Path $repositoryRoot 'docs\mvp\SEARCH_CONFIG.md'); Destination = 'docs\SEARCH_CONFIG.md' },
     @{ Source = (Join-Path $repositoryRoot 'docs\mvp\RESULTS.md'); Destination = 'docs\RESULTS.md' },
     @{ Source = (Join-Path $repositoryRoot 'docs\mvp\RECOVERY_AND_VERIFICATION.md'); Destination = 'docs\RECOVERY_AND_VERIFICATION.md' },
-    @{ Source = (Join-Path $repositoryRoot 'licenses\DISTRIBUTION_MANIFEST.tsv'); Destination = 'licenses\DISTRIBUTION_MANIFEST.tsv' }
+    @{ Source = (Join-Path $repositoryRoot 'licenses\DISTRIBUTION_MANIFEST.tsv'); Destination = 'licenses\DISTRIBUTION_MANIFEST.tsv' },
+    @{ Source = (Join-Path $repositoryRoot 'licenses\primesieve-BSD-2-Clause.txt'); Destination = 'licenses\primesieve-BSD-2-Clause.txt' }
 )
 foreach ($copy in $copies) {
     Copy-Item -LiteralPath $copy.Source -Destination (Join-Path $packageRoot $copy.Destination)

@@ -7,6 +7,7 @@
 
 #include <array>
 #include <chrono>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
@@ -344,8 +345,9 @@ void collect_cpu_and_ram(HardwareSnapshot& snapshot) {
 
 void collect_nvidia(HardwareSnapshot& snapshot, const CommandRunner& runner) {
     constexpr std::string_view command =
-        "nvidia-smi --query-gpu=temperature.gpu,temperature.memory,power.draw,power.limit,"
+        "nvidia-smi --query-gpu=name,uuid,temperature.gpu,temperature.memory,power.draw,power.limit,"
         "clocks.sm,clocks.mem,utilization.gpu,utilization.memory,memory.used,memory.free,"
+        "memory.total,"
         "clocks_event_reasons.sw_power_cap,clocks_event_reasons.sw_thermal_slowdown,"
         "clocks_event_reasons.hw_thermal_slowdown,clocks_event_reasons.hw_power_brake_slowdown "
         "--format=csv,noheader,nounits";
@@ -355,26 +357,29 @@ void collect_nvidia(HardwareSnapshot& snapshot, const CommandRunner& runner) {
     }
     const auto newline = output->find_first_of("\r\n");
     const auto fields = internal::split_csv(output->substr(0U, newline));
-    if (fields.size() != 14U) {
+    if (fields.size() != 17U) {
         return;
     }
-    snapshot.gpu_temperature_celsius = detected_metric("nvidia-smi.temperature.gpu", fields[0]);
-    snapshot.gpu_memory_temperature_celsius = detected_metric("nvidia-smi.temperature.memory", fields[1]);
-    snapshot.gpu_power_watts = detected_metric("nvidia-smi.power.draw", fields[2]);
-    snapshot.gpu_power_limit_watts = detected_metric("nvidia-smi.power.limit", fields[3]);
-    snapshot.gpu_sm_clock_mhz = detected_metric("nvidia-smi.clocks.sm", fields[4]);
-    snapshot.gpu_memory_clock_mhz = detected_metric("nvidia-smi.clocks.mem", fields[5]);
-    snapshot.gpu_utilization_percent = detected_metric("nvidia-smi.utilization.gpu", fields[6]);
-    snapshot.gpu_memory_utilization_percent = detected_metric("nvidia-smi.utilization.memory", fields[7]);
-    snapshot.vram_used_mib = detected_metric("nvidia-smi.memory.used", fields[8]);
-    snapshot.vram_free_mib = detected_metric("nvidia-smi.memory.free", fields[9]);
+    snapshot.gpu_name = detected_metric("nvidia-smi.name", fields[0]);
+    snapshot.gpu_uuid = detected_metric("nvidia-smi.uuid", fields[1]);
+    snapshot.gpu_temperature_celsius = detected_metric("nvidia-smi.temperature.gpu", fields[2]);
+    snapshot.gpu_memory_temperature_celsius = detected_metric("nvidia-smi.temperature.memory", fields[3]);
+    snapshot.gpu_power_watts = detected_metric("nvidia-smi.power.draw", fields[4]);
+    snapshot.gpu_power_limit_watts = detected_metric("nvidia-smi.power.limit", fields[5]);
+    snapshot.gpu_sm_clock_mhz = detected_metric("nvidia-smi.clocks.sm", fields[6]);
+    snapshot.gpu_memory_clock_mhz = detected_metric("nvidia-smi.clocks.mem", fields[7]);
+    snapshot.gpu_utilization_percent = detected_metric("nvidia-smi.utilization.gpu", fields[8]);
+    snapshot.gpu_memory_utilization_percent = detected_metric("nvidia-smi.utilization.memory", fields[9]);
+    snapshot.vram_used_mib = detected_metric("nvidia-smi.memory.used", fields[10]);
+    snapshot.vram_free_mib = detected_metric("nvidia-smi.memory.free", fields[11]);
+    snapshot.vram_total_mib = detected_metric("nvidia-smi.memory.total", fields[12]);
 
     constexpr std::array<std::string_view, 4> reason_names{
         "SW_POWER_CAP", "SW_THERMAL_SLOWDOWN", "HW_THERMAL_SLOWDOWN", "HW_POWER_BRAKE_SLOWDOWN"};
     std::string active_reasons;
     bool reason_available = false;
     for (std::size_t index = 0U; index < reason_names.size(); ++index) {
-        const auto& value = fields[index + 10U];
+        const auto& value = fields[index + 13U];
         if (value != "N/A" && value != "[Not Supported]") {
             reason_available = true;
         }
@@ -387,6 +392,29 @@ void collect_nvidia(HardwareSnapshot& snapshot, const CommandRunner& runner) {
     snapshot.throttling_reasons = snapshot.throttling_detected
                                       ? active_reasons
                                       : (reason_available ? "NONE" : "UNKNOWN");
+}
+
+void collect_nvidia_xid(HardwareSnapshot& snapshot, const CommandRunner& runner) {
+#ifdef _WIN32
+    constexpr std::string_view command =
+        "wevtutil.exe qe System "
+        "/q:\"*[System[Provider[@Name='nvlddmkm'] and "
+        "TimeCreated[timediff(@SystemTime) <= 120000]]]\" /c:20 /rd:true /f:text";
+    const auto output = runner(command);
+    if (output) {
+        std::string lowered = *output;
+        std::ranges::transform(lowered, lowered.begin(), [](const unsigned char value) {
+            return static_cast<char>(std::tolower(value));
+        });
+        const bool xid = lowered.find("xid") != std::string::npos ||
+            lowered.find("graphics exception") != std::string::npos;
+        snapshot.nvidia_xid_errors_recent = detected_metric(
+            "wevtutil.System.nvlddmkm.Xid.last_120_seconds", xid ? "1" : "0");
+    }
+#else
+    static_cast<void>(snapshot);
+    static_cast<void>(runner);
+#endif
 }
 
 void collect_whea(HardwareSnapshot& snapshot, const CommandRunner& runner) {
@@ -418,16 +446,20 @@ std::string HardwareSnapshot::canonical_json() const {
            ",\"gpu_memory_utilization_percent\":" + metric_json(gpu_memory_utilization_percent) +
            ",\"gpu_power_limit_watts\":" + metric_json(gpu_power_limit_watts) +
            ",\"gpu_power_watts\":" + metric_json(gpu_power_watts) +
+           ",\"gpu_name\":" + metric_json(gpu_name) +
            ",\"gpu_sm_clock_mhz\":" + metric_json(gpu_sm_clock_mhz) +
            ",\"gpu_temperature_celsius\":" + metric_json(gpu_temperature_celsius) +
            ",\"gpu_utilization_percent\":" + metric_json(gpu_utilization_percent) +
+           ",\"gpu_uuid\":" + metric_json(gpu_uuid) +
            ",\"monotonic_milliseconds\":" + internal::json_escape(std::to_string(monotonic_milliseconds)) +
            ",\"ram_available_bytes\":" + metric_json(ram_available_bytes) +
            ",\"ram_used_bytes\":" + metric_json(ram_used_bytes) +
+           ",\"nvidia_xid_errors_recent\":" + metric_json(nvidia_xid_errors_recent) +
            ",\"throttling_detected\":" + (throttling_detected ? "true" : "false") +
            ",\"throttling_reasons\":" + internal::json_escape(throttling_reasons) +
            ",\"utc\":" + internal::json_escape(utc) +
            ",\"vram_free_mib\":" + metric_json(vram_free_mib) +
+           ",\"vram_total_mib\":" + metric_json(vram_total_mib) +
            ",\"vram_used_mib\":" + metric_json(vram_used_mib) +
            ",\"whea_errors_recent\":" + metric_json(whea_errors_recent) + "}";
 }
@@ -451,6 +483,8 @@ HardwareSnapshot HardwareMonitor::sample() const {
     snapshot.cpu_power_watts = unknown_metric("no validated CPU power provider");
     snapshot.ram_used_bytes = unknown_metric("no RAM provider");
     snapshot.ram_available_bytes = unknown_metric("no RAM provider");
+    snapshot.gpu_name = unknown_metric("nvidia-smi.name");
+    snapshot.gpu_uuid = unknown_metric("nvidia-smi.uuid");
     snapshot.gpu_temperature_celsius = unknown_metric("nvidia-smi.temperature.gpu");
     snapshot.gpu_memory_temperature_celsius = unknown_metric("nvidia-smi.temperature.memory");
     snapshot.gpu_power_watts = unknown_metric("nvidia-smi.power.draw");
@@ -461,10 +495,13 @@ HardwareSnapshot HardwareMonitor::sample() const {
     snapshot.gpu_memory_utilization_percent = unknown_metric("nvidia-smi.utilization.memory");
     snapshot.vram_used_mib = unknown_metric("nvidia-smi.memory.used");
     snapshot.vram_free_mib = unknown_metric("nvidia-smi.memory.free");
+    snapshot.vram_total_mib = unknown_metric("nvidia-smi.memory.total");
     snapshot.whea_errors_recent = unknown_metric("Windows WHEA event log");
+    snapshot.nvidia_xid_errors_recent = unknown_metric("Windows NVIDIA Xid event log");
     collect_cpu_and_ram(snapshot);
     collect_lconnect(snapshot, local_telemetry_reader_);
     collect_whea(snapshot, runner_);
+    collect_nvidia_xid(snapshot, runner_);
     collect_nvidia(snapshot, runner_);
     return snapshot;
 }

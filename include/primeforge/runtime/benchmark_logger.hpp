@@ -12,7 +12,7 @@ namespace primeforge::runtime {
 
 class BenchmarkLogger {
 public:
-    BenchmarkLogger(std::filesystem::path path, std::string campaign_id);
+    BenchmarkLogger(std::filesystem::path path, std::string campaign_id, bool enabled = true);
     ~BenchmarkLogger();
 
     BenchmarkLogger(const BenchmarkLogger&) = delete;
@@ -26,6 +26,7 @@ private:
     std::filesystem::path path_;
     std::string campaign_id_;
     std::FILE* file_{};
+    bool enabled_{true};
     std::uint64_t next_sequence_{1U};
 };
 

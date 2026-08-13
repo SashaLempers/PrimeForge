@@ -2,5 +2,8 @@ PrimeForge
 Copyright 2026 Sasha Lempers
 
 This product contains original PrimeForge code licensed under the
-Apache License, Version 2.0. No third-party numerical library or external
-engine is redistributed in the stage 3 distribution.
+Apache License, Version 2.0.
+
+The linked primesieve component is separately licensed under BSD-2-Clause.
+Its copyright and license text are reproduced in
+licenses/primesieve-BSD-2-Clause.txt and THIRD_PARTY_NOTICES.txt.

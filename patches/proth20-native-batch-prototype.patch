@@ -1,0 +1,1853 @@
+diff --git a/ocl/NTT.cl b/ocl/NTT.cl
+index 409267d..5ea6af6 100644
+--- a/ocl/NTT.cl
++++ b/ocl/NTT.cl
+@@ -9,32 +9,34 @@ __kernel
+ void ntt4(__global uint2 * restrict const x, __global const uint4 * restrict const r1ir1, __global const uint2 * restrict const r2, const uint m, const uint rindex)
+ {
+ 	const size_t k = get_global_id(0);
++	__global uint2 * const xb = x + get_global_id(1) * pconst_size;
+ 
+ 	const size_t i = k & (m - 1), j = 4 * k - 3 * i;
+ 
+ 	const uint2 r2_i = r2[rindex + i];
+ 	const uint4 r1ir1_i = r1ir1[rindex + i];
+ 
+-	const uint2 u0 = x[j + 0 * m], u2 = x[j + 2 * m], u1 = x[j + 1 * m], u3 = x[j + 3 * m];
++	const uint2 u0 = xb[j + 0 * m], u2 = xb[j + 2 * m], u1 = xb[j + 1 * m], u3 = xb[j + 3 * m];
+ 	const uint2 v0 = addmod(u0, u2), v2 = submod(u0, u2), v1 = addmod(u1, u3), v3 = mulI(submod(u3, u1));
+-	x[j + 0 * m] = addmod(v0, v1); x[j + 1 * m] = mulmod(submod(v0, v1), r2_i);
+-	x[j + 2 * m] = mulmod(addmod(v2, v3), r1ir1_i.s23); x[j + 3 * m] = mulmod(submod(v2, v3), r1ir1_i.s01);
++	xb[j + 0 * m] = addmod(v0, v1); xb[j + 1 * m] = mulmod(submod(v0, v1), r2_i);
++	xb[j + 2 * m] = mulmod(addmod(v2, v3), r1ir1_i.s23); xb[j + 3 * m] = mulmod(submod(v2, v3), r1ir1_i.s01);
+ }
+ 
+ __kernel
+ void intt4(__global uint2 * restrict const x, __global const uint4 * restrict const r1ir1, __global const uint2 * restrict const ir2, const uint m, const uint rindex)
+ {
+ 	const size_t k = get_global_id(0);
++	__global uint2 * const xb = x + get_global_id(1) * pconst_size;
+ 
+ 	const size_t i = k & (m - 1), j = 4 * k - 3 * i;
+ 
+ 	const uint2 ir2_i = ir2[rindex + i];
+ 	const uint4 r1ir1_i = r1ir1[rindex + i];
+ 
+-	const uint2 v0 = x[j + 0 * m], v1 = mulmod(x[j + 1 * m], ir2_i), v2 = mulmod(x[j + 2 * m], r1ir1_i.s01), v3 = mulmod(x[j + 3 * m], r1ir1_i.s23);
++	const uint2 v0 = xb[j + 0 * m], v1 = mulmod(xb[j + 1 * m], ir2_i), v2 = mulmod(xb[j + 2 * m], r1ir1_i.s01), v3 = mulmod(xb[j + 3 * m], r1ir1_i.s23);
+ 	const uint2 u0 = addmod(v0, v1), u2 = addmod(v2, v3), u1 = submod(v0, v1), u3 = mulI(submod(v2, v3));
+-	x[j + 0 * m] = addmod(u0, u2); x[j + 2 * m] = submod(u0, u2);
+-	x[j + 1 * m] = addmod(u1, u3); x[j + 3 * m] = submod(u1, u3);
++	xb[j + 0 * m] = addmod(u0, u2); xb[j + 2 * m] = submod(u0, u2);
++	xb[j + 1 * m] = addmod(u1, u3); xb[j + 3 * m] = submod(u1, u3);
+ }
+ 
+ 
+@@ -87,15 +89,16 @@ void intt4(__global uint2 * restrict const x, __global const uint4 * restrict co
+ 
+ #define SETVAR(M, CHUNK) \
+ 	__local uint2 X[M * CHUNK]; \
+-	const size_t local_id = get_local_id(0), chunk_idx = local_id % CHUNK, threadIdx = local_id / CHUNK, block_idx = get_group_id(0) * CHUNK;
++	const size_t local_id = get_local_id(0), chunk_idx = local_id % CHUNK, threadIdx = local_id / CHUNK, block_idx = get_group_id(0) * CHUNK; \
++	const size_t candidate_lane = get_global_id(1);
+ 
+ #define SETVAR_FL_NTT(M) \
+-	__global uint2 * const xo = x; \
++	__global uint2 * const xo = x + candidate_lane * pconst_size; \
+ 	const size_t bl_i = block_idx | chunk_idx; \
+ 	const size_t m = (pconst_size / 4) / (M / 4);
+ 
+ #define SETVAR_NTT(M) \
+-	__global uint2 * const xo = &x[M * (block_idx & ~(m - 1))]; \
++	__global uint2 * const xo = &x[candidate_lane * pconst_size + M * (block_idx & ~(m - 1))]; \
+ 	const size_t bl_i = (block_idx & (m - 1)) | chunk_idx;
+ 
+ 
+diff --git a/ocl/misc.cl b/ocl/misc.cl
+index 2182206..16ea3d5 100644
+--- a/ocl/misc.cl
++++ b/ocl/misc.cl
+@@ -6,9 +6,12 @@ Please give feedback to the authors if improvement is realized. It is distribute
+ */
+ 
+ __kernel
+-void set_positive(__global uint2 * restrict const x,
+-	__global const candidate_params_t * restrict const candidate_params)
++void set_positive(__global uint2 * restrict const x_base,
++	__global const candidate_params_t * restrict const candidate_params_base)
+ {
++	const size_t lane = get_global_id(1);
++	__global uint2 * const x = x_base + lane * pconst_size;
++	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;
+ 	// x.s0 = R, x.s1 = Y
+ 	// if R < Y then add k.2^n + 1 to R.
+ 
+@@ -43,9 +46,12 @@ void set_positive(__global uint2 * restrict const x,
+ }
+ 
+ __kernel
+-void add1(__global uint2 * restrict const x, const uint a,
+-	__global const candidate_params_t * restrict const candidate_params)
++void add1(__global uint2 * restrict const x_base, const uint a,
++	__global const candidate_params_t * restrict const candidate_params_base)
+ {
++	const size_t lane = get_global_id(1);
++	__global uint2 * const x = x_base + lane * pconst_size;
++	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;
+ 	// s0: += a
+ 	// s1: 0 => k.2^n + 1 for reduce_z step
+ 
+@@ -71,7 +77,7 @@ void add1(__global uint2 * restrict const x, const uint a,
+ __kernel
+ void swap(__global uint2 * restrict const x, __global uint2 * restrict const y)
+ {
+-	const size_t k = get_global_id(0);
++	const size_t k = get_global_id(1) * pconst_size + get_global_id(0);
+ 	const uint2 x_k = x[k], y_k = y[k];
+ 	x[k] = y_k; y[k] = x_k;
+ }
+@@ -79,14 +85,15 @@ void swap(__global uint2 * restrict const x, __global uint2 * restrict const y)
+ __kernel
+ void copy(__global uint2 * restrict const x, __global const uint2 * restrict const y)
+ {
+-	const size_t k = get_global_id(0);
++	const size_t k = get_global_id(1) * pconst_size + get_global_id(0);
+ 	x[k] = y[k];
+ }
+ 
+ __kernel
+ void compare(__global const uint2 * restrict const x, __global const uint2 * restrict const y, __global int * const err)
+ {
+-	const size_t k = get_global_id(0);
++	const size_t lane = get_global_id(1);
++	const size_t k = lane * pconst_size + get_global_id(0);
+ 	const uint2 x_k = x[k], y_k = y[k];
+-	if ((x_k.s0 != y_k.s0) || (x_k.s1 != y_k.s1)) atomic_or(err, 1);
++	if ((x_k.s0 != y_k.s0) || (x_k.s1 != y_k.s1)) atomic_or(err + 2 * lane, 1);
+ }
+diff --git a/ocl/poly2int.cl b/ocl/poly2int.cl
+index 5e76a8d..61f169e 100644
+--- a/ocl/poly2int.cl
++++ b/ocl/poly2int.cl
+@@ -74,18 +74,20 @@ inline void poly2int1(const size_t P2I_BLK, __global uint2 * restrict const x, _
+ __kernel
+ void poly2int2(__global uint2 * restrict const x, __global int * const err)
+ {
+-	if (err[1] == 0) return;
++	__global uint2 * const xb = x + get_global_id(1) * pconst_size;
++	__global int * const errb = err + 2 * get_global_id(1);
++	if (errb[1] == 0) return;
+ 
+ 	int f = 0;
+ 	for (size_t k = 0; k < pconst_size; ++k)
+ 	{
+-		f += x[k].s0;
+-		x[k] = (uint)(f) & digit_mask;
++		f += xb[k].s0;
++		xb[k] = (uint)(f) & digit_mask;
+ 		f >>= digit_bit;
+ 	}
+ 
+-	err[0] = f;
+-	err[1] = 0;
++	errb[0] = f;
++	errb[1] = 0;
+ }
+ 
+ // P2I_BLK = 4
+@@ -94,27 +96,31 @@ __kernel __attribute__((reqd_work_group_size(16, 1, 1)))
+ void poly2int0_4_16(__global uint2 * restrict const x, __global long * restrict const cr)
+ {
+ 	POLY2INT0_VAR(4, 16);
+-	poly2int0(L, X, 4, 16, x, cr);
++	const size_t lane = get_global_id(1);
++	poly2int0(L, X, 4, 16, x + lane * pconst_size, cr + lane * (pconst_size / 4));
+ }
+ 
+ __kernel __attribute__((reqd_work_group_size(32, 1, 1)))
+ void poly2int0_4_32(__global uint2 * restrict const x, __global long * restrict const cr)
+ {
+ 	POLY2INT0_VAR(4, 32);
+-	poly2int0(L, X, 4, 32, x, cr);
++	const size_t lane = get_global_id(1);
++	poly2int0(L, X, 4, 32, x + lane * pconst_size, cr + lane * (pconst_size / 4));
+ }
+ 
+ __kernel __attribute__((reqd_work_group_size(64, 1, 1)))
+ void poly2int0_4_64(__global uint2 * restrict const x, __global long * restrict const cr)
+ {
+ 	POLY2INT0_VAR(4, 64);
+-	poly2int0(L, X, 4, 64, x, cr);
++	const size_t lane = get_global_id(1);
++	poly2int0(L, X, 4, 64, x + lane * pconst_size, cr + lane * (pconst_size / 4));
+ }
+ 
+ __kernel
+ void poly2int1_4(__global uint2 * restrict const x, __global const long * restrict const cr, __global int * const err)
+ {
+-	poly2int1(4, x, cr, err);
++	const size_t lane = get_global_id(1);
++	poly2int1(4, x + lane * pconst_size, cr + lane * (pconst_size / 4), err + 2 * lane);
+ }
+ 
+ // P2I_BLK = 8
+@@ -123,27 +129,31 @@ __kernel __attribute__((reqd_work_group_size(16, 1, 1)))
+ void poly2int0_8_16(__global uint2 * restrict const x, __global long * restrict const cr)
+ {
+ 	POLY2INT0_VAR(8, 16);
+-	poly2int0(L, X, 8, 16, x, cr);
++	const size_t lane = get_global_id(1);
++	poly2int0(L, X, 8, 16, x + lane * pconst_size, cr + lane * (pconst_size / 4));
+ }
+ 
+ __kernel __attribute__((reqd_work_group_size(32, 1, 1)))
+ void poly2int0_8_32(__global uint2 * restrict const x, __global long * restrict const cr)
+ {
+ 	POLY2INT0_VAR(8, 32);
+-	poly2int0(L, X, 8, 32, x, cr);
++	const size_t lane = get_global_id(1);
++	poly2int0(L, X, 8, 32, x + lane * pconst_size, cr + lane * (pconst_size / 4));
+ }
+ 
+ __kernel __attribute__((reqd_work_group_size(64, 1, 1)))
+ void poly2int0_8_64(__global uint2 * restrict const x, __global long * restrict const cr)
+ {
+ 	POLY2INT0_VAR(8, 64);
+-	poly2int0(L, X, 8, 64, x, cr);
++	const size_t lane = get_global_id(1);
++	poly2int0(L, X, 8, 64, x + lane * pconst_size, cr + lane * (pconst_size / 4));
+ }
+ 
+ __kernel
+ void poly2int1_8(__global uint2 * restrict const x, __global const long * restrict const cr, __global int * const err)
+ {
+-	poly2int1(8, x, cr, err);
++	const size_t lane = get_global_id(1);
++	poly2int1(8, x + lane * pconst_size, cr + lane * (pconst_size / 4), err + 2 * lane);
+ }
+ 
+ // P2I_BLK = 16
+@@ -152,25 +162,29 @@ __kernel __attribute__((reqd_work_group_size(8, 1, 1)))
+ void poly2int0_16_8(__global uint2 * restrict const x, __global long * restrict const cr)
+ {
+ 	POLY2INT0_VAR(16, 8);
+-	poly2int0(L, X, 16, 8, x, cr);
++	const size_t lane = get_global_id(1);
++	poly2int0(L, X, 16, 8, x + lane * pconst_size, cr + lane * (pconst_size / 4));
+ }
+ 
+ __kernel __attribute__((reqd_work_group_size(16, 1, 1)))
+ void poly2int0_16_16(__global uint2 * restrict const x, __global long * restrict const cr)
+ {
+ 	POLY2INT0_VAR(16, 16);
+-	poly2int0(L, X, 16, 16, x, cr);
++	const size_t lane = get_global_id(1);
++	poly2int0(L, X, 16, 16, x + lane * pconst_size, cr + lane * (pconst_size / 4));
+ }
+ 
+ __kernel __attribute__((reqd_work_group_size(32, 1, 1)))
+ void poly2int0_16_32(__global uint2 * restrict const x, __global long * restrict const cr)
+ {
+ 	POLY2INT0_VAR(16, 32);
+-	poly2int0(L, X, 16, 32, x, cr);
++	const size_t lane = get_global_id(1);
++	poly2int0(L, X, 16, 32, x + lane * pconst_size, cr + lane * (pconst_size / 4));
+ }
+ 
+ __kernel
+ void poly2int1_16(__global uint2 * restrict const x, __global const long * restrict const cr, __global int * const err)
+ {
+-	poly2int1(16, x, cr, err);
++	const size_t lane = get_global_id(1);
++	poly2int1(16, x + lane * pconst_size, cr + lane * (pconst_size / 4), err + 2 * lane);
+ }
+diff --git a/ocl/reduce.cl b/ocl/reduce.cl
+index b871ecc..064fa2a 100644
+--- a/ocl/reduce.cl
++++ b/ocl/reduce.cl
+@@ -11,9 +11,12 @@ Please give feedback to the authors if improvement is realized. It is distribute
+ #define rem_d(q) rem_d_runtime((q), candidate_params->d, candidate_params->d_inv, candidate_params->d_shift)
+ 
+ __kernel __attribute__((reqd_work_group_size(R64, 1, 1)))
+-void reduce_upsweep64(__global uint * restrict const t, const uint s, const uint j,
+-	__global const candidate_params_t * restrict const candidate_params)
++void reduce_upsweep64(__global uint * restrict const t_base, const uint s, const uint j,
++	__global const candidate_params_t * restrict const candidate_params_base)
+ {
++	const size_t lane = get_global_id(1);
++	__global uint * const t = t_base + lane * pconst_size;
++	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;
+ 	__local uint4 T_4[R64 / 4 + R64 / 16];	// alignment
+ 	__local uint4 * const T2_4 = &T_4[R64 / 4];
+ 	__local uint * const T = (__local uint *)T_4;
+@@ -51,9 +54,12 @@ void reduce_upsweep64(__global uint * restrict const t, const uint s, const uint
+ }
+ 
+ __kernel __attribute__((reqd_work_group_size(R64, 1, 1)))
+-void reduce_downsweep64(__global uint * restrict const t, const uint s, const uint j,
+-	__global const candidate_params_t * restrict const candidate_params)
++void reduce_downsweep64(__global uint * restrict const t_base, const uint s, const uint j,
++	__global const candidate_params_t * restrict const candidate_params_base)
+ {
++	const size_t lane = get_global_id(1);
++	__global uint * const t = t_base + lane * pconst_size;
++	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;
+ 	__local uint4 T_4[R64 / 4 + R64 / 16];	// alignment
+ 	__local uint4 * const T2_4 = &T_4[R64 / 4];
+ 	__local uint * const T = (__local uint *)T_4;
+@@ -162,9 +168,12 @@ inline void _reduce_topsweep4(__global uint * restrict const t, __local uint * r
+ 
+ #define	S32		(32 / 4)
+ __kernel __attribute__((reqd_work_group_size(S32, 1, 1)))
+-void reduce_topsweep32(__global uint * restrict const t, const uint j,
+-	__global const candidate_params_t * restrict const candidate_params)
++void reduce_topsweep32(__global uint * restrict const t_base, const uint j,
++	__global const candidate_params_t * restrict const candidate_params_base)
+ {
++	const size_t lane = get_global_id(1);
++	__global uint * const t = t_base + lane * pconst_size;
++	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;
+ 	__local uint T[64];	// 20
+ 
+ 	const size_t i = get_local_id(0);
+@@ -182,9 +191,12 @@ void reduce_topsweep32(__global uint * restrict const t, const uint j,
+ 
+ #define	S64		(64 / 4)
+ __kernel __attribute__((reqd_work_group_size(S64, 1, 1)))
+-void reduce_topsweep64(__global uint * restrict const t, const uint j,
+-	__global const candidate_params_t * restrict const candidate_params)
++void reduce_topsweep64(__global uint * restrict const t_base, const uint j,
++	__global const candidate_params_t * restrict const candidate_params_base)
+ {
++	const size_t lane = get_global_id(1);
++	__global uint * const t = t_base + lane * pconst_size;
++	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;
+ 	__local uint T[64];	// 40
+ 
+ 	const size_t i = get_local_id(0);
+@@ -202,9 +214,12 @@ void reduce_topsweep64(__global uint * restrict const t, const uint j,
+ 
+ #define	S128	(128 / 4)
+ __kernel __attribute__((reqd_work_group_size(S128, 1, 1)))
+-void reduce_topsweep128(__global uint * restrict const t, const uint j,
+-	__global const candidate_params_t * restrict const candidate_params)
++void reduce_topsweep128(__global uint * restrict const t_base, const uint j,
++	__global const candidate_params_t * restrict const candidate_params_base)
+ {
++	const size_t lane = get_global_id(1);
++	__global uint * const t = t_base + lane * pconst_size;
++	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;
+ 	__local uint T[128];	// 82
+ 
+ 	const size_t i = get_local_id(0);
+@@ -226,9 +241,12 @@ void reduce_topsweep128(__global uint * restrict const t, const uint j,
+ 
+ #define	S256	(256 / 4)
+ __kernel __attribute__((reqd_work_group_size(S256, 1, 1)))
+-void reduce_topsweep256(__global uint * restrict const t, const uint j,
+-	__global const candidate_params_t * restrict const candidate_params)
++void reduce_topsweep256(__global uint * restrict const t_base, const uint j,
++	__global const candidate_params_t * restrict const candidate_params_base)
+ {
++	const size_t lane = get_global_id(1);
++	__global uint * const t = t_base + lane * pconst_size;
++	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;
+ 	__local uint T[256];	// 168
+ 
+ 	const size_t i = get_local_id(0);
+@@ -250,9 +268,12 @@ void reduce_topsweep256(__global uint * restrict const t, const uint j,
+ 
+ #define	S512	(512 / 4)
+ __kernel __attribute__((reqd_work_group_size(S512, 1, 1)))
+-void reduce_topsweep512(__global uint * restrict const t, const uint j,
+-	__global const candidate_params_t * restrict const candidate_params)
++void reduce_topsweep512(__global uint * restrict const t_base, const uint j,
++	__global const candidate_params_t * restrict const candidate_params_base)
+ {
++	const size_t lane = get_global_id(1);
++	__global uint * const t = t_base + lane * pconst_size;
++	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;
+ 	__local uint T[512];	// 340
+ 
+ 	const size_t i = get_local_id(0);
+@@ -278,9 +299,12 @@ void reduce_topsweep512(__global uint * restrict const t, const uint j,
+ 
+ #define	S1024	(1024 / 4)
+ __kernel __attribute__((reqd_work_group_size(S1024, 1, 1)))
+-void reduce_topsweep1024(__global uint * restrict const t, const uint j,
+-	__global const candidate_params_t * restrict const candidate_params)
++void reduce_topsweep1024(__global uint * restrict const t_base, const uint j,
++	__global const candidate_params_t * restrict const candidate_params_base)
+ {
++	const size_t lane = get_global_id(1);
++	__global uint * const t = t_base + lane * pconst_size;
++	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;
+ 	__local uint T[1024];	// 680
+ 
+ 	const size_t i = get_local_id(0);
+@@ -305,10 +329,16 @@ void reduce_topsweep1024(__global uint * restrict const t, const uint j,
+ }
+ 
+ __kernel
+-void reduce_i(__global const uint2 * restrict const x, __global uint * restrict const y, __global uint * restrict const t,
+-	__global const uint * restrict const bp,
+-	__global const candidate_params_t * restrict const candidate_params)
++void reduce_i(__global const uint2 * restrict const x_base, __global uint * restrict const y_base, __global uint * restrict const t_base,
++	__global const uint * restrict const bp_base,
++	__global const candidate_params_t * restrict const candidate_params_base)
+ {
++	const size_t lane = get_global_id(1);
++	__global const uint2 * const x = x_base + lane * pconst_size;
++	__global uint * const y = y_base + lane * (pconst_size / 2);
++	__global uint * const t = t_base + lane * pconst_size;
++	__global const uint * const bp = bp_base + lane * (pconst_size / 2);
++	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;
+ 	const size_t k = get_global_id(0);
+ 
+ 	const uint xs = ((x[pconst_e + k].s0 >> pconst_s) | (x[pconst_e + k + 1].s0 << (digit_bit - pconst_s))) & digit_mask;
+@@ -319,10 +349,16 @@ void reduce_i(__global const uint2 * restrict const x, __global uint * restrict
+ }
+ 
+ __kernel
+-void reduce_o(__global uint2 * restrict const x, __global const uint * restrict const y, __global const uint * restrict const t,
+-	__global const uint * restrict const ibp,
+-	__global const candidate_params_t * restrict const candidate_params)
++void reduce_o(__global uint2 * restrict const x_base, __global const uint * restrict const y_base, __global const uint * restrict const t_base,
++	__global const uint * restrict const ibp_base,
++	__global const candidate_params_t * restrict const candidate_params_base)
+ {
++	const size_t lane = get_global_id(1);
++	__global uint2 * const x = x_base + lane * pconst_size;
++	__global const uint * const y = y_base + lane * (pconst_size / 2);
++	__global const uint * const t = t_base + lane * pconst_size;
++	__global const uint * const ibp = ibp_base + lane * (pconst_size / 2);
++	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;
+ 	const size_t k = get_global_id(0);
+ 
+ 	const uint tk = t[k + 4];
+@@ -341,8 +377,11 @@ void reduce_o(__global uint2 * restrict const x, __global const uint * restrict
+ }
+ 
+ __kernel
+-void reduce_f(__global uint2 * restrict const x, __global const uint * restrict const t)
++void reduce_f(__global uint2 * restrict const x_base, __global const uint * restrict const t_base)
+ {
++	const size_t lane = get_global_id(1);
++	__global uint2 * const x = x_base + lane * pconst_size;
++	__global const uint * const t = t_base + lane * pconst_size;
+ 	const uint rs = x[pconst_e].s0 & ((1u << pconst_s) - 1);
+ 	ulong l = ((ulong)(t[0]) << pconst_s) | rs;		// rds < 2^(29 + digit_bit - 1)
+ 
+@@ -371,14 +410,18 @@ inline void _reduce_x(__global uint2 * restrict const x, __global int * const er
+ }
+ 
+ __kernel
+-void reduce_x(__global uint2 * restrict const x, __global int * const err)
++void reduce_x(__global uint2 * restrict const x_base, __global int * const err_base)
+ {
+-	_reduce_x(x, err);
++	const size_t lane = get_global_id(1);
++	_reduce_x(x_base + lane * pconst_size, err_base + 2 * lane);
+ }
+ 
+ __kernel
+-void reduce_z(__global uint2 * restrict const x, __global int * const err)
++void reduce_z(__global uint2 * restrict const x_base, __global int * const err_base)
+ {
++	const size_t lane = get_global_id(1);
++	__global uint2 * const x = x_base + lane * pconst_size;
++	__global int * const err = err_base + 2 * lane;
+ 	// s0 = x, s1 = k.2^n + 1
+ 	// if s0 >= s1 then s0 -= s1;
+ 
+diff --git a/ocl/square.cl b/ocl/square.cl
+index 7ff0545..9d89cf9 100644
+--- a/ocl/square.cl
++++ b/ocl/square.cl
+@@ -10,7 +10,7 @@ void mul2(__global uint2 * restrict const x, __global const uint2 * restrict con
+ {
+ 	const size_t k = get_global_id(0);
+ 
+-	const size_t i = 4 * k;
++	const size_t i = get_global_id(1) * pconst_size + 4 * k;
+ 
+ 	const uint2 ux0 = x[i + 0], ux1 = x[i + 1], ux2 = x[i + 2], ux3 = x[i + 3];
+ 	const uint2 vx0 = addmod(ux0, ux1), vx1 = submod(ux0, ux1), vx2 = addmod(ux2, ux3), vx3 = submod(ux2, ux3);
+@@ -25,7 +25,7 @@ void mul4(__global uint2 * restrict const x, __global const uint2 * restrict con
+ {
+ 	const size_t k = get_global_id(0);
+ 
+-	const size_t i = 4 * k;
++	const size_t i = get_global_id(1) * pconst_size + 4 * k;
+ 
+ 	const uint2 ux0 = x[i + 0], ux2 = x[i + 2], ux1 = x[i + 1], ux3 = x[i + 3];
+ 	const uint2 vx0 = addmod(ux0, ux2), vx2 = submod(ux0, ux2), vx1 = addmod(ux1, ux3), vx3 = mulI(submod(ux3, ux1));
+@@ -45,7 +45,7 @@ void square8(__global uint2 * restrict const x, __constmem const uint4 * restric
+ 
+ 	const size_t i = get_local_id(0);
+ 	const size_t i_2 = i % 2, _i2 = ((4 * i) & (size_t)~(4 * 2 - 1)), i2 = _i2 | i_2, j2 = i_2, i_0 = _i2 | (2 * i_2);
+-	const size_t k2 = get_group_id(0) * 8 * BLK8 | i2;
++	const size_t k2 = get_global_id(1) * pconst_size + (get_group_id(0) * 8 * BLK8 | i2);
+ 
+ 	const uint4 r1_2 = r1[j2], ir1_2 = ir1[j2];
+ 	_forward4pi(2, &X[i2], 2, &x[k2], r2[j2], r1_2, ir1_2);
+@@ -61,7 +61,7 @@ void square16(__global uint2 * restrict const x, __constmem const uint4 * restri
+ 
+ 	const size_t i = get_local_id(0);
+ 	const size_t i_4 = i % 4, i4 = ((4 * i) & (size_t)~(4 * 4 - 1)) | i_4, j4 = i_4;
+-	const size_t k4 = get_group_id(0) * 16 * BLK16 | i4;
++	const size_t k4 = get_global_id(1) * pconst_size + (get_group_id(0) * 16 * BLK16 | i4);
+ 
+ 	const uint4 r1_4 = r1[j4], ir1_4 = ir1[j4];
+ 	_forward4pi(4, &X[i4], 4, &x[k4], r2[j4], r1_4, ir1_4);
+@@ -80,7 +80,7 @@ void square32(__global uint2 * restrict const x, __constmem const uint4 * restri
+ 	const size_t i = get_local_id(0);
+ 	const size_t i_8 = i % 8, i8 = ((4 * i) & (size_t)~(4 * 8 - 1)) | i_8, j8 = i_8 + 2;
+ 	const size_t i_2 = i % 2, _i2 = ((4 * i) & (size_t)~(4 * 2 - 1)), i2 = _i2 | i_2, j2 = i_2, i_0 = _i2 | (2 * i_2);
+-	const size_t k8 = get_group_id(0) * 32 * BLK32 | i8;
++	const size_t k8 = get_global_id(1) * pconst_size + (get_group_id(0) * 32 * BLK32 | i8);
+ 
+ 	const uint4 r1_8 = r1[j8], ir1_8 = ir1[j8];
+ 	_forward4pi(8, &X[i8], 8, &x[k8], r2[j8], r1_8, ir1_8);
+@@ -100,7 +100,7 @@ void square64(__global uint2 * restrict const x, __constmem const uint4 * restri
+ 	const size_t i = get_local_id(0);
+ 	const size_t i_16 = i % 16, i16 = ((4 * i) & (size_t)~(4 * 16 - 1)) | i_16, j16 = i_16 + 4;
+ 	const size_t i_4 = i % 4, i4 = ((4 * i) & (size_t)~(4 * 4 - 1)) | i_4, j4 = i_4;
+-	const size_t k16 = get_group_id(0) * 64 * BLK64 | i16;
++	const size_t k16 = get_global_id(1) * pconst_size + (get_group_id(0) * 64 * BLK64 | i16);
+ 
+ 	const uint4 r1_16 = r1[j16], ir1_16 = ir1[j16];
+ 	_forward4pi(16, &X[i16], 16, &x[k16], r2[j16], r1_16, ir1_16);
+@@ -121,7 +121,7 @@ void square128(__global uint2 * restrict const x, __constmem const uint4 * restr
+ 	const size_t i_32 = i % 32, i32 = ((4 * i) & (size_t)~(4 * 32 - 1)) | i_32, j32 = i_32 + 2 + 8;
+ 	const size_t i_8 = i % 8, i8 = ((4 * i) & (size_t)~(4 * 8 - 1)) | i_8, j8 = i_8 + 2;
+ 	const size_t i_2 = i % 2, _i2 = ((4 * i) & (size_t)~(4 * 2 - 1)), i2 = _i2 | i_2, j2 = i_2, i_0 = _i2 | (2 * i_2);
+-	const size_t k32 = get_group_id(0) * 128 * BLK128 | i32;
++	const size_t k32 = get_global_id(1) * pconst_size + (get_group_id(0) * 128 * BLK128 | i32);
+ 
+ 	const uint4 r1_32 = r1[j32], ir1_32 = ir1[j32];
+ 	_forward4pi(32, &X[i32], 32, &x[k32], r2[j32], r1_32, ir1_32);
+@@ -145,7 +145,7 @@ void square256(__global uint2 * restrict const x, __constmem const uint4 * restr
+ 	const size_t i_64 = i % 64, i64 = ((4 * i) & (size_t)~(4 * 64 - 1)) | i_64, j64 = i_64 + 4 + 16;
+ 	const size_t i_16 = i % 16, i16 = ((4 * i) & (size_t)~(4 * 16 - 1)) | i_16, j16 = i_16 + 4;
+ 	const size_t i_4 = i % 4, i4 = ((4 * i) & (size_t)~(4 * 4 - 1)) | i_4, j4 = i_4;
+-	const size_t k64 = get_group_id(0) * 256 * BLK256 | i64;
++	const size_t k64 = get_global_id(1) * pconst_size + (get_group_id(0) * 256 * BLK256 | i64);
+ 
+ 	const uint4 r1_64 = r1[j64], ir1_64 = ir1[j64];
+ 	_forward4pi(64, &X[i64], 64, &x[k64], r2[j64], r1_64, ir1_64);
+@@ -170,7 +170,7 @@ void square512(__global uint2 * restrict const x, __constmem const uint4 * restr
+ 	const size_t i_32 = i % 32, i32 = ((4 * i) & (size_t)~(4 * 32 - 1)) | i_32, j32 = i_32 + 2 + 8;
+ 	const size_t i_8 = i % 8, i8 = ((4 * i) & (size_t)~(4 * 8 - 1)) | i_8, j8 = i_8 + 2;
+ 	const size_t i_2 = i % 2, _i2 = ((4 * i) & (size_t)~(4 * 2 - 1)), i2 = _i2 | i_2, j2 = i_2, i_0 = _i2 | (2 * i_2);
+-	const size_t k128 = get_group_id(0) * 512 | i128;
++	const size_t k128 = get_global_id(1) * pconst_size + (get_group_id(0) * 512 | i128);
+ 
+ 	const uint4 r1_128 = r1[j128], ir1_128 = ir1[j128];
+ 	_forward4pi(128, &X[i128], 128, &x[k128], r2[j128], r1_128, ir1_128);
+@@ -198,7 +198,7 @@ void square1024(__global uint2 * restrict const x, __constmem const uint4 * rest
+ 	const size_t i_64 = i % 64, i64 = ((4 * i) & (size_t)~(4 * 64 - 1)) | i_64, j64 = i_64 + 4 + 16;
+ 	const size_t i_16 = i % 16, i16 = ((4 * i) & (size_t)~(4 * 16 - 1)) | i_16, j16 = i_16 + 4;
+ 	const size_t i_4 = i % 4, i4 = ((4 * i) & (size_t)~(4 * 4 - 1)) | i_4, j4 = i_4;
+-	const size_t k256 = get_group_id(0) * 1024 | i256;
++	const size_t k256 = get_global_id(1) * pconst_size + (get_group_id(0) * 1024 | i256);
+ 
+ 	const uint4 r1_256 = r1[j256], ir1_256 = ir1[j256];
+ 	_forward4pi(256, &X[i256], 256, &x[k256], r2[j256], r1_256, ir1_256);
+diff --git a/ocl/squareNTT_1024.cl b/ocl/squareNTT_1024.cl
+index b9cb9ac..5955d35 100644
+--- a/ocl/squareNTT_1024.cl
++++ b/ocl/squareNTT_1024.cl
+@@ -69,7 +69,7 @@ void square4096(__global uint2 * restrict const x, __constmem const uint4 * rest
+ 	const size_t i_64 = i % 64, i64 = ((4 * i) & (size_t)~(4 * 64 - 1)) | i_64, j64 = i_64 + 4 + 16;
+ 	const size_t i_16 = i % 16, i16 = ((4 * i) & (size_t)~(4 * 16 - 1)) | i_16, j16 = i_16 + 4;
+ 	const size_t i_4 = i % 4, i4 = ((4 * i) & (size_t)~(4 * 4 - 1)) | i_4, j4 = i_4;
+-	const size_t k1024 = get_group_id(0) * 4096 | i1024;
++	const size_t k1024 = get_global_id(1) * pconst_size + (get_group_id(0) * 4096 | i1024);
+ 
+ 	const uint4 r1_1024 = r1[j1024], ir1_1024 = ir1[j1024];
+ 	_forward4pi(1024, &X[i1024], 1024, &x[k1024], r2[j1024], r1_1024, ir1_1024);
+diff --git a/ocl/squareNTT_512.cl b/ocl/squareNTT_512.cl
+index fab6f29..a0aacc5 100644
+--- a/ocl/squareNTT_512.cl
++++ b/ocl/squareNTT_512.cl
+@@ -67,7 +67,7 @@ void square2048(__global uint2 * restrict const x, __constmem const uint4 * rest
+ 	const size_t i_32 = i % 32, i32 = ((4 * i) & (size_t)~(4 * 32 - 1)) | i_32, j32 = i_32 + 2 + 8;
+ 	const size_t i_8 = i % 8, i8 = ((4 * i) & (size_t)~(4 * 8 - 1)) | i_8, j8 = i_8 + 2;
+ 	const size_t i_2 = i % 2, _i2 = ((4 * i) & (size_t)~(4 * 2 - 1)), i2 = _i2 | i_2, j2 = i_2, i_0 = _i2 | (2 * i_2);
+-	const size_t k512 = get_group_id(0) * 2048 | i512;
++	const size_t k512 = get_global_id(1) * pconst_size + (get_group_id(0) * 2048 | i512);
+ 
+ 	const uint4 r1_512 = r1[j512], ir1_512 = ir1[j512];
+ 	_forward4pi(512, &X[i512], 512, &x[k512], r2[j512], r1_512, ir1_512);
+diff --git a/src/engine.h b/src/engine.h
+index 30d2264..1d4b5f2 100644
+--- a/src/engine.h
++++ b/src/engine.h
+@@ -67,30 +67,32 @@ public:
+ 	}
+ 
+ public:
+-	void allocMemory(const size_t size, const size_t constant_size)
++	void allocMemory(const size_t size, const size_t constant_size, const size_t batchCount = 1)
+ 	{
+ #if defined (ocl_debug)
+ 		std::ostringstream ss; ss << "Alloc gpu memory." << std::endl;
+ 		pio::display(ss.str());
+ #endif
+ 		_size = size;
+-		_x = _createBuffer(CL_MEM_READ_WRITE, sizeof(cl_uint2) * size);				// main buffer, square & mul multiplier, NTT => size
+-		_y = _createBuffer(CL_MEM_READ_WRITE, sizeof(cl_uint) * (size / 2));		// reduce
+-		_t = _createBuffer(CL_MEM_READ_WRITE, sizeof(cl_uint) * 2 * (size / 2));	// reduce: division algorithm
+-		_cr = _createBuffer(CL_MEM_READ_WRITE, sizeof(cl_long) * size / 4);			// carry
+-		_u = _createBuffer(CL_MEM_READ_WRITE, sizeof(cl_uint2) * size);				// mul multiplicand, NTT => size. d(t) in Gerbicz error checking
+-		_tu = _createBuffer(CL_MEM_READ_WRITE, sizeof(cl_uint2) * size);			// NTT of mul multiplicand
+-		_v = _createBuffer(CL_MEM_READ_WRITE, sizeof(cl_uint2) * size / 2);			// u(0) in Gerbicz error checking
+-		_m1 = _createBuffer(CL_MEM_READ_WRITE, sizeof(cl_uint2) * (size / 2));		// memory register #1
+-		_m2 = _createBuffer(CL_MEM_READ_WRITE, sizeof(cl_uint2) * (size / 2));		// memory register #2
+-		_err = _createBuffer(CL_MEM_READ_WRITE, sizeof(cl_int) * 2);				// error checking
++		setBatchCount(batchCount);
++		_x = _createBuffer(CL_MEM_READ_WRITE, sizeof(cl_uint2) * size * batchCount);		// candidate-major main buffers
++		_y = _createBuffer(CL_MEM_READ_WRITE, sizeof(cl_uint) * (size / 2) * batchCount);	// reduction scratch
++		_t = _createBuffer(CL_MEM_READ_WRITE, sizeof(cl_uint) * size * batchCount);		// division scratch
++		_cr = _createBuffer(CL_MEM_READ_WRITE, sizeof(cl_long) * (size / 4) * batchCount);	// carry scratch
++		_u = _createBuffer(CL_MEM_READ_WRITE, sizeof(cl_uint2) * size * batchCount);
++		_tu = _createBuffer(CL_MEM_READ_WRITE, sizeof(cl_uint2) * size * batchCount);
++		// Uniform full-size strides keep all state kernels lane-independent.
++		_v = _createBuffer(CL_MEM_READ_WRITE, sizeof(cl_uint2) * size * batchCount);
++		_m1 = _createBuffer(CL_MEM_READ_WRITE, sizeof(cl_uint2) * size * batchCount);
++		_m2 = _createBuffer(CL_MEM_READ_WRITE, sizeof(cl_uint2) * size * batchCount);
++		_err = _createBuffer(CL_MEM_READ_WRITE, sizeof(cl_int) * 2 * batchCount);
+ 
+ 		_r1ir1 = _createBuffer(CL_MEM_READ_ONLY, sizeof(cl_uint4) * size);			// NTT roots
+ 		_r2 = _createBuffer(CL_MEM_READ_ONLY, sizeof(cl_uint2) * size);				// NTT roots (square)
+ 		_ir2 = _createBuffer(CL_MEM_READ_ONLY, sizeof(cl_uint2) * size);			// NTT roots (inverse square)
+-		_bp = _createBuffer(CL_MEM_READ_ONLY, sizeof(cl_uint) * size / 2);			// b^i mod k (division algorithm)
+-		_ibp = _createBuffer(CL_MEM_READ_ONLY, sizeof(cl_uint) * size / 2);			// (1/b)^(i+1) mod k (division algorithm)
+-		_candidate_params = _createBuffer(CL_MEM_READ_ONLY, sizeof(candidate_params));	// runtime values for the current k
++		_bp = _createBuffer(CL_MEM_READ_ONLY, sizeof(cl_uint) * (size / 2) * batchCount);
++		_ibp = _createBuffer(CL_MEM_READ_ONLY, sizeof(cl_uint) * (size / 2) * batchCount);
++		_candidate_params = _createBuffer(CL_MEM_READ_ONLY, sizeof(candidate_params) * batchCount);
+ 
+ 		_constant_size = constant_size;
+ 
+@@ -116,6 +118,7 @@ public:
+ 			_releaseBuffer(_r1ir1); _releaseBuffer(_r2); _releaseBuffer(_ir2); _releaseBuffer(_bp); _releaseBuffer(_ibp);
+ 			_releaseBuffer(_candidate_params);
+ 			_size = 0;
++			setBatchCount(1);
+ 		}
+ 
+ 		if (_constant_size != 0)
+@@ -349,19 +352,23 @@ public:
+ 
+ public:
+ 	// read half the size
+-	void readMemory_x(cl_uint2 * const ptr) { _readBuffer(_x, ptr, sizeof(cl_uint2) * _size / 2); }
+-	void readMemory_u(cl_uint2 * const ptr) { _readBuffer(_u, ptr, sizeof(cl_uint2) * _size / 2); }
++	void readMemory_x(cl_uint2 * const ptr, const size_t lane = 0) { _readBuffer(_x, ptr, sizeof(cl_uint2) * _size / 2, sizeof(cl_uint2) * _size * lane); }
++	void readMemory_u(cl_uint2 * const ptr, const size_t lane = 0) { _readBuffer(_u, ptr, sizeof(cl_uint2) * _size / 2, sizeof(cl_uint2) * _size * lane); }
+ 	// write full size
+-	void writeMemory_x(const cl_uint2 * const ptr) { _writeBuffer(_x, ptr, sizeof(cl_uint2) * _size); }
+-	void writeMemory_u(const cl_uint2 * const ptr) { _writeBuffer(_u, ptr, sizeof(cl_uint2) * _size); }
++	void writeMemory_x(const cl_uint2 * const ptr) { _writeBuffer(_x, ptr, sizeof(cl_uint2) * _size * getBatchCount()); }
++	void writeMemory_u(const cl_uint2 * const ptr) { _writeBuffer(_u, ptr, sizeof(cl_uint2) * _size * getBatchCount()); }
+ 
+-	void readMemory_v(cl_uint2 * const ptr) { _readBuffer(_v, ptr, sizeof(cl_uint2) * _size / 2); }
+-	void writeMemory_v(const cl_uint2 * const ptr) { _writeBuffer(_v, ptr, sizeof(cl_uint2) * _size / 2); }
++	void readMemory_v(cl_uint2 * const ptr, const size_t lane = 0) { _readBuffer(_v, ptr, sizeof(cl_uint2) * _size / 2, sizeof(cl_uint2) * _size * lane); }
++	void writeMemory_v(const cl_uint2 * const ptr) { _writeBuffer(_v, ptr, sizeof(cl_uint2) * _size * getBatchCount()); }
+ 
+-	void readMemory_m1(cl_uint2 * const ptr) { _readBuffer(_m1, ptr, sizeof(cl_uint2) * _size / 2); }
++	void readMemory_m1(cl_uint2 * const ptr, const size_t lane = 0) { _readBuffer(_m1, ptr, sizeof(cl_uint2) * _size / 2, sizeof(cl_uint2) * _size * lane); }
+ 
+-	void readMemory_err(cl_int * const ptr) { _readBuffer(_err, ptr, sizeof(cl_int)); }
+-	void clearMemory_err() { cl_int err[2]; err[0] = err[1] = 0; _writeBuffer(_err, err, sizeof(cl_int) * 2); }
++	void readMemory_err(cl_int * const ptr, const size_t lane = 0) { _readBuffer(_err, ptr, sizeof(cl_int), sizeof(cl_int) * 2 * lane); }
++	void clearMemory_err()
++	{
++		std::vector<cl_int> err(2 * getBatchCount(), 0);
++		_writeBuffer(_err, err.data(), sizeof(cl_int) * err.size());
++	}
+ 
+ public:
+ 	void writeMemory_r(const cl_uint4 * const ptr_r1ir1, const cl_uint2 * const ptr_r2, const cl_uint2 * const ptr_ir2)
+@@ -383,14 +390,15 @@ public:
+ public:
+ 	void writeMemory_bp(const cl_uint * const ptr_bp, const cl_uint * const ptr_ibp)
+ 	{
+-		_writeBuffer(_bp, ptr_bp, sizeof(cl_uint) * _size / 2);
+-		_writeBuffer(_ibp, ptr_ibp, sizeof(cl_uint) * _size / 2);
++		_writeBuffer(_bp, ptr_bp, sizeof(cl_uint) * (_size / 2) * getBatchCount());
++		_writeBuffer(_ibp, ptr_ibp, sizeof(cl_uint) * (_size / 2) * getBatchCount());
+ 	}
+ 
+-	void writeCandidateParams(const candidate_params & params)
++	void writeCandidateParams(const candidate_params * const params)
+ 	{
+-		_writeBuffer(_candidate_params, &params, sizeof(params));
++		_writeBuffer(_candidate_params, params, sizeof(candidate_params) * getBatchCount());
+ 	}
++	void writeCandidateParams(const candidate_params & params) { writeCandidateParams(&params); }
+ 
+ public:
+ 	void sub_ntt64_16(const cl_uint, const cl_uint) { _executeKernel(_sub_ntt64_16, _size / 4, 64 / 4 * 16); }
+diff --git a/src/gpmp.h b/src/gpmp.h
+index 67ea7a7..1472248 100644
+--- a/src/gpmp.h
++++ b/src/gpmp.h
+@@ -13,6 +13,7 @@ Please give feedback to the authors if improvement is realized. It is distribute
+ #include "plan.h"
+ #include "primeforge_profile.h"
+ 
++#include <algorithm>
+ #include <cstdint>
+ #include <cmath>
+ #include <map>
+@@ -38,7 +39,7 @@ private:
+ 		size_t poly2int_function;
+ 	};
+ 
+-	using plan_class = std::tuple<size_t, int, bool, bool>;
++	using plan_class = std::tuple<size_t, int, bool, bool, size_t>;
+ 
+ 	static std::map<plan_class, cached_plan> & planCache()
+ 	{
+@@ -92,6 +93,7 @@ private:
+ 	const uint32_t _n;
+ 	const bool _isBoinc;
+ 	bool _ext512, _ext1024;
++	std::vector<uint32_t> _batchKs;
+ 	engine & _engine;
+ 	plan _plan;
+ 	std::vector<cl_uint2> _mem;
+@@ -258,7 +260,7 @@ private:
+ 		_emitPhase("PROGRAM_BUILD", programStart);
+ 
+ 		const primeforge_profile::time_point bufferStart = primeforge_profile::now();
+-		_engine.allocMemory(size, constant_size);
++		_engine.allocMemory(size, constant_size, _batchKs.size());
+ 		_emitPhase("BUFFER_ALLOCATE", bufferStart);
+ 		const primeforge_profile::time_point kernelStart = primeforge_profile::now();
+ 		_engine.createKernels(_ext512, _ext1024);
+@@ -314,30 +316,38 @@ private:
+ 	{
+ 		const size_t size = _size;
+ 		const primeforge_profile::time_point kTableBuildStart = primeforge_profile::now();
+-		std::vector<cl_uint> bp(size / 2), ibp(size / 2);
+-		const uint32_t ib = arith::invert(uint32_t(1) << _digit_bit, _k);
+-		uint32_t bp_i = 1, ibp_i = ib;
+-		for (size_t i = 0; i < size / 2; ++i)
++		const size_t batchCount = _batchKs.size();
++		std::vector<cl_uint> bp((size / 2) * batchCount), ibp((size / 2) * batchCount);
++		std::vector<engine::candidate_params> params(batchCount);
++		for (size_t lane = 0; lane < batchCount; ++lane)
+ 		{
+-			bp[i] = cl_uint(bp_i);
+-			ibp[i] = cl_uint(ibp_i);
+-			bp_i = uint32_t((uint64_t(bp_i) << _digit_bit) % _k);
+-			ibp_i = uint32_t((uint64_t(ibp_i) * ib) % _k);
++			const uint32_t candidateK = _batchKs[lane];
++			const uint32_t ib = arith::invert(uint32_t(1) << _digit_bit, candidateK);
++			uint32_t bp_i = 1, ibp_i = ib;
++			const size_t offset = lane * (size / 2);
++			for (size_t i = 0; i < size / 2; ++i)
++			{
++				bp[offset + i] = cl_uint(bp_i);
++				ibp[offset + i] = cl_uint(ibp_i);
++				bp_i = uint32_t((uint64_t(bp_i) << _digit_bit) % candidateK);
++				ibp_i = uint32_t((uint64_t(ibp_i) * ib) % candidateK);
++			}
++
++			const cl_int k_shift = cl_int(arith::log2(candidateK) - 1);
++			params[lane] = {
++				cl_uint(candidateK),
++				cl_uint((uint64_t(1) << (32 + k_shift)) / candidateK),
++				k_shift,
++				cl_uint(_n),
++				cl_uint(_digit_bit)
++			};
+ 		}
+ 		_emitPhase("K_DEPENDENT_TABLE_BUILD", kTableBuildStart);
+ 		const primeforge_profile::time_point kTableUploadStart = primeforge_profile::now();
+-		const cl_int k_shift = cl_int(arith::log2(_k) - 1);
+-		const engine::candidate_params params = {
+-			cl_uint(_k),
+-			cl_uint((uint64_t(1) << (32 + k_shift)) / _k),
+-			k_shift,
+-			cl_uint(_n),
+-			cl_uint(_digit_bit)
+-		};
+-		_engine.writeCandidateParams(params);
++		_engine.writeCandidateParams(params.data());
+ 		_engine.writeMemory_bp(bp.data(), ibp.data());
+ 		_emitCounter("K_DEPENDENT_TABLE_UPLOAD_BYTES",
+-			uint64_t((bp.size() + ibp.size()) * sizeof(cl_uint) + sizeof(params)));
++			uint64_t((bp.size() + ibp.size()) * sizeof(cl_uint) + params.size() * sizeof(params[0])));
+ 		_emitPhase("K_DEPENDENT_TABLE_UPLOAD", kTableUploadStart);
+ 
+ 		_engine.clearMemory_err();
+@@ -360,12 +370,22 @@ private:
+ public:
+ 	gpmp(const uint32_t k, const uint32_t n, engine & engine, const bool isBoinc,
+ 		const bool bestPlan = true, const bool profile = false,
+-		const bool phaseProfile = false, const size_t profileIndex = 0) :
++		const bool phaseProfile = false, const size_t profileIndex = 0,
++		const std::vector<uint32_t> & batchKs = std::vector<uint32_t>()) :
+ 		_digit_bit(digitBit(k, n)), _size(transformSize(k, n, _digit_bit)), _k(k), _n(n), _isBoinc(isBoinc),
+ 		_ext512(engine.getMaxWorkGroupSize() >= 512), _ext1024((engine.getMaxWorkGroupSize() >= 1024) && (engine.getLocalMemSize() >= 32768)),
+-		_engine(engine), _mem(_size), _phaseProfile(phaseProfile), _profileIndex(profileIndex)
++		_batchKs(batchKs.empty() ? std::vector<uint32_t>(1, k) : batchKs),
++		_engine(engine), _mem(_size * _batchKs.size()), _phaseProfile(phaseProfile), _profileIndex(profileIndex)
+ 	{
+ 		if (engine.getMaxWorkGroupSize() < 256) throw std::runtime_error("The maximum work-group size must be equal to or greater than 256");
++		if ((_batchKs.empty()) || (_batchKs.size() > 8) || (_batchKs.front() != k))
++			throw std::runtime_error("invalid native candidate batch");
++		for (size_t lane = 0; lane < _batchKs.size(); ++lane)
++		{
++			if ((digitBit(_batchKs[lane], n) != _digit_bit) ||
++				(transformSize(_batchKs[lane], n, _digit_bit) != _size))
++				throw std::runtime_error("native candidate batch spans transform classes");
++		}
+ 
+ 		const size_t size = _size;
+ 
+@@ -382,7 +402,7 @@ reset:
+ 		_emitPhase("PLAN_ENUMERATION", planStart);
+ 
+ 		size_t bestSq_i = 0, bestP2i_i = 0;
+-		const plan_class cacheKey(size, _digit_bit, _ext512, _ext1024);
++		const plan_class cacheKey(size, _digit_bit, _ext512, _ext1024, _batchKs.size());
+ 		const std::map<plan_class, cached_plan>::const_iterator cached = planCache().find(cacheKey);
+ 		if (bestPlan && (cached != planCache().end()))
+ 		{
+@@ -471,8 +491,10 @@ public:
+ 	}
+ 	void loadCandidate(const uint32_t k, const uint32_t n, const bool phaseProfile, const size_t profileIndex)
+ 	{
++		if (_engine.getBatchCount() != 1) throw std::runtime_error("scalar candidate reload on a native batch context");
+ 		if (!canReuseFor(k, n)) throw std::runtime_error("candidate is outside the invariant transform class");
+ 		_k = k;
++		_batchKs.assign(1, k);
+ 		_phaseProfile = phaseProfile;
+ 		_profileIndex = profileIndex;
+ 		_loadCandidate();
+@@ -541,12 +563,14 @@ public:
+ 	}
+ 
+ public:
+-	int getError() const
++	int getError(const size_t lane = 0) const
+ 	{
++		if (lane >= _engine.getBatchCount()) throw std::runtime_error("invalid native batch lane");
+ 		cl_int err = 0;
+-		_engine.readMemory_err(&err);
++		_engine.readMemory_err(&err, lane);
+ 		return int(err);
+ 	}
++	size_t getBatchCount() const { return _engine.getBatchCount(); }
+ 
+ public:
+ 	void resetError()
+@@ -661,6 +685,7 @@ public:
+ public:
+ 	void init(const uint32_t x0, const uint32_t u0)
+ 	{
++		if (_engine.getBatchCount() != 1) throw std::runtime_error("scalar initialization on a native batch context");
+ 		const size_t size = _size;
+ 
+ 		cl_uint2 * const x = _mem.data();
+@@ -678,19 +703,68 @@ public:
+ 	void initProfiling()
+ 	{
+ 		const size_t size = _size;
++		const size_t batchCount = _engine.getBatchCount();
+ 
+ 		cl_uint2 * const x = _mem.data();
+-		for (size_t i = 0; i < size / 2; ++i) x[i] = set2((uint32_t(1) << _digit_bit) - 1, 0);
+-		for (size_t i = size / 2; i < size; ++i) x[i] = set2(0, 0);
++		for (size_t lane = 0; lane < batchCount; ++lane)
++		{
++			const size_t offset = lane * size;
++			for (size_t i = 0; i < size / 2; ++i) x[offset + i] = set2((uint32_t(1) << _digit_bit) - 1, 0);
++			for (size_t i = size / 2; i < size; ++i) x[offset + i] = set2(0, 0);
++		}
+ 		_engine.writeMemory_x(x);
+ 
+ 		cl_uint2 * const u = _mem.data();
+-		for (size_t i = 0 * size / 4; i < 1 * size / 4; ++i) u[i] = set2((uint32_t(1) << _digit_bit) - 1, 0);
+-		for (size_t i = 1 * size / 4; i < 2 * size / 4; ++i) u[i] = set2(0, (uint32_t(1) << _digit_bit) - 1);
+-		for (size_t i = size / 2; i < size; ++i) u[i] = set2(0, 0);
++		for (size_t lane = 0; lane < batchCount; ++lane)
++		{
++			const size_t offset = lane * size;
++			for (size_t i = 0 * size / 4; i < 1 * size / 4; ++i) u[offset + i] = set2((uint32_t(1) << _digit_bit) - 1, 0);
++			for (size_t i = 1 * size / 4; i < 2 * size / 4; ++i) u[offset + i] = set2(0, (uint32_t(1) << _digit_bit) - 1);
++			for (size_t i = size / 2; i < size; ++i) u[offset + i] = set2(0, 0);
++		}
+ 		_engine.writeMemory_u(u);
+ }
+ 
++public:
++	void selectScalarPreparationCandidate(const uint32_t k)
++	{
++		if (!canReuseFor(k, _n)) throw std::runtime_error("preparation candidate is outside the transform class");
++		_engine.setBatchCount(1);
++		_batchKs.assign(1, k);
++		_k = k;
++		_mem.assign(_size, set2(0, 0));
++		_loadCandidate();
++	}
++
++	void readMainState(std::vector<cl_uint2> & state)
++	{
++		state.resize(_size / 2);
++		_engine.readMemory_x(state.data());
++	}
++
++	void activateNativeBatch(const std::vector<uint32_t> & batchKs,
++		const std::vector<std::vector<cl_uint2>> & initialStates)
++	{
++		if ((batchKs.size() < 2) || (batchKs.size() > 8) || (initialStates.size() != batchKs.size()))
++			throw std::runtime_error("invalid native batch activation");
++		for (size_t lane = 0; lane < batchKs.size(); ++lane)
++		{
++			if (!canReuseFor(batchKs[lane], _n) || (initialStates[lane].size() != _size / 2))
++				throw std::runtime_error("invalid native batch state");
++		}
++
++		_engine.setBatchCount(batchKs.size());
++		_batchKs = batchKs;
++		_k = batchKs.front();
++		_mem.assign(_size * batchKs.size(), set2(0, 0));
++		_loadCandidate();
++		for (size_t lane = 0; lane < batchKs.size(); ++lane)
++			std::copy(initialStates[lane].begin(), initialStates[lane].end(), _mem.begin() + lane * _size);
++		_engine.writeMemory_x(_mem.data());
++		_engine.writeMemory_u(_mem.data());
++		_engine.writeMemory_v(_mem.data());
++	}
++
+ public:
+ 	void set_bug()
+ 	{
+@@ -866,6 +940,41 @@ public:
+ 		return isPrime;
+ 	}
+ 
++	std::vector<bool> isMinusOneBatch(std::vector<uint64_t> & res64s)
++	{
++		const size_t batchCount = _engine.getBatchCount();
++		if (batchCount < 2) throw std::runtime_error("native batch residue requested in scalar mode");
++
++		const primeforge_profile::time_point normStart = primeforge_profile::now();
++		norm();
++		_emitPhase("FINAL_NORMALIZATION", normStart);
++
++		const primeforge_profile::time_point readbackStart = primeforge_profile::now();
++		_engine.copy_x_m1();
++		_engine.add1_m1(1);
++		_engine.reduce_z_m1();
++
++		std::vector<bool> primeResults(batchCount, true);
++		res64s.assign(batchCount, 0);
++		for (size_t lane = 0; lane < batchCount; ++lane)
++		{
++			cl_uint2 * const res = _mem.data() + lane * _size;
++			_engine.readMemory_m1(res, lane);
++			for (size_t i = 0; i < _size / 2; ++i) primeResults[lane] = primeResults[lane] && (res[i].s[0] == 0);
++
++			uint64_t r = 0, b = 1;
++			for (size_t i = 0; b != 0; ++i)
++			{
++				r += res[i].s[0] * b;
++				b <<= _digit_bit;
++			}
++			res64s[lane] = r;
++		}
++		_emitCounter("RESULT_READBACK_BYTES", uint64_t(sizeof(cl_uint2) * _size / 2 * batchCount));
++		_emitPhase("RESULT_READBACK", readbackStart);
++		return primeResults;
++	}
++
+ public:
+ 	bool isOne()
+ 	{
+diff --git a/src/main.cpp b/src/main.cpp
+index 4af953d..7407f5d 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -108,6 +108,8 @@ private:
+ 		ss << "  --phase-profile         emit PrimeForge monotonic phase timings" << std::endl;
+ 		ss << "  --kernel-profile        also emit synchronized OpenCL kernel events" << std::endl;
+ 		ss << "  --batch <file>           test whitespace-separated k n pairs with one OpenCL context" << std::endl;
++		ss << "  --native-batch <file>    test 2, 4 or 8 same-size candidates in one native NTT batch" << std::endl;
++		ss << "  --native-batch2 <file>   compatibility alias for a two-candidate native batch" << std::endl;
+ 		ss << "  --stop-on-prime          stop a batch after its first proven prime" << std::endl;
+ 		ss << "  --stop-file <file>       stop a batch cleanly between candidates when file exists" << std::endl;
+ 		ss << "  -o <a>                  compute the multiplicative order of a modulo k*2^n+1" << std::endl;
+@@ -166,7 +168,7 @@ public:
+ 			primeforge_profile::elapsedNanoseconds(platformStart));
+ 		platform.displayDevices();
+ 
+-		bool bPrime = false, bOrder = false, bGFN = false, bBatch = false, bStopOnPrime = false;
++		bool bPrime = false, bOrder = false, bGFN = false, bBatch = false, bNativeBatch = false, bNativeBatch2Alias = false, bStopOnPrime = false;
+ 		uint32_t k = 0, n = 0, a = 0;
+ 		size_t d = 0;
+ 		std::string batchFile, stopFile;
+@@ -189,6 +191,13 @@ public:
+ 				batchFile = args[++i];
+ 				bBatch = bPrime = true;
+ 			}
++			else if ((arg == "--native-batch") || (arg == "--native-batch2"))
++			{
++				if (i + 1 >= size) throw std::runtime_error("native batch option requires a file");
++				batchFile = args[++i];
++				bNativeBatch2Alias = (arg == "--native-batch2");
++				bNativeBatch = bBatch = bPrime = true;
++			}
+ 			else if (arg.substr(0, 2) == "-q")
+ 			{
+ 				const std::string exp = ((arg == "-q") && (i + 1 < size)) ? args[++i] : arg.substr(2);
+@@ -225,6 +234,8 @@ public:
+ 			throw std::runtime_error("--stop-on-prime requires --batch");
+ 		if (!stopFile.empty() && !bBatch)
+ 			throw std::runtime_error("--stop-file requires --batch");
++		if (bNativeBatch && (bStopOnPrime || !stopFile.empty()))
++			throw std::runtime_error("native batch prototype does not support batch stop options");
+ 
+ 		if (bPrime)
+ 		{
+@@ -242,12 +253,40 @@ public:
+ 				std::ifstream input(batchFile);
+ 				if (!input) throw std::runtime_error("cannot open batch file");
+ 
+-				uint64_t batchK = 0, batchN = 0;
+-				size_t completed = 0;
+-				bool stopped = false, primeFound = false;
+-				std::unique_ptr<gpmp> batchContext;
+-				while (input >> batchK >> batchN)
++				if (bNativeBatch)
+ 				{
++					std::vector<uint32_t> nativeKs;
++					uint32_t nativeN = 0;
++					uint64_t batchK = 0, batchN = 0;
++					while (input >> batchK >> batchN)
++					{
++						if ((batchK < 3) || (batchK > 99999999) || (batchN < 32) ||
++							(batchN > 99999999) || (batchK > std::numeric_limits<uint32_t>::max()) ||
++							(batchN > std::numeric_limits<uint32_t>::max()))
++							throw std::runtime_error("invalid native batch candidate");
++						uint32_t normalizedK = static_cast<uint32_t>(batchK);
++						uint32_t normalizedN = static_cast<uint32_t>(batchN);
++						while (normalizedK % 2 == 0) { normalizedK /= 2; ++normalizedN; }
++						if (nativeKs.empty()) nativeN = normalizedN;
++						if (normalizedN != nativeN) throw std::runtime_error("native batch candidates must share n");
++						nativeKs.push_back(normalizedK);
++						if (nativeKs.size() > 8) throw std::runtime_error("native batch prototype supports at most eight candidates");
++					}
++					if (!input.eof()) throw std::runtime_error("malformed native batch file");
++					if (bNativeBatch2Alias && (nativeKs.size() != 2))
++						throw std::runtime_error("--native-batch2 requires exactly two candidates");
++					if ((nativeKs.size() != 2) && (nativeKs.size() != 4) && (nativeKs.size() != 8))
++						throw std::runtime_error("native batch prototype requires 2, 4 or 8 candidates");
++					p.checkNativeBatch(nativeKs, nativeN, engine);
++				}
++				else
++				{
++					uint64_t batchK = 0, batchN = 0;
++					size_t completed = 0;
++					bool stopped = false, primeFound = false;
++					std::unique_ptr<gpmp> batchContext;
++					while (input >> batchK >> batchN)
++					{
+ 					if (!stopFile.empty() && std::filesystem::exists(stopFile))
+ 					{
+ 						stopped = true;
+@@ -287,10 +326,11 @@ public:
+ 						pio::print("PRIMEFORGE_BATCH_PRIME_FOUND\n");
+ 						break;
+ 					}
++					}
++					if (!stopped && !primeFound && !input.eof())
++						throw std::runtime_error("malformed batch file");
++					if (stopped) pio::print("PRIMEFORGE_BATCH_STOPPED\n");
+ 				}
+-				if (!stopped && !primeFound && !input.eof())
+-					throw std::runtime_error("malformed batch file");
+-				if (stopped) pio::print("PRIMEFORGE_BATCH_STOPPED\n");
+ 			}
+ 			else if (bOrder) p.check_order(k, n, a, engine);
+ 			else if (bGFN) p.check_gfn(k, n, engine);
+diff --git a/src/ocl.h b/src/ocl.h
+index 309d4d4..1058a79 100644
+--- a/src/ocl.h
++++ b/src/ocl.h
+@@ -212,6 +212,7 @@ private:
+ 	cl_command_queue _queueP = nullptr;
+ 	cl_command_queue _queue = nullptr;
+ 	cl_program _program = nullptr;
++	size_t _batchCount = 1;
+ 
+ 	enum class EVendor { Unknown, NVIDIA, AMD, INTEL };
+ 
+@@ -287,6 +288,12 @@ public:
+ public:
+ 	size_t getMaxWorkGroupSize() const { return _maxWorkGroupSize; }
+ 	size_t getLocalMemSize() const { return _localMemSize; }
++	void setBatchCount(const size_t batchCount)
++	{
++		if ((batchCount == 0) || (batchCount > 8)) throw std::runtime_error("invalid OpenCL batch count");
++		_batchCount = batchCount;
++	}
++	size_t getBatchCount() const { return _batchCount; }
+ 
+ private:
+ 	static EVendor getVendor(const std::string & vendorString)
+@@ -464,17 +471,17 @@ protected:
+ 	}
+ 
+ protected:
+-	void _readBuffer(cl_mem & mem, void * const ptr, const size_t size)
++	void _readBuffer(cl_mem & mem, void * const ptr, const size_t size, const size_t offset = 0)
+ 	{
+ 		_sync();
+-		oclFatal(clEnqueueReadBuffer(_queue, mem, CL_TRUE, 0, size, ptr, 0, nullptr, nullptr));
++		oclFatal(clEnqueueReadBuffer(_queue, mem, CL_TRUE, offset, size, ptr, 0, nullptr, nullptr));
+ 	}
+ 
+ protected:
+-	void _writeBuffer(cl_mem & mem, const void * const ptr, const size_t size)
++	void _writeBuffer(cl_mem & mem, const void * const ptr, const size_t size, const size_t offset = 0)
+ 	{
+ 		_sync();
+-		oclFatal(clEnqueueWriteBuffer(_queue, mem, CL_TRUE, 0, size, ptr, 0, nullptr, nullptr));
++		oclFatal(clEnqueueWriteBuffer(_queue, mem, CL_TRUE, offset, size, ptr, 0, nullptr, nullptr));
+ 	}
+ 
+ protected:
+@@ -512,12 +519,15 @@ protected:
+ protected:
+ 	void _executeKernel(cl_kernel kernel, const size_t globalWorkSize, const size_t localWorkSize = 0)
+ 	{
++		const size_t globalWorkSizes[2] = { globalWorkSize, _batchCount };
++		const size_t localWorkSizes[2] = { localWorkSize, 1 };
++		const size_t * const localWorkSizesPtr = (localWorkSize == 0) ? nullptr : localWorkSizes;
+ 		if (!_profile)
+ 		{
+ #if !defined (ocl_fast_exec) || defined (ocl_debug)
+ 			cl_int err =
+ #endif
+-			clEnqueueNDRangeKernel(_queue, kernel, 1, nullptr, &globalWorkSize, (localWorkSize == 0) ? nullptr : &localWorkSize, 0, nullptr, nullptr);
++			clEnqueueNDRangeKernel(_queue, kernel, 2, nullptr, globalWorkSizes, localWorkSizesPtr, 0, nullptr, nullptr);
+ #if !defined (ocl_fast_exec) || defined (ocl_debug)
+ 			oclFatal(err);
+ #endif
+@@ -531,7 +541,7 @@ protected:
+ 		{
+ 			_sync();
+ 			cl_event evt;
+-			oclFatal(clEnqueueNDRangeKernel(_queue, kernel, 1, nullptr, &globalWorkSize, (localWorkSize == 0) ? nullptr : &localWorkSize, 0, nullptr, &evt));
++			oclFatal(clEnqueueNDRangeKernel(_queue, kernel, 2, nullptr, globalWorkSizes, localWorkSizesPtr, 0, nullptr, &evt));
+ 			cl_ulong dt = 0;
+ 			if (clWaitForEvents(1, &evt) == CL_SUCCESS)
+ 			{
+@@ -549,4 +559,4 @@ protected:
+ 	}
+ };
+ 
+-}
+\ No newline at end of file
++}
+diff --git a/src/proth.h b/src/proth.h
+index 2a52865..3d255b3 100644
+--- a/src/proth.h
++++ b/src/proth.h
+@@ -381,6 +381,103 @@ public:
+ 		return true;
+ 	}
+ 
++public:
++	bool checkNativeBatch(const std::vector<uint32_t> & batchKs, const uint32_t n, engine & engine)
++	{
++		if ((batchKs.size() != 2) && (batchKs.size() != 4) && (batchKs.size() != 8))
++			throw std::runtime_error("native batch prototype requires 2, 4 or 8 candidates");
++		for (size_t i = 0; i < batchKs.size(); ++i)
++			for (size_t j = i + 1; j < batchKs.size(); ++j)
++				if (batchKs[i] == batchKs[j]) throw std::runtime_error("native batch prototype requires distinct candidates");
++
++		const std::chrono::steady_clock::time_point totalStart = std::chrono::steady_clock::now();
++		std::vector<uint32_t> witnesses(batchKs.size(), 0);
++		for (size_t lane = 0; lane < batchKs.size(); ++lane)
++		{
++			uint32_t divisor = 0;
++			if (!arith::proth_prime_quad_nonres(batchKs[lane], n, 3, witnesses[lane]))
++			{
++				divisor = witnesses[lane];
++				std::ostringstream ss;
++				ss << "native batch candidate " << batchKs[lane] << " * 2^" << n
++					<< " + 1 is divisible by " << divisor;
++				throw std::runtime_error(ss.str());
++			}
++		}
++
++		gpmp X(batchKs.front(), n, engine, false, true, false, false, 0, batchKs);
++		std::ostringstream planMarker;
++		planMarker << "PRIMEFORGE_NATIVE_BATCH_PLAN\t" << X.getPlanString() << std::endl;
++		pio::print(planMarker.str());
++
++		const std::chrono::steady_clock::time_point preparationStart = std::chrono::steady_clock::now();
++		std::vector<std::vector<cl_uint2>> initialStates(batchKs.size());
++		for (size_t lane = 0; lane < batchKs.size(); ++lane)
++		{
++			X.selectScalarPreparationCandidate(batchKs[lane]);
++			if (!apowk(X, witnesses[lane], batchKs[lane])) return false;
++			checkError(X);
++			X.readMainState(initialStates[lane]);
++		}
++		X.activateNativeBatch(batchKs, initialStates);
++		const double preparationSeconds = std::chrono::duration<double>(
++			std::chrono::steady_clock::now() - preparationStart).count();
++
++		const uint32_t L = 1 << (arith::log2(n) / 2);
++		const std::chrono::steady_clock::time_point mainStart = std::chrono::steady_clock::now();
++		for (uint32_t i = 1; i < n; ++i)
++		{
++			X.square();
++			if ((i & (L - 1)) == 0) X.Gerbicz_step();
++			if (_quit) return false;
++		}
++		for (size_t lane = 0; lane < batchKs.size(); ++lane)
++			if (X.getError(lane) != 0) throw std::runtime_error("GPU error detected in native batch main loop");
++		const double mainSeconds = std::chrono::duration<double>(
++			std::chrono::steady_clock::now() - mainStart).count();
++
++		std::vector<uint64_t> res64s;
++		const std::vector<bool> primeResults = X.isMinusOneBatch(res64s);
++		for (size_t lane = 0; lane < batchKs.size(); ++lane)
++			if (X.getError(lane) != 0) throw std::runtime_error("GPU error detected in native batch residue");
++
++		const std::chrono::steady_clock::time_point gerbiczStart = std::chrono::steady_clock::now();
++		for (uint32_t i = n; true; ++i)
++		{
++			X.square();
++			if ((i & (L - 1)) == 0)
++			{
++				X.Gerbicz_check(L);
++				break;
++			}
++		}
++		for (size_t lane = 0; lane < batchKs.size(); ++lane)
++			if (X.getError(lane) != 0) throw std::runtime_error("Gerbicz check failed in native batch");
++		const double gerbiczSeconds = std::chrono::duration<double>(
++			std::chrono::steady_clock::now() - gerbiczStart).count();
++		const double totalSeconds = std::chrono::duration<double>(
++			std::chrono::steady_clock::now() - totalStart).count();
++
++		for (size_t lane = 0; lane < batchKs.size(); ++lane)
++		{
++			std::ostringstream result;
++			result << "PRIMEFORGE_NATIVE_BATCH_RESULT\t" << lane << "\t" << batchKs[lane]
++				<< "\t" << n << "\t" << witnesses[lane] << "\t"
++				<< (primeResults[lane] ? "PROVEN_PRIME" : "COMPOSITE") << "\t"
++				<< res64String(res64s[lane]) << std::endl;
++			pio::print(result.str());
++		}
++		std::ostringstream timing;
++		timing << std::fixed << std::setprecision(9)
++			<< "PRIMEFORGE_NATIVE_BATCH_TIMING\tpreparation_seconds=" << preparationSeconds
++			<< "\tmain_seconds=" << mainSeconds
++			<< "\tgerbicz_seconds=" << gerbiczSeconds
++			<< "\ttotal_seconds=" << totalSeconds
++			<< "\tcandidates_per_hour=" << (batchKs.size() * 3600.0 / totalSeconds) << std::endl;
++		pio::print(timing.str());
++		return true;
++	}
++
+ public:
+ 	bool check_order(const uint32_t k, const uint32_t n, const uint32_t a, engine & engine)
+ 	{
+diff --git a/src/ocl/NTT.h b/src/ocl/NTT.h
+index b94c0b4..a4869a4 100644
+--- a/src/ocl/NTT.h
++++ b/src/ocl/NTT.h
+@@ -21,32 +21,34 @@ static const char * const src_ocl_NTT = \
+ "void ntt4(__global uint2 * restrict const x, __global const uint4 * restrict const r1ir1, __global const uint2 * restrict const r2, const uint m, const uint rindex)\n" \
+ "{\n" \
+ "	const size_t k = get_global_id(0);\n" \
++"	__global uint2 * const xb = x + get_global_id(1) * pconst_size;\n" \
+ "\n" \
+ "	const size_t i = k & (m - 1), j = 4 * k - 3 * i;\n" \
+ "\n" \
+ "	const uint2 r2_i = r2[rindex + i];\n" \
+ "	const uint4 r1ir1_i = r1ir1[rindex + i];\n" \
+ "\n" \
+-"	const uint2 u0 = x[j + 0 * m], u2 = x[j + 2 * m], u1 = x[j + 1 * m], u3 = x[j + 3 * m];\n" \
++"	const uint2 u0 = xb[j + 0 * m], u2 = xb[j + 2 * m], u1 = xb[j + 1 * m], u3 = xb[j + 3 * m];\n" \
+ "	const uint2 v0 = addmod(u0, u2), v2 = submod(u0, u2), v1 = addmod(u1, u3), v3 = mulI(submod(u3, u1));\n" \
+-"	x[j + 0 * m] = addmod(v0, v1); x[j + 1 * m] = mulmod(submod(v0, v1), r2_i);\n" \
+-"	x[j + 2 * m] = mulmod(addmod(v2, v3), r1ir1_i.s23); x[j + 3 * m] = mulmod(submod(v2, v3), r1ir1_i.s01);\n" \
++"	xb[j + 0 * m] = addmod(v0, v1); xb[j + 1 * m] = mulmod(submod(v0, v1), r2_i);\n" \
++"	xb[j + 2 * m] = mulmod(addmod(v2, v3), r1ir1_i.s23); xb[j + 3 * m] = mulmod(submod(v2, v3), r1ir1_i.s01);\n" \
+ "}\n" \
+ "\n" \
+ "__kernel\n" \
+ "void intt4(__global uint2 * restrict const x, __global const uint4 * restrict const r1ir1, __global const uint2 * restrict const ir2, const uint m, const uint rindex)\n" \
+ "{\n" \
+ "	const size_t k = get_global_id(0);\n" \
++"	__global uint2 * const xb = x + get_global_id(1) * pconst_size;\n" \
+ "\n" \
+ "	const size_t i = k & (m - 1), j = 4 * k - 3 * i;\n" \
+ "\n" \
+ "	const uint2 ir2_i = ir2[rindex + i];\n" \
+ "	const uint4 r1ir1_i = r1ir1[rindex + i];\n" \
+ "\n" \
+-"	const uint2 v0 = x[j + 0 * m], v1 = mulmod(x[j + 1 * m], ir2_i), v2 = mulmod(x[j + 2 * m], r1ir1_i.s01), v3 = mulmod(x[j + 3 * m], r1ir1_i.s23);\n" \
++"	const uint2 v0 = xb[j + 0 * m], v1 = mulmod(xb[j + 1 * m], ir2_i), v2 = mulmod(xb[j + 2 * m], r1ir1_i.s01), v3 = mulmod(xb[j + 3 * m], r1ir1_i.s23);\n" \
+ "	const uint2 u0 = addmod(v0, v1), u2 = addmod(v2, v3), u1 = submod(v0, v1), u3 = mulI(submod(v2, v3));\n" \
+-"	x[j + 0 * m] = addmod(u0, u2); x[j + 2 * m] = submod(u0, u2);\n" \
+-"	x[j + 1 * m] = addmod(u1, u3); x[j + 3 * m] = submod(u1, u3);\n" \
++"	xb[j + 0 * m] = addmod(u0, u2); xb[j + 2 * m] = submod(u0, u2);\n" \
++"	xb[j + 1 * m] = addmod(u1, u3); xb[j + 3 * m] = submod(u1, u3);\n" \
+ "}\n" \
+ "\n" \
+ "\n" \
+@@ -99,15 +101,16 @@ static const char * const src_ocl_NTT = \
+ "\n" \
+ "#define SETVAR(M, CHUNK) \\\n" \
+ "	__local uint2 X[M * CHUNK]; \\\n" \
+-"	const size_t local_id = get_local_id(0), chunk_idx = local_id % CHUNK, threadIdx = local_id / CHUNK, block_idx = get_group_id(0) * CHUNK;\n" \
++"	const size_t local_id = get_local_id(0), chunk_idx = local_id % CHUNK, threadIdx = local_id / CHUNK, block_idx = get_group_id(0) * CHUNK; \\\n" \
++"	const size_t candidate_lane = get_global_id(1);\n" \
+ "\n" \
+ "#define SETVAR_FL_NTT(M) \\\n" \
+-"	__global uint2 * const xo = x; \\\n" \
++"	__global uint2 * const xo = x + candidate_lane * pconst_size; \\\n" \
+ "	const size_t bl_i = block_idx | chunk_idx; \\\n" \
+ "	const size_t m = (pconst_size / 4) / (M / 4);\n" \
+ "\n" \
+ "#define SETVAR_NTT(M) \\\n" \
+-"	__global uint2 * const xo = &x[M * (block_idx & ~(m - 1))]; \\\n" \
++"	__global uint2 * const xo = &x[candidate_lane * pconst_size + M * (block_idx & ~(m - 1))]; \\\n" \
+ "	const size_t bl_i = (block_idx & (m - 1)) | chunk_idx;\n" \
+ "\n" \
+ "\n" \
+diff --git a/src/ocl/misc.h b/src/ocl/misc.h
+index 9610c7a..3f07a77 100644
+--- a/src/ocl/misc.h
++++ b/src/ocl/misc.h
+@@ -18,9 +18,12 @@ static const char * const src_ocl_misc = \
+ "*/\n" \
+ "\n" \
+ "__kernel\n" \
+-"void set_positive(__global uint2 * restrict const x,\n" \
+-"	__global const candidate_params_t * restrict const candidate_params)\n" \
++"void set_positive(__global uint2 * restrict const x_base,\n" \
++"	__global const candidate_params_t * restrict const candidate_params_base)\n" \
+ "{\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	__global uint2 * const x = x_base + lane * pconst_size;\n" \
++"	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;\n" \
+ "	// x.s0 = R, x.s1 = Y\n" \
+ "	// if R < Y then add k.2^n + 1 to R.\n" \
+ "\n" \
+@@ -55,9 +58,12 @@ static const char * const src_ocl_misc = \
+ "}\n" \
+ "\n" \
+ "__kernel\n" \
+-"void add1(__global uint2 * restrict const x, const uint a,\n" \
+-"	__global const candidate_params_t * restrict const candidate_params)\n" \
++"void add1(__global uint2 * restrict const x_base, const uint a,\n" \
++"	__global const candidate_params_t * restrict const candidate_params_base)\n" \
+ "{\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	__global uint2 * const x = x_base + lane * pconst_size;\n" \
++"	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;\n" \
+ "	// s0: += a\n" \
+ "	// s1: 0 => k.2^n + 1 for reduce_z step\n" \
+ "\n" \
+@@ -83,7 +89,7 @@ static const char * const src_ocl_misc = \
+ "__kernel\n" \
+ "void swap(__global uint2 * restrict const x, __global uint2 * restrict const y)\n" \
+ "{\n" \
+-"	const size_t k = get_global_id(0);\n" \
++"	const size_t k = get_global_id(1) * pconst_size + get_global_id(0);\n" \
+ "	const uint2 x_k = x[k], y_k = y[k];\n" \
+ "	x[k] = y_k; y[k] = x_k;\n" \
+ "}\n" \
+@@ -91,15 +97,16 @@ static const char * const src_ocl_misc = \
+ "__kernel\n" \
+ "void copy(__global uint2 * restrict const x, __global const uint2 * restrict const y)\n" \
+ "{\n" \
+-"	const size_t k = get_global_id(0);\n" \
++"	const size_t k = get_global_id(1) * pconst_size + get_global_id(0);\n" \
+ "	x[k] = y[k];\n" \
+ "}\n" \
+ "\n" \
+ "__kernel\n" \
+ "void compare(__global const uint2 * restrict const x, __global const uint2 * restrict const y, __global int * const err)\n" \
+ "{\n" \
+-"	const size_t k = get_global_id(0);\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	const size_t k = lane * pconst_size + get_global_id(0);\n" \
+ "	const uint2 x_k = x[k], y_k = y[k];\n" \
+-"	if ((x_k.s0 != y_k.s0) || (x_k.s1 != y_k.s1)) atomic_or(err, 1);\n" \
++"	if ((x_k.s0 != y_k.s0) || (x_k.s1 != y_k.s1)) atomic_or(err + 2 * lane, 1);\n" \
+ "}\n" \
+ "";
+diff --git a/src/ocl/poly2int.h b/src/ocl/poly2int.h
+index efcb9ac..5b704f0 100644
+--- a/src/ocl/poly2int.h
++++ b/src/ocl/poly2int.h
+@@ -86,18 +86,20 @@ static const char * const src_ocl_poly2int = \
+ "__kernel\n" \
+ "void poly2int2(__global uint2 * restrict const x, __global int * const err)\n" \
+ "{\n" \
+-"	if (err[1] == 0) return;\n" \
++"	__global uint2 * const xb = x + get_global_id(1) * pconst_size;\n" \
++"	__global int * const errb = err + 2 * get_global_id(1);\n" \
++"	if (errb[1] == 0) return;\n" \
+ "\n" \
+ "	int f = 0;\n" \
+ "	for (size_t k = 0; k < pconst_size; ++k)\n" \
+ "	{\n" \
+-"		f += x[k].s0;\n" \
+-"		x[k] = (uint)(f) & digit_mask;\n" \
++"		f += xb[k].s0;\n" \
++"		xb[k] = (uint)(f) & digit_mask;\n" \
+ "		f >>= digit_bit;\n" \
+ "	}\n" \
+ "\n" \
+-"	err[0] = f;\n" \
+-"	err[1] = 0;\n" \
++"	errb[0] = f;\n" \
++"	errb[1] = 0;\n" \
+ "}\n" \
+ "\n" \
+ "// P2I_BLK = 4\n" \
+@@ -106,27 +108,31 @@ static const char * const src_ocl_poly2int = \
+ "void poly2int0_4_16(__global uint2 * restrict const x, __global long * restrict const cr)\n" \
+ "{\n" \
+ "	POLY2INT0_VAR(4, 16);\n" \
+-"	poly2int0(L, X, 4, 16, x, cr);\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	poly2int0(L, X, 4, 16, x + lane * pconst_size, cr + lane * (pconst_size / 4));\n" \
+ "}\n" \
+ "\n" \
+ "__kernel __attribute__((reqd_work_group_size(32, 1, 1)))\n" \
+ "void poly2int0_4_32(__global uint2 * restrict const x, __global long * restrict const cr)\n" \
+ "{\n" \
+ "	POLY2INT0_VAR(4, 32);\n" \
+-"	poly2int0(L, X, 4, 32, x, cr);\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	poly2int0(L, X, 4, 32, x + lane * pconst_size, cr + lane * (pconst_size / 4));\n" \
+ "}\n" \
+ "\n" \
+ "__kernel __attribute__((reqd_work_group_size(64, 1, 1)))\n" \
+ "void poly2int0_4_64(__global uint2 * restrict const x, __global long * restrict const cr)\n" \
+ "{\n" \
+ "	POLY2INT0_VAR(4, 64);\n" \
+-"	poly2int0(L, X, 4, 64, x, cr);\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	poly2int0(L, X, 4, 64, x + lane * pconst_size, cr + lane * (pconst_size / 4));\n" \
+ "}\n" \
+ "\n" \
+ "__kernel\n" \
+ "void poly2int1_4(__global uint2 * restrict const x, __global const long * restrict const cr, __global int * const err)\n" \
+ "{\n" \
+-"	poly2int1(4, x, cr, err);\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	poly2int1(4, x + lane * pconst_size, cr + lane * (pconst_size / 4), err + 2 * lane);\n" \
+ "}\n" \
+ "\n" \
+ "// P2I_BLK = 8\n" \
+@@ -135,27 +141,31 @@ static const char * const src_ocl_poly2int = \
+ "void poly2int0_8_16(__global uint2 * restrict const x, __global long * restrict const cr)\n" \
+ "{\n" \
+ "	POLY2INT0_VAR(8, 16);\n" \
+-"	poly2int0(L, X, 8, 16, x, cr);\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	poly2int0(L, X, 8, 16, x + lane * pconst_size, cr + lane * (pconst_size / 4));\n" \
+ "}\n" \
+ "\n" \
+ "__kernel __attribute__((reqd_work_group_size(32, 1, 1)))\n" \
+ "void poly2int0_8_32(__global uint2 * restrict const x, __global long * restrict const cr)\n" \
+ "{\n" \
+ "	POLY2INT0_VAR(8, 32);\n" \
+-"	poly2int0(L, X, 8, 32, x, cr);\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	poly2int0(L, X, 8, 32, x + lane * pconst_size, cr + lane * (pconst_size / 4));\n" \
+ "}\n" \
+ "\n" \
+ "__kernel __attribute__((reqd_work_group_size(64, 1, 1)))\n" \
+ "void poly2int0_8_64(__global uint2 * restrict const x, __global long * restrict const cr)\n" \
+ "{\n" \
+ "	POLY2INT0_VAR(8, 64);\n" \
+-"	poly2int0(L, X, 8, 64, x, cr);\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	poly2int0(L, X, 8, 64, x + lane * pconst_size, cr + lane * (pconst_size / 4));\n" \
+ "}\n" \
+ "\n" \
+ "__kernel\n" \
+ "void poly2int1_8(__global uint2 * restrict const x, __global const long * restrict const cr, __global int * const err)\n" \
+ "{\n" \
+-"	poly2int1(8, x, cr, err);\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	poly2int1(8, x + lane * pconst_size, cr + lane * (pconst_size / 4), err + 2 * lane);\n" \
+ "}\n" \
+ "\n" \
+ "// P2I_BLK = 16\n" \
+@@ -164,26 +174,30 @@ static const char * const src_ocl_poly2int = \
+ "void poly2int0_16_8(__global uint2 * restrict const x, __global long * restrict const cr)\n" \
+ "{\n" \
+ "	POLY2INT0_VAR(16, 8);\n" \
+-"	poly2int0(L, X, 16, 8, x, cr);\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	poly2int0(L, X, 16, 8, x + lane * pconst_size, cr + lane * (pconst_size / 4));\n" \
+ "}\n" \
+ "\n" \
+ "__kernel __attribute__((reqd_work_group_size(16, 1, 1)))\n" \
+ "void poly2int0_16_16(__global uint2 * restrict const x, __global long * restrict const cr)\n" \
+ "{\n" \
+ "	POLY2INT0_VAR(16, 16);\n" \
+-"	poly2int0(L, X, 16, 16, x, cr);\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	poly2int0(L, X, 16, 16, x + lane * pconst_size, cr + lane * (pconst_size / 4));\n" \
+ "}\n" \
+ "\n" \
+ "__kernel __attribute__((reqd_work_group_size(32, 1, 1)))\n" \
+ "void poly2int0_16_32(__global uint2 * restrict const x, __global long * restrict const cr)\n" \
+ "{\n" \
+ "	POLY2INT0_VAR(16, 32);\n" \
+-"	poly2int0(L, X, 16, 32, x, cr);\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	poly2int0(L, X, 16, 32, x + lane * pconst_size, cr + lane * (pconst_size / 4));\n" \
+ "}\n" \
+ "\n" \
+ "__kernel\n" \
+ "void poly2int1_16(__global uint2 * restrict const x, __global const long * restrict const cr, __global int * const err)\n" \
+ "{\n" \
+-"	poly2int1(16, x, cr, err);\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	poly2int1(16, x + lane * pconst_size, cr + lane * (pconst_size / 4), err + 2 * lane);\n" \
+ "}\n" \
+ "";
+diff --git a/src/ocl/reduce.h b/src/ocl/reduce.h
+index c52ba68..1ccea25 100644
+--- a/src/ocl/reduce.h
++++ b/src/ocl/reduce.h
+@@ -23,9 +23,12 @@ static const char * const src_ocl_reduce = \
+ "#define rem_d(q) rem_d_runtime((q), candidate_params->d, candidate_params->d_inv, candidate_params->d_shift)\n" \
+ "\n" \
+ "__kernel __attribute__((reqd_work_group_size(R64, 1, 1)))\n" \
+-"void reduce_upsweep64(__global uint * restrict const t, const uint s, const uint j,\n" \
+-"	__global const candidate_params_t * restrict const candidate_params)\n" \
++"void reduce_upsweep64(__global uint * restrict const t_base, const uint s, const uint j,\n" \
++"	__global const candidate_params_t * restrict const candidate_params_base)\n" \
+ "{\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	__global uint * const t = t_base + lane * pconst_size;\n" \
++"	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;\n" \
+ "	__local uint4 T_4[R64 / 4 + R64 / 16];	// alignment\n" \
+ "	__local uint4 * const T2_4 = &T_4[R64 / 4];\n" \
+ "	__local uint * const T = (__local uint *)T_4;\n" \
+@@ -63,9 +66,12 @@ static const char * const src_ocl_reduce = \
+ "}\n" \
+ "\n" \
+ "__kernel __attribute__((reqd_work_group_size(R64, 1, 1)))\n" \
+-"void reduce_downsweep64(__global uint * restrict const t, const uint s, const uint j,\n" \
+-"	__global const candidate_params_t * restrict const candidate_params)\n" \
++"void reduce_downsweep64(__global uint * restrict const t_base, const uint s, const uint j,\n" \
++"	__global const candidate_params_t * restrict const candidate_params_base)\n" \
+ "{\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	__global uint * const t = t_base + lane * pconst_size;\n" \
++"	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;\n" \
+ "	__local uint4 T_4[R64 / 4 + R64 / 16];	// alignment\n" \
+ "	__local uint4 * const T2_4 = &T_4[R64 / 4];\n" \
+ "	__local uint * const T = (__local uint *)T_4;\n" \
+@@ -174,9 +180,12 @@ static const char * const src_ocl_reduce = \
+ "\n" \
+ "#define	S32		(32 / 4)\n" \
+ "__kernel __attribute__((reqd_work_group_size(S32, 1, 1)))\n" \
+-"void reduce_topsweep32(__global uint * restrict const t, const uint j,\n" \
+-"	__global const candidate_params_t * restrict const candidate_params)\n" \
++"void reduce_topsweep32(__global uint * restrict const t_base, const uint j,\n" \
++"	__global const candidate_params_t * restrict const candidate_params_base)\n" \
+ "{\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	__global uint * const t = t_base + lane * pconst_size;\n" \
++"	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;\n" \
+ "	__local uint T[64];	// 20\n" \
+ "\n" \
+ "	const size_t i = get_local_id(0);\n" \
+@@ -194,9 +203,12 @@ static const char * const src_ocl_reduce = \
+ "\n" \
+ "#define	S64		(64 / 4)\n" \
+ "__kernel __attribute__((reqd_work_group_size(S64, 1, 1)))\n" \
+-"void reduce_topsweep64(__global uint * restrict const t, const uint j,\n" \
+-"	__global const candidate_params_t * restrict const candidate_params)\n" \
++"void reduce_topsweep64(__global uint * restrict const t_base, const uint j,\n" \
++"	__global const candidate_params_t * restrict const candidate_params_base)\n" \
+ "{\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	__global uint * const t = t_base + lane * pconst_size;\n" \
++"	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;\n" \
+ "	__local uint T[64];	// 40\n" \
+ "\n" \
+ "	const size_t i = get_local_id(0);\n" \
+@@ -214,9 +226,12 @@ static const char * const src_ocl_reduce = \
+ "\n" \
+ "#define	S128	(128 / 4)\n" \
+ "__kernel __attribute__((reqd_work_group_size(S128, 1, 1)))\n" \
+-"void reduce_topsweep128(__global uint * restrict const t, const uint j,\n" \
+-"	__global const candidate_params_t * restrict const candidate_params)\n" \
++"void reduce_topsweep128(__global uint * restrict const t_base, const uint j,\n" \
++"	__global const candidate_params_t * restrict const candidate_params_base)\n" \
+ "{\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	__global uint * const t = t_base + lane * pconst_size;\n" \
++"	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;\n" \
+ "	__local uint T[128];	// 82\n" \
+ "\n" \
+ "	const size_t i = get_local_id(0);\n" \
+@@ -238,9 +253,12 @@ static const char * const src_ocl_reduce = \
+ "\n" \
+ "#define	S256	(256 / 4)\n" \
+ "__kernel __attribute__((reqd_work_group_size(S256, 1, 1)))\n" \
+-"void reduce_topsweep256(__global uint * restrict const t, const uint j,\n" \
+-"	__global const candidate_params_t * restrict const candidate_params)\n" \
++"void reduce_topsweep256(__global uint * restrict const t_base, const uint j,\n" \
++"	__global const candidate_params_t * restrict const candidate_params_base)\n" \
+ "{\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	__global uint * const t = t_base + lane * pconst_size;\n" \
++"	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;\n" \
+ "	__local uint T[256];	// 168\n" \
+ "\n" \
+ "	const size_t i = get_local_id(0);\n" \
+@@ -262,9 +280,12 @@ static const char * const src_ocl_reduce = \
+ "\n" \
+ "#define	S512	(512 / 4)\n" \
+ "__kernel __attribute__((reqd_work_group_size(S512, 1, 1)))\n" \
+-"void reduce_topsweep512(__global uint * restrict const t, const uint j,\n" \
+-"	__global const candidate_params_t * restrict const candidate_params)\n" \
++"void reduce_topsweep512(__global uint * restrict const t_base, const uint j,\n" \
++"	__global const candidate_params_t * restrict const candidate_params_base)\n" \
+ "{\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	__global uint * const t = t_base + lane * pconst_size;\n" \
++"	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;\n" \
+ "	__local uint T[512];	// 340\n" \
+ "\n" \
+ "	const size_t i = get_local_id(0);\n" \
+@@ -290,9 +311,12 @@ static const char * const src_ocl_reduce = \
+ "\n" \
+ "#define	S1024	(1024 / 4)\n" \
+ "__kernel __attribute__((reqd_work_group_size(S1024, 1, 1)))\n" \
+-"void reduce_topsweep1024(__global uint * restrict const t, const uint j,\n" \
+-"	__global const candidate_params_t * restrict const candidate_params)\n" \
++"void reduce_topsweep1024(__global uint * restrict const t_base, const uint j,\n" \
++"	__global const candidate_params_t * restrict const candidate_params_base)\n" \
+ "{\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	__global uint * const t = t_base + lane * pconst_size;\n" \
++"	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;\n" \
+ "	__local uint T[1024];	// 680\n" \
+ "\n" \
+ "	const size_t i = get_local_id(0);\n" \
+@@ -317,10 +341,16 @@ static const char * const src_ocl_reduce = \
+ "}\n" \
+ "\n" \
+ "__kernel\n" \
+-"void reduce_i(__global const uint2 * restrict const x, __global uint * restrict const y, __global uint * restrict const t,\n" \
+-"	__global const uint * restrict const bp,\n" \
+-"	__global const candidate_params_t * restrict const candidate_params)\n" \
++"void reduce_i(__global const uint2 * restrict const x_base, __global uint * restrict const y_base, __global uint * restrict const t_base,\n" \
++"	__global const uint * restrict const bp_base,\n" \
++"	__global const candidate_params_t * restrict const candidate_params_base)\n" \
+ "{\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	__global const uint2 * const x = x_base + lane * pconst_size;\n" \
++"	__global uint * const y = y_base + lane * (pconst_size / 2);\n" \
++"	__global uint * const t = t_base + lane * pconst_size;\n" \
++"	__global const uint * const bp = bp_base + lane * (pconst_size / 2);\n" \
++"	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;\n" \
+ "	const size_t k = get_global_id(0);\n" \
+ "\n" \
+ "	const uint xs = ((x[pconst_e + k].s0 >> pconst_s) | (x[pconst_e + k + 1].s0 << (digit_bit - pconst_s))) & digit_mask;\n" \
+@@ -331,10 +361,16 @@ static const char * const src_ocl_reduce = \
+ "}\n" \
+ "\n" \
+ "__kernel\n" \
+-"void reduce_o(__global uint2 * restrict const x, __global const uint * restrict const y, __global const uint * restrict const t,\n" \
+-"	__global const uint * restrict const ibp,\n" \
+-"	__global const candidate_params_t * restrict const candidate_params)\n" \
++"void reduce_o(__global uint2 * restrict const x_base, __global const uint * restrict const y_base, __global const uint * restrict const t_base,\n" \
++"	__global const uint * restrict const ibp_base,\n" \
++"	__global const candidate_params_t * restrict const candidate_params_base)\n" \
+ "{\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	__global uint2 * const x = x_base + lane * pconst_size;\n" \
++"	__global const uint * const y = y_base + lane * (pconst_size / 2);\n" \
++"	__global const uint * const t = t_base + lane * pconst_size;\n" \
++"	__global const uint * const ibp = ibp_base + lane * (pconst_size / 2);\n" \
++"	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;\n" \
+ "	const size_t k = get_global_id(0);\n" \
+ "\n" \
+ "	const uint tk = t[k + 4];\n" \
+@@ -353,8 +389,11 @@ static const char * const src_ocl_reduce = \
+ "}\n" \
+ "\n" \
+ "__kernel\n" \
+-"void reduce_f(__global uint2 * restrict const x, __global const uint * restrict const t)\n" \
++"void reduce_f(__global uint2 * restrict const x_base, __global const uint * restrict const t_base)\n" \
+ "{\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	__global uint2 * const x = x_base + lane * pconst_size;\n" \
++"	__global const uint * const t = t_base + lane * pconst_size;\n" \
+ "	const uint rs = x[pconst_e].s0 & ((1u << pconst_s) - 1);\n" \
+ "	ulong l = ((ulong)(t[0]) << pconst_s) | rs;		// rds < 2^(29 + digit_bit - 1)\n" \
+ "\n" \
+@@ -383,14 +422,18 @@ static const char * const src_ocl_reduce = \
+ "}\n" \
+ "\n" \
+ "__kernel\n" \
+-"void reduce_x(__global uint2 * restrict const x, __global int * const err)\n" \
++"void reduce_x(__global uint2 * restrict const x_base, __global int * const err_base)\n" \
+ "{\n" \
+-"	_reduce_x(x, err);\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	_reduce_x(x_base + lane * pconst_size, err_base + 2 * lane);\n" \
+ "}\n" \
+ "\n" \
+ "__kernel\n" \
+-"void reduce_z(__global uint2 * restrict const x, __global int * const err)\n" \
++"void reduce_z(__global uint2 * restrict const x_base, __global int * const err_base)\n" \
+ "{\n" \
++"	const size_t lane = get_global_id(1);\n" \
++"	__global uint2 * const x = x_base + lane * pconst_size;\n" \
++"	__global int * const err = err_base + 2 * lane;\n" \
+ "	// s0 = x, s1 = k.2^n + 1\n" \
+ "	// if s0 >= s1 then s0 -= s1;\n" \
+ "\n" \
+diff --git a/src/ocl/square.h b/src/ocl/square.h
+index 2fb712d..e6ff0b5 100644
+--- a/src/ocl/square.h
++++ b/src/ocl/square.h
+@@ -22,7 +22,7 @@ static const char * const src_ocl_square = \
+ "{\n" \
+ "	const size_t k = get_global_id(0);\n" \
+ "\n" \
+-"	const size_t i = 4 * k;\n" \
++"	const size_t i = get_global_id(1) * pconst_size + 4 * k;\n" \
+ "\n" \
+ "	const uint2 ux0 = x[i + 0], ux1 = x[i + 1], ux2 = x[i + 2], ux3 = x[i + 3];\n" \
+ "	const uint2 vx0 = addmod(ux0, ux1), vx1 = submod(ux0, ux1), vx2 = addmod(ux2, ux3), vx3 = submod(ux2, ux3);\n" \
+@@ -37,7 +37,7 @@ static const char * const src_ocl_square = \
+ "{\n" \
+ "	const size_t k = get_global_id(0);\n" \
+ "\n" \
+-"	const size_t i = 4 * k;\n" \
++"	const size_t i = get_global_id(1) * pconst_size + 4 * k;\n" \
+ "\n" \
+ "	const uint2 ux0 = x[i + 0], ux2 = x[i + 2], ux1 = x[i + 1], ux3 = x[i + 3];\n" \
+ "	const uint2 vx0 = addmod(ux0, ux2), vx2 = submod(ux0, ux2), vx1 = addmod(ux1, ux3), vx3 = mulI(submod(ux3, ux1));\n" \
+@@ -57,7 +57,7 @@ static const char * const src_ocl_square = \
+ "\n" \
+ "	const size_t i = get_local_id(0);\n" \
+ "	const size_t i_2 = i % 2, _i2 = ((4 * i) & (size_t)~(4 * 2 - 1)), i2 = _i2 | i_2, j2 = i_2, i_0 = _i2 | (2 * i_2);\n" \
+-"	const size_t k2 = get_group_id(0) * 8 * BLK8 | i2;\n" \
++"	const size_t k2 = get_global_id(1) * pconst_size + (get_group_id(0) * 8 * BLK8 | i2);\n" \
+ "\n" \
+ "	const uint4 r1_2 = r1[j2], ir1_2 = ir1[j2];\n" \
+ "	_forward4pi(2, &X[i2], 2, &x[k2], r2[j2], r1_2, ir1_2);\n" \
+@@ -73,7 +73,7 @@ static const char * const src_ocl_square = \
+ "\n" \
+ "	const size_t i = get_local_id(0);\n" \
+ "	const size_t i_4 = i % 4, i4 = ((4 * i) & (size_t)~(4 * 4 - 1)) | i_4, j4 = i_4;\n" \
+-"	const size_t k4 = get_group_id(0) * 16 * BLK16 | i4;\n" \
++"	const size_t k4 = get_global_id(1) * pconst_size + (get_group_id(0) * 16 * BLK16 | i4);\n" \
+ "\n" \
+ "	const uint4 r1_4 = r1[j4], ir1_4 = ir1[j4];\n" \
+ "	_forward4pi(4, &X[i4], 4, &x[k4], r2[j4], r1_4, ir1_4);\n" \
+@@ -92,7 +92,7 @@ static const char * const src_ocl_square = \
+ "	const size_t i = get_local_id(0);\n" \
+ "	const size_t i_8 = i % 8, i8 = ((4 * i) & (size_t)~(4 * 8 - 1)) | i_8, j8 = i_8 + 2;\n" \
+ "	const size_t i_2 = i % 2, _i2 = ((4 * i) & (size_t)~(4 * 2 - 1)), i2 = _i2 | i_2, j2 = i_2, i_0 = _i2 | (2 * i_2);\n" \
+-"	const size_t k8 = get_group_id(0) * 32 * BLK32 | i8;\n" \
++"	const size_t k8 = get_global_id(1) * pconst_size + (get_group_id(0) * 32 * BLK32 | i8);\n" \
+ "\n" \
+ "	const uint4 r1_8 = r1[j8], ir1_8 = ir1[j8];\n" \
+ "	_forward4pi(8, &X[i8], 8, &x[k8], r2[j8], r1_8, ir1_8);\n" \
+@@ -112,7 +112,7 @@ static const char * const src_ocl_square = \
+ "	const size_t i = get_local_id(0);\n" \
+ "	const size_t i_16 = i % 16, i16 = ((4 * i) & (size_t)~(4 * 16 - 1)) | i_16, j16 = i_16 + 4;\n" \
+ "	const size_t i_4 = i % 4, i4 = ((4 * i) & (size_t)~(4 * 4 - 1)) | i_4, j4 = i_4;\n" \
+-"	const size_t k16 = get_group_id(0) * 64 * BLK64 | i16;\n" \
++"	const size_t k16 = get_global_id(1) * pconst_size + (get_group_id(0) * 64 * BLK64 | i16);\n" \
+ "\n" \
+ "	const uint4 r1_16 = r1[j16], ir1_16 = ir1[j16];\n" \
+ "	_forward4pi(16, &X[i16], 16, &x[k16], r2[j16], r1_16, ir1_16);\n" \
+@@ -133,7 +133,7 @@ static const char * const src_ocl_square = \
+ "	const size_t i_32 = i % 32, i32 = ((4 * i) & (size_t)~(4 * 32 - 1)) | i_32, j32 = i_32 + 2 + 8;\n" \
+ "	const size_t i_8 = i % 8, i8 = ((4 * i) & (size_t)~(4 * 8 - 1)) | i_8, j8 = i_8 + 2;\n" \
+ "	const size_t i_2 = i % 2, _i2 = ((4 * i) & (size_t)~(4 * 2 - 1)), i2 = _i2 | i_2, j2 = i_2, i_0 = _i2 | (2 * i_2);\n" \
+-"	const size_t k32 = get_group_id(0) * 128 * BLK128 | i32;\n" \
++"	const size_t k32 = get_global_id(1) * pconst_size + (get_group_id(0) * 128 * BLK128 | i32);\n" \
+ "\n" \
+ "	const uint4 r1_32 = r1[j32], ir1_32 = ir1[j32];\n" \
+ "	_forward4pi(32, &X[i32], 32, &x[k32], r2[j32], r1_32, ir1_32);\n" \
+@@ -157,7 +157,7 @@ static const char * const src_ocl_square = \
+ "	const size_t i_64 = i % 64, i64 = ((4 * i) & (size_t)~(4 * 64 - 1)) | i_64, j64 = i_64 + 4 + 16;\n" \
+ "	const size_t i_16 = i % 16, i16 = ((4 * i) & (size_t)~(4 * 16 - 1)) | i_16, j16 = i_16 + 4;\n" \
+ "	const size_t i_4 = i % 4, i4 = ((4 * i) & (size_t)~(4 * 4 - 1)) | i_4, j4 = i_4;\n" \
+-"	const size_t k64 = get_group_id(0) * 256 * BLK256 | i64;\n" \
++"	const size_t k64 = get_global_id(1) * pconst_size + (get_group_id(0) * 256 * BLK256 | i64);\n" \
+ "\n" \
+ "	const uint4 r1_64 = r1[j64], ir1_64 = ir1[j64];\n" \
+ "	_forward4pi(64, &X[i64], 64, &x[k64], r2[j64], r1_64, ir1_64);\n" \
+@@ -182,7 +182,7 @@ static const char * const src_ocl_square = \
+ "	const size_t i_32 = i % 32, i32 = ((4 * i) & (size_t)~(4 * 32 - 1)) | i_32, j32 = i_32 + 2 + 8;\n" \
+ "	const size_t i_8 = i % 8, i8 = ((4 * i) & (size_t)~(4 * 8 - 1)) | i_8, j8 = i_8 + 2;\n" \
+ "	const size_t i_2 = i % 2, _i2 = ((4 * i) & (size_t)~(4 * 2 - 1)), i2 = _i2 | i_2, j2 = i_2, i_0 = _i2 | (2 * i_2);\n" \
+-"	const size_t k128 = get_group_id(0) * 512 | i128;\n" \
++"	const size_t k128 = get_global_id(1) * pconst_size + (get_group_id(0) * 512 | i128);\n" \
+ "\n" \
+ "	const uint4 r1_128 = r1[j128], ir1_128 = ir1[j128];\n" \
+ "	_forward4pi(128, &X[i128], 128, &x[k128], r2[j128], r1_128, ir1_128);\n" \
+@@ -210,7 +210,7 @@ static const char * const src_ocl_square = \
+ "	const size_t i_64 = i % 64, i64 = ((4 * i) & (size_t)~(4 * 64 - 1)) | i_64, j64 = i_64 + 4 + 16;\n" \
+ "	const size_t i_16 = i % 16, i16 = ((4 * i) & (size_t)~(4 * 16 - 1)) | i_16, j16 = i_16 + 4;\n" \
+ "	const size_t i_4 = i % 4, i4 = ((4 * i) & (size_t)~(4 * 4 - 1)) | i_4, j4 = i_4;\n" \
+-"	const size_t k256 = get_group_id(0) * 1024 | i256;\n" \
++"	const size_t k256 = get_global_id(1) * pconst_size + (get_group_id(0) * 1024 | i256);\n" \
+ "\n" \
+ "	const uint4 r1_256 = r1[j256], ir1_256 = ir1[j256];\n" \
+ "	_forward4pi(256, &X[i256], 256, &x[k256], r2[j256], r1_256, ir1_256);\n" \
+diff --git a/src/ocl/squareNTT_1024.h b/src/ocl/squareNTT_1024.h
+index 26c4029..8590e08 100644
+--- a/src/ocl/squareNTT_1024.h
++++ b/src/ocl/squareNTT_1024.h
+@@ -81,7 +81,7 @@ static const char * const src_ocl_squareNTT_1024 = \
+ "	const size_t i_64 = i % 64, i64 = ((4 * i) & (size_t)~(4 * 64 - 1)) | i_64, j64 = i_64 + 4 + 16;\n" \
+ "	const size_t i_16 = i % 16, i16 = ((4 * i) & (size_t)~(4 * 16 - 1)) | i_16, j16 = i_16 + 4;\n" \
+ "	const size_t i_4 = i % 4, i4 = ((4 * i) & (size_t)~(4 * 4 - 1)) | i_4, j4 = i_4;\n" \
+-"	const size_t k1024 = get_group_id(0) * 4096 | i1024;\n" \
++"	const size_t k1024 = get_global_id(1) * pconst_size + (get_group_id(0) * 4096 | i1024);\n" \
+ "\n" \
+ "	const uint4 r1_1024 = r1[j1024], ir1_1024 = ir1[j1024];\n" \
+ "	_forward4pi(1024, &X[i1024], 1024, &x[k1024], r2[j1024], r1_1024, ir1_1024);\n" \
+diff --git a/src/ocl/squareNTT_512.h b/src/ocl/squareNTT_512.h
+index 3372117..9c0289e 100644
+--- a/src/ocl/squareNTT_512.h
++++ b/src/ocl/squareNTT_512.h
+@@ -79,7 +79,7 @@ static const char * const src_ocl_squareNTT_512 = \
+ "	const size_t i_32 = i % 32, i32 = ((4 * i) & (size_t)~(4 * 32 - 1)) | i_32, j32 = i_32 + 2 + 8;\n" \
+ "	const size_t i_8 = i % 8, i8 = ((4 * i) & (size_t)~(4 * 8 - 1)) | i_8, j8 = i_8 + 2;\n" \
+ "	const size_t i_2 = i % 2, _i2 = ((4 * i) & (size_t)~(4 * 2 - 1)), i2 = _i2 | i_2, j2 = i_2, i_0 = _i2 | (2 * i_2);\n" \
+-"	const size_t k512 = get_group_id(0) * 2048 | i512;\n" \
++"	const size_t k512 = get_global_id(1) * pconst_size + (get_group_id(0) * 2048 | i512);\n" \
+ "\n" \
+ "	const uint4 r1_512 = r1[j512], ir1_512 = ir1[j512];\n" \
+ "	_forward4pi(512, &X[i512], 512, &x[k512], r2[j512], r1_512, ir1_512);\n" \

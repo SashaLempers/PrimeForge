@@ -1,0 +1,5 @@
+run	samples	start_gpu_temperature_c	max_gpu_temperature_c	max_cpu_temperature_c	max_gpu_power_w	throttling_samples	max_whea_errors
+A1-one-worker	156	42	55	75,75	76,94	0	0
+B1-two-workers	124	43	46	72,25	84,44	0	0
+B2-two-workers	124	43	45	73,5	84,08	0	0
+A2-one-worker	153	43	44	74,625	74,77	0	0

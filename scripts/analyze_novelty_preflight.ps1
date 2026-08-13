@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$SourceDirectory = 'docs\reports\novelty_sources\2026-08-05-or-later',
-    [string]$OutputFile = 'docs\reports\NOVELTY_PREFLIGHT_MACHINE.json'
+    [string]$OutputFile = 'docs\reports\NOVELTY_PREFLIGHT_MACHINE.json',
+    [string]$FirstPartyPrivateGitHubRepository = ''
 )
 
 Set-StrictMode -Version Latest
@@ -198,6 +199,12 @@ $apiFiles = Get-ChildItem -LiteralPath $sourcePath -File | Where-Object {
 }
 $apiResultCounts = [Collections.Generic.List[object]]::new()
 $apiRelevantHits = [Collections.Generic.List[object]]::new()
+$apiExcludedFirstPartyPrivateHits = [Collections.Generic.List[object]]::new()
+$firstPartyPrivateApiUrl = if ([string]::IsNullOrWhiteSpace($FirstPartyPrivateGitHubRepository)) {
+    ''
+} else {
+    'https://api.github.com/repos/' + $FirstPartyPrivateGitHubRepository.Trim('/')
+}
 foreach ($file in $apiFiles) {
     $text = [IO.File]::ReadAllText($file.FullName)
     $items = @()
@@ -256,13 +263,29 @@ foreach ($file in $apiFiles) {
     })
     foreach ($item in $items) {
         $itemText = if ($item -is [string]) { $item } else { $item | ConvertTo-Json -Depth 20 -Compress }
+        $itemRepositoryUrl = if ($item -isnot [string] -and
+            $item.PSObject.Properties.Name -contains 'repository_url') {
+            [string]$item.repository_url
+        } else { '' }
+        $isExplicitFirstPartyPrivateHit = $file.Name -like 'github-*' -and
+            $firstPartyPrivateApiUrl.Length -gt 0 -and
+            $itemRepositoryUrl.Equals($firstPartyPrivateApiUrl, [StringComparison]::OrdinalIgnoreCase)
         foreach ($value in $allValues) {
             if ($itemText.Contains([string]$value) -and
                 $itemText -match ('(?i)Proth|{0}|2\s*\^\s*{0}' -f $n)) {
-                $apiRelevantHits.Add([pscustomobject][ordered]@{
-                    file = $file.Name
-                    value = [string]$value
-                })
+                if ($isExplicitFirstPartyPrivateHit) {
+                    $apiExcludedFirstPartyPrivateHits.Add([pscustomobject][ordered]@{
+                        file = $file.Name
+                        value = [string]$value
+                        repository = $FirstPartyPrivateGitHubRepository
+                        reason = 'FIRST_PARTY_PRIVATE_REPOSITORY'
+                    })
+                } else {
+                    $apiRelevantHits.Add([pscustomobject][ordered]@{
+                        file = $file.Name
+                        value = [string]$value
+                    })
+                }
             }
         }
     }
@@ -396,6 +419,7 @@ $result = [pscustomobject][ordered]@{
         exact_web_relevant_blocks = @($webRelevant)
         machine_api_result_counts = @($apiResultCounts)
         machine_api_relevant_hits = @($apiRelevantHits)
+        machine_api_excluded_first_party_private_hits = @($apiExcludedFirstPartyPrivateHits)
         total_possible_overlaps_or_matches = $overlapCount
     }
     historical_control = [pscustomobject][ordered]@{
@@ -436,6 +460,11 @@ $result = [pscustomobject][ordered]@{
     fail_reasons = @($failReasons)
     limitations = @(
         'Public searches cannot reveal private or unindexed computations.',
+        $(if ($firstPartyPrivateApiUrl.Length -gt 0) {
+            "GitHub hits from the explicitly supplied first-party private repository $FirstPartyPrivateGitHubRepository are retained as excluded evidence and do not count as public overlap."
+        } else {
+            'No first-party private GitHub repository exclusion was supplied.'
+        }),
         'GitHub has no global API for searching release-asset contents.',
         'T5K is not exhaustive for primes of this size.',
         'The FermatSearch live range endpoint and merged table share the same operator database; their agreement corroborates but does not erase the displayed-date limitation.',

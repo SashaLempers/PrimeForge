@@ -643,6 +643,12 @@ Each future entry must include:
 - **Conclusion:** one to two billion improves projected complete time by about 3.02% and is retained. Two to four billion improves it by about 2.99% after added sieve time and is rejected; the supported and recommended ceiling remains two billion.
 - **Retry condition:** retry above two billion only after a faster streaming/residue sieve changes the marginal cost or a substantially slower proof workload changes the complete-time ratio.
 
+**Superseded 2026-08-13:** D-0089 satisfies this retry condition. The new
+streaming/direct-inverse implementation reduces the 4 G median to 7.5807339 s;
+the 2–4 G block now has 747.476583201 s of positive measured net value. The
+historical rejection remains recorded, but its 3 % policy no longer governs
+future campaigns.
+
 ## NR-0070 - Three GPU workers regressed aggregate throughput
 
 - **Date:** 2026-08-13
@@ -660,3 +666,75 @@ Each future entry must include:
 - **Failure criterion:** an engine-domain gate must not depend on an ignored checkout outside the evidence manifest.
 - **Conclusion:** the first analysis is rejected and its capture was moved under ignored `out/` rather than committed twice. The capture script now archives the pinned upstream README at revision `6771325939a7ceef2c75644c79981c7df4a61882` as critical evidence. The fresh 80-source rerun passed with zero overlaps and zero integrity or critical-fetch failures.
 - **Retry condition:** every external fact used by the machine preflight must be inside the hashed evidence set.
+
+## NR-0072 - Software power-cap telemetry stopped the authorized campaign
+
+- **Date:** 2026-08-13
+- **Change tested:** two-worker authorized discovery campaign at `n=66411`, `k=75939069..76077027` with the existing watchdog policy.
+- **Evidence:** the durable global checkpoint is `ERROR` at `1300/3563`, with 650 completed candidates per worker and no proven prime. Both watchdogs requested a graceful stop after NVIDIA reported `SW_POWER_CAP`; GPU temperature was 58–61 °C, CPU temperature 72–74 °C and WHEA count zero.
+- **Failure criterion:** a watchdog decision must distinguish an unsafe thermal or hardware condition from a normal NVIDIA performance-cap reason.
+- **Conclusion:** no campaign result is lost, but the run is terminal and was not resumed. `SW_POWER_CAP` alone is insufficient evidence of overheating. The campaign controller's rejection of the watchdog decision is preserved instead of silently relabeling the terminal event.
+- **Retry condition:** change this policy only in a separate validated milestone; never alter it during a campaign. A future policy must retain thermal, WHEA, memory and calculation-error stops while classifying software power-cap telemetry explicitly.
+
+## NR-0073 - Two profile attempts were excluded before the AB/BA gate
+
+- **Date:** 2026-08-13
+- **Change tested:** initial A1/B1 attempts for the 20-survivor Proth20 phase profile.
+- **Evidence:** the first retained-looking A1 began at 55 °C while the later variants began at 43 °C, exceeding the preregistered 3 °C spread. The first B1 produced 19/20 durable markers before the harness treated an unavailable redirected Windows `ExitCode` property as failure.
+- **Failure criterion:** AB/BA variants must use identical complete candidate sets and start within a 3 °C GPU-temperature spread.
+- **Conclusion:** neither attempt contributes to the retained statistics. Both remain in the local ignored output tree. A1 was rerun at 42 °C; B1 was rerun from zero with 20/20 markers. The final A1/B1/B2/A2 set passes exact witness/residue and thermal gates.
+- **Retry condition:** reuse only complete variants; a missing native exit property is not itself failure when exact markers and empty stderr prove completion.
+
+## NR-0074 - Runtime candidate parameters regressed complete Proth20 throughput
+
+- **Date:** 2026-08-13
+- **Change tested:** minimal invariant Proth20 context retaining the OpenCL program, kernels, roots, buffers and plan while loading runtime `k` parameters and candidate-dependent reduction tables.
+- **Evidence:** `benchmarks/evidence/breakthrough-jalon-c/`; two retained runs per variant on the same three 20,000-digit survivors produced identical witnesses and `RES64` values. Specialized median process time was 25.8669894 s (417.520564 candidates/hour); runtime-context median was 26.48157365 s (407.830748 candidates/hour).
+- **Failure criterion:** an invariant context is retained only if complete candidates/hour improves with identical mathematical results.
+- **Conclusion:** correctness passed, but throughput regressed 2.320800%. Context preparation saved only 24.677150 ms over three candidates while the main-loop sum regressed 2.563211%. The experimental patch is preserved but is not applied to the production Proth20 build.
+- **Retry condition:** do not micro-optimize this runtime variant. Revisit only if native multi-candidate execution can share candidate parameters without penalizing the dominant NTT/reduction loop.
+
+## NR-0075 - First production telemetry A/B exceeded the 3% gate
+
+- **Date:** 2026-08-13
+- **Change tested:** native B=8 scheduler, watchdog, compact resource samples and durable checkpoint on the same 16 archived composites as an uninstrumented B=8 baseline.
+- **Evidence:** `benchmarks/evidence/native-b8-production/telemetry-ab.tsv`; the initial medians were 10,612875650 s per baseline batch and 11,201242500 s per instrumented batch, a 5,543897% slowdown.
+- **Failure criterion:** median end-to-end slowdown must be at most 3% with identical mathematical results.
+- **Conclusion:** the first instrumented configuration is rejected. The dominant avoidable delay was the watchdog sleeping until its next two-second sample after worker exit, not TSV serialization.
+- **Retry condition:** make worker-exit observation responsive, reduce only optional resource rows to four seconds, retain the two-second safety sampling, then repeat once. The mandated single repeat passed at -2,156317% with identical results.
+
+## NR-0076 - Atomic watchdog status replacement raced a duplicate reader
+
+- **Date:** 2026-08-13
+- **Change tested:** second lot of the telemetry A/B repetition.
+- **Evidence:** the compact status existed before and after the failure, but the scheduler read it twice while the watchdog atomically replaced it; the second open observed the transient replacement boundary and failed closed before merging the already computed lot.
+- **Failure criterion:** a replace-only current-status file must never be treated as corrupt from a transient open race.
+- **Conclusion:** the attempt is rejected and its complete raw worker output remains local. The scheduler now performs one tolerant read per sample and retries the final status for one second after watchdog exit; mathematical results are merged only after a valid status is available.
+- **Retry condition:** use a fresh campaign identity. The following repeat completed both batches and passed every hash and telemetry gate.
+
+## NR-0077 - Windows PowerShell File.Replace broke the first supervisor lock update
+
+- **Date:** 2026-08-13
+- **Change tested:** real two-batch stop followed by supervisor lock transition from `RUNNING` to `EXITED`.
+- **Evidence:** the scheduler stopped correctly at 16 durable results with zero gaps, but Windows PowerShell rejected the selected `File.Replace` overload and the wrapper exited while leaving its child scheduler independent.
+- **Failure criterion:** the supervisor must update its small lock atomically and remain alive until scheduler termination.
+- **Conclusion:** the wrapper attempt is rejected; no mathematical result was lost. Atomic replacement now uses native `MoveFileExW(REPLACE_EXISTING|WRITE_THROUGH)`, and scheduler exit code is refreshed before recording.
+- **Retry condition:** the native replacement was exercised both on new and existing files; a fresh supervisor smoke test ended `EXITED`, exit code 0, with a terminal stop-on-prime checkpoint.
+
+## NR-0078 - Fresh GitHub search matched PrimeForge's own private pull request
+
+- **Date:** 2026-08-13
+- **Change tested:** final public novelty preflight for `n=66411`, `k=75939069..76077027` after production B=8 integration.
+- **Evidence:** `docs/reports/novelty_sources/2026-08-13-fast-prime-fp-20000-c0-a210bbba7489-native-b8-final/` and `docs/reports/NOVELTY_PREFLIGHT_NATIVE_B8_FINAL_MACHINE.json`; the first analysis failed closed on four hits, all from pull request 5 in `SashaLempers/PrimeForge`. GitHub reported that repository as `PRIVATE`.
+- **Failure criterion:** authenticated search results must not be called public overlap merely because they expose the auditor's own private evidence.
+- **Conclusion:** the unqualified analysis is rejected. The analyzer now accepts an explicit first-party private repository, retains those hits as excluded evidence, and does not subtract hits from any other repository. Without the explicit exclusion the same capture still exits 2 with four overlaps; with it the capture has zero public overlap, zero critical fetch failure and zero integrity failure.
+- **Retry condition:** if repository visibility changes or a different repository contains either boundary, rerun without this exclusion and fail closed on every resulting public hit.
+
+## NR-0079 - Linux inferred the Windows-only production executor as void
+
+- **Date:** 2026-08-13
+- **Change tested:** GitHub Actions build of production native B=8 commit `019d3da1e0ece211ad86b7ee21a5d8081cd5dd0a`.
+- **Evidence:** workflow runs `31744112028` and `31745175612`, jobs `linux-gcc`; GCC first rejected conversion of the Linux lambda to `BatchExecutor` and reported `read_watchdog_status` unused, then exposed its remaining helper `split` as unused under `-Werror`.
+- **Failure criterion:** the scheduler must compile on Linux CI even though actual Proth20 GPU execution is intentionally Windows-only.
+- **Conclusion:** both Linux builds are rejected. The lambda now declares `BatchExecution` explicitly, and the watchdog-status parser and its splitter are compiled only on Windows. No Windows execution path or mathematical operation changed. A fresh clean Windows Debug/Release run passes 43/43 tests in each configuration.
+- **Retry condition:** both the Linux/GCC and Windows/MSVC jobs for the corrective commit must complete successfully before launch.

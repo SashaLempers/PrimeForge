@@ -783,3 +783,56 @@ External installation files are read with one sized binary read and fail closed
 if their size changes. Together these changes improve the retained complete
 pipeline medians by 18.782 % to 23.624 %. No OpenSSL or redistributed dependency
 is introduced.
+
+## D-0088 - Proth20 optimizations follow measured phase cost
+
+**Status:** Accepted - 2026-08-13
+
+PrimeForge instruments the pinned Proth20 source behind disabled-by-default
+`--phase-profile` and `--kernel-profile` switches. A structural optimization is
+not retained merely because it removes setup work; it must reduce measured
+end-to-end time with identical witnesses and `RES64` values.
+
+On the retained 20-survivor AB/BA profile, `gpmp` construction is 2.791607% of
+mixed one/two-worker candidate time while the main squaring loop is 96.385219%.
+Two independent workers improve effective throughput by 25.3287%, not 100%.
+The next structural GPU target is consequently native shared-context/batch NTT
+work. Cache and sieve changes remain eligible only when their complete-campaign
+marginal benefit is positive.
+
+## D-0089 - Proth sieve depth follows absolute marginal time
+
+**Status:** Accepted - 2026-08-13
+
+The Proth-family sieve statically uses the pinned primesieve 12.15 segmented
+iterator, computes `2^-n` directly and stores candidate marks in `uint64_t`
+words. primesieve remains separately BSD-2-Clause licensed and its notice is
+included in every redistributed package.
+
+Depth selection compares measured extra sieve time with measured Proth20 time
+avoided; no relative percentage threshold is applied. On the 20,000-digit
+target class, the 2–4 billion block costs 3.78276165 seconds and avoids
+751.259344851 seconds of projected two-worker Proth20 work. Four billion is
+therefore retained for future campaigns of this measured class. This decision
+does not change or resume the stopped campaign, and it does not claim that the
+marginal optimum lies at the current `uint32_t` ceiling.
+
+Within a Proth20 process, an autotuned plan is cached by transform size, digit
+width and supported work-group class. Cross-process persistence is deferred
+until the key also authenticates GPU UUID, driver and kernel source.
+
+## D-0090 - Reject the standalone runtime-k context and target native NTT batching
+
+**Status:** Accepted - 2026-08-13
+
+The minimal invariant-context prototype is retained only as reproducible
+negative evidence. It is exact on the bounded full-size corpus but reduces
+median complete throughput from 417.520564 to 407.830748 candidates/hour. The
+production Proth20 build therefore keeps full `k` specialization plus the
+same-process plan cache from D-0089.
+
+No further `gpmp` micro-optimization is authorized by this result. The next
+performance work must attack the measured dominant loop using kernel-level
+profiling and then native multi-candidate NTT. Acceptance is based on identical
+complete results and aggregate candidates/hour against the retained two-worker
+baseline, not GPU utilization.

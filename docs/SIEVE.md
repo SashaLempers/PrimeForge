@@ -39,4 +39,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\validate_stage6_
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\run_stage6_benchmarks.ps1 -Repetitions 7 -Threads 4
 ```
 
-The external validator requires the locally audited primesieve 12.15 and FLINT 3.6.0 oracle under ignored `out/` paths. Neither is linked or redistributed. The benchmark emits integer TSV data, records missing temperature/frequency/power/energy as `UNKNOWN`, includes process startup in the measured region, and always writes `performance_claim=NONE`.
+The external validator requires FLINT 3.6.0 under ignored `out/` paths. It is
+not linked or redistributed. The Proth-family discovery sieve now statically
+links the audited primesieve 12.15 revision and consumes its segmented iterator;
+the required BSD notice is distributed separately from PrimeForge's
+Apache-2.0 grant. The benchmark emits integer TSV data, records missing
+temperature/frequency/power/energy as `UNKNOWN`, includes process startup in
+the measured region, and always writes `performance_claim=NONE`.

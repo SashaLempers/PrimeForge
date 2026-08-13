@@ -23,6 +23,26 @@ if(NOT PRIMEFORGE_BUILD_COMMIT_LENGTH EQUAL 40 OR
 endif()
 
 include(CTest)
+include(FetchContent)
+
+# PrimeForge's Proth-family sieve consumes primes as a bounded stream.  Pin the
+# exact upstream revision already audited in SOURCES.lock.  Third-party targets
+# deliberately do not inherit PrimeForge's /WX or -Werror policy.
+set(BUILD_PRIMESIEVE OFF CACHE BOOL "Build the primesieve command-line tool" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared third-party libraries" FORCE)
+set(BUILD_STATIC_LIBS ON CACHE BOOL "Build static libprimesieve" FORCE)
+set(BUILD_DOC OFF CACHE BOOL "Build third-party documentation" FORCE)
+set(BUILD_EXAMPLES OFF CACHE BOOL "Build third-party examples" FORCE)
+set(BUILD_TESTS OFF CACHE BOOL "Build third-party tests" FORCE)
+FetchContent_Declare(
+    primesieve
+    SYSTEM
+    EXCLUDE_FROM_ALL
+    GIT_REPOSITORY https://github.com/kimwalisch/primesieve.git
+    GIT_TAG 4f85384851da23c36c01ec01ef85b5d9d246e556
+    GIT_SHALLOW FALSE
+)
+FetchContent_MakeAvailable(primesieve)
 
 option(PRIMEFORGE_ENABLE_CUDA "Build the local CUDA validation target" OFF)
 set(PRIMEFORGE_CUDA_ROOT "" CACHE PATH "Pinned local CUDA Toolkit root")
@@ -111,6 +131,7 @@ target_include_directories(primeforge_core
         $<INSTALL_INTERFACE:include>
 )
 target_compile_features(primeforge_core PUBLIC cxx_std_23)
+target_link_libraries(primeforge_core PRIVATE primesieve::primesieve)
 primeforge_enable_strict_warnings(primeforge_core)
 
 add_library(primeforge_benchmark STATIC src/benchmark/benchmark.cpp)
@@ -177,6 +198,17 @@ target_link_libraries(primeforge_runtime PUBLIC PrimeForge::core)
 target_compile_features(primeforge_runtime PUBLIC cxx_std_23)
 primeforge_enable_strict_warnings(primeforge_runtime)
 target_link_libraries(primeforge_mvp PUBLIC PrimeForge::runtime)
+
+add_library(primeforge_native_b8 STATIC src/discovery/native_b8_campaign.cpp)
+add_library(PrimeForge::native_b8 ALIAS primeforge_native_b8)
+target_include_directories(primeforge_native_b8
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(primeforge_native_b8 PUBLIC PrimeForge::core)
+target_compile_features(primeforge_native_b8 PUBLIC cxx_std_23)
+primeforge_enable_strict_warnings(primeforge_native_b8)
 
 add_library(primeforge_pipeline STATIC src/pipeline/modular_pipeline.cpp)
 add_library(PrimeForge::pipeline ALIAS primeforge_pipeline)
@@ -299,6 +331,16 @@ target_link_libraries(primeforge-discovery-sieve-tests PRIVATE PrimeForge::core)
 target_compile_features(primeforge-discovery-sieve-tests PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge-discovery-sieve-tests)
 
+add_executable(primeforge-native-b8-scheduler src/discovery/native_b8_main.cpp)
+target_link_libraries(primeforge-native-b8-scheduler PRIVATE PrimeForge::native_b8)
+target_compile_features(primeforge-native-b8-scheduler PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-native-b8-scheduler)
+
+add_executable(primeforge-native-b8-tests tests/native_b8_campaign_test.cpp)
+target_link_libraries(primeforge-native-b8-tests PRIVATE PrimeForge::native_b8)
+target_compile_features(primeforge-native-b8-tests PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-native-b8-tests)
+
 add_executable(primeforge-work-unit-tests tests/work_unit_test.cpp)
 target_link_libraries(primeforge-work-unit-tests PRIVATE PrimeForge::core)
 target_compile_features(primeforge-work-unit-tests PRIVATE cxx_std_23)
@@ -387,6 +429,9 @@ primeforge_enable_strict_warnings(checkpoint_manager)
 
 add_executable(benchmark_watchdog src/runtime/benchmark_watchdog_main.cpp)
 target_link_libraries(benchmark_watchdog PRIVATE PrimeForge::runtime)
+if(WIN32)
+    target_link_libraries(benchmark_watchdog PRIVATE psapi)
+endif()
 target_compile_features(benchmark_watchdog PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(benchmark_watchdog)
 
@@ -565,6 +610,7 @@ if(BUILD_TESTING)
     )
     add_test(NAME primeforge.proth_cli COMMAND primeforge-proth --k 43 --n 32 --max-witness 255)
     add_test(NAME primeforge.discovery_sieve COMMAND primeforge-discovery-sieve-tests)
+    add_test(NAME primeforge.native_b8 COMMAND primeforge-native-b8-tests)
     set_tests_properties(
         primeforge.proth_cli
         PROPERTIES PASS_REGULAR_EXPRESSION "proth.primality_status=PROVEN_PRIME"
@@ -736,6 +782,14 @@ benchmark\.candidate_count=65536]=]
                 -Collector ${CMAKE_CURRENT_SOURCE_DIR}/scripts/collect_hardware_profile.ps1
                 -SelfTestPath $<TARGET_FILE:primeforge-selftest>
                 -WorkingDirectory ${CMAKE_CURRENT_BINARY_DIR}/hardware-profile-test
+        )
+        add_test(
+            NAME primeforge.proth20_phase_profile_analyzer
+            COMMAND powershell.exe
+                -NoProfile
+                -ExecutionPolicy Bypass
+                -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_proth20_phase_profile.ps1
+                -WorkingDirectory ${CMAKE_CURRENT_BINARY_DIR}/proth20-phase-profile-analyzer-test
         )
     endif()
 endif()

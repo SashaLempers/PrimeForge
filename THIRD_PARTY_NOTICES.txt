@@ -2,7 +2,7 @@ PrimeForge third-party notices
 
 Generated from licenses/DISTRIBUTION_MANIFEST.tsv by scripts/generate_third_party_notices.ps1.
 
-No third-party numerical library, runtime component, or external engine is redistributed by this milestone.
+primesieve: source=DEP-0001; integration=STATIC_FETCHCONTENT; license=licenses/primesieve-BSD-2-Clause.txt
 
 Development tools and CI services are not redistributed. Audited sources kept under ignored out/ directories are not part of the distribution.
 An external-process boundary does not waive or decide third-party license obligations.

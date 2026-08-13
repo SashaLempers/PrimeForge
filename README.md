@@ -315,6 +315,20 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 ```
 
 See `docs/BUILD_WINDOWS.md` and `docs/CANONICAL_JSON.md`.
+The measured Proth20 phase decomposition and the resulting optimization
+decision are documented in `docs/reports/BREAKTHROUGH_JALON_A.md`.
+The retained direct-inverse/segmented Proth sieve, measured depth decision and
+same-process Proth20 plan cache are documented in
+`docs/reports/BREAKTHROUGH_JALON_B.md`.
+The bounded invariant-context prototype is exact but rejected after a measured
+2.320800% complete-throughput regression; see
+`docs/reports/BREAKTHROUGH_JALON_C.md`. It is not enabled in the production
+Proth20 build. The native multi-candidate NTT prototype then passes its exact
+end-to-end gate: B=8 reaches 3,100.474460 complete candidates/hour on the
+retained 20,000-digit corpus, with all witnesses, RES64 values and Gerbicz
+checks identical to the two-process reference. See
+`docs/reports/BREAKTHROUGH_JALON_D.md`. The patch remains experimental pending
+checkpoint-safe scheduler integration.
 The guarded long-run component contract and exact commands are in
 `docs/pivot/RUNTIME_SAFETY.md`. No massive or prolonged benchmark has run yet.
 
@@ -322,8 +336,9 @@ Milestone evidence is kept in `docs/reports/`. Stage 11 remains a scoped negativ
 result: offline adaptation reproduced fixed-low and online exploration added cost
 on its retained regimes. Old telemetry-incomplete timings keep
 `performance_claim=NONE`. Only small known correctness campaigns have run; no
-novel or prolonged search campaign has started. primesieve, FLINT, PARI/GP and
-proth20 remain isolated local oracles only.
+novel or prolonged search campaign has started. primesieve 12.15 is now a
+pinned, statically linked BSD-2-Clause dependency of the Proth discovery sieve;
+FLINT, PARI/GP and proth20 remain isolated local oracles only.
 
 ## Governance and licensing
 

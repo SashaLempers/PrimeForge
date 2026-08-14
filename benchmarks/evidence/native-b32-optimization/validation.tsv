@@ -1,0 +1,18 @@
+gate	result	evidence
+same_256_candidate_corpus	PASS	B8 batches 0..31 versus B32 batches 0..7
+classification_identity	PASS	256/256 exact
+witness_identity	PASS	256/256 exact
+RES64_identity	PASS	256/256 exact
+Gerbicz	PASS	all B16/B32 A/B runs and all 8 end-to-end B32 batches
+no_gap_or_duplicate	PASS	256 unique ordered result rows
+checkpoint_terminal	PASS	COMPLETE_NO_PRIME, remaining=0, error_count=0
+B32_tail	PASS	B32+B32+B1 unit contract
+B32_stop_resume	PASS	64-result checkpoint plus exact 1-candidate suffix
+B32_stop_on_prime_unit	PASS	prime lane 31, one complete batch, no next batch
+B32_known_prime_engine	PASS	76005585*2^66411+1, witness=7, RES64=0000000000000000
+WHEA	PASS	0 nonzero samples
+NVIDIA_Xid	PASS	0 nonzero samples
+throttling	PASS	0 nonempty samples
+GPU_temperature	PASS	maximum 59 C in end-to-end replay
+Debug	PASS	43/43 tests
+Release	PASS	43/43 tests

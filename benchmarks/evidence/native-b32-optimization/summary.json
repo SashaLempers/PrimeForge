@@ -1,0 +1,46 @@
+{
+  "schema": "primeforge.native-b32-optimization.summary.v1",
+  "date": "2026-08-14",
+  "baseline_full_campaign": {
+    "candidate_count": 1016,
+    "batch_size": 8,
+    "throughput_candidates_per_hour": "2892.622768",
+    "batch_wall_seconds": "1264.021951",
+    "main_ntt_wall_percent": "92.232980",
+    "observable_gpu_idle_upper_percent": "5.591482"
+  },
+  "exact_same_corpus_comparison": {
+    "candidate_count": 256,
+    "baseline_batch_size": 8,
+    "baseline_batch_wall_seconds": "319.752244",
+    "baseline_candidates_per_hour": "2882.231532",
+    "final_batch_size": 32,
+    "final_batch_wall_seconds": "77.085977",
+    "final_candidates_per_hour": "11955.481864",
+    "speedup": "4.147995",
+    "mathematical_results_identical": true,
+    "witnesses_identical": true,
+    "res64_identical": true,
+    "gerbicz": "PASS"
+  },
+  "conservative_outer_wall": {
+    "seconds": "77.1689263",
+    "candidates_per_hour": "11942.630851"
+  },
+  "optimizations": [
+    {"name": "forced_plan_5_3", "decision": "REJECTED", "end_to_end_change_percent": "-0.190"},
+    {"name": "native_B16", "decision": "RETAINED", "speedup_over_B8": "1.922099"},
+    {"name": "native_B32", "decision": "RETAINED", "speedup_over_B16": "1.936570"}
+  ],
+  "final_profile": {
+    "main_ntt_wall_percent": "88.215894",
+    "observable_gpu_idle_upper_percent": "5.424621",
+    "reduction_event_percent": "49.723840",
+    "poly2int_event_percent": "22.743170"
+  },
+  "projection_100k": {
+    "before_hours": "34.695339",
+    "after_hours": "8.364364"
+  },
+  "status": "PASS"
+}

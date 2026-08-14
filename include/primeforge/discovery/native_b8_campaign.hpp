@@ -16,6 +16,8 @@
 
 namespace primeforge::discovery::native_b8 {
 
+inline constexpr std::uint32_t max_batch_size = 32U;
+
 struct Candidate {
     std::uint32_t k{};
     std::uint32_t n{};
@@ -127,7 +129,7 @@ struct CampaignConfig {
     std::string engine_commit;
     std::string engine_binary_sha256;
     std::string survivor_list_sha256;
-    std::uint32_t batch_size{8U};
+    std::uint32_t batch_size{max_batch_size};
     std::uint64_t supervisor_pid{};
     TelemetryLimits telemetry_limits;
 };

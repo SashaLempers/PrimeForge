@@ -1,0 +1,65 @@
+diff --git a/src/gpmp.h b/src/gpmp.h
+--- a/src/gpmp.h
++++ b/src/gpmp.h
+@@ -378,4 +378,4 @@ public:
+ 	{
+ 		if (engine.getMaxWorkGroupSize() < 256) throw std::runtime_error("The maximum work-group size must be equal to or greater than 256");
+-		if ((_batchKs.empty()) || (_batchKs.size() > 8) || (_batchKs.front() != k))
++		if ((_batchKs.empty()) || (_batchKs.size() > 32) || (_batchKs.front() != k))
+ 			throw std::runtime_error("invalid native candidate batch");
+@@ -747,4 +747,4 @@ public:
+ 		const std::vector<std::vector<cl_uint2>> & initialStates)
+ 	{
+-		if ((batchKs.size() < 1) || (batchKs.size() > 8) || (initialStates.size() != batchKs.size()))
++		if ((batchKs.size() < 1) || (batchKs.size() > 32) || (initialStates.size() != batchKs.size()))
+ 			throw std::runtime_error("invalid native batch activation");
+@@ -947,4 +947,4 @@ public:
+ 	{
+ 		const size_t batchCount = _engine.getBatchCount();
+-		if ((batchCount < 1) || (batchCount > 8)) throw std::runtime_error("native batch residue count is invalid");
++		if ((batchCount < 1) || (batchCount > 32)) throw std::runtime_error("native batch residue count is invalid");
+ 
+diff --git a/src/main.cpp b/src/main.cpp
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -108,4 +108,4 @@ private:
+ 		ss << "  --kernel-profile        also emit synchronized OpenCL kernel events" << std::endl;
+ 		ss << "  --batch <file>           test whitespace-separated k n pairs with one OpenCL context" << std::endl;
+-		ss << "  --native-batch <file>    test 1 to 8 same-size candidates in one native NTT batch" << std::endl;
++		ss << "  --native-batch <file>    test 1 to 32 same-size candidates in one native NTT batch" << std::endl;
+ 		ss << "  --native-batch2 <file>   compatibility alias for a two-candidate native batch" << std::endl;
+@@ -285,10 +285,10 @@ public:
+ 						if (normalizedN != nativeN) throw std::runtime_error("native batch candidates must share n");
+ 						nativeKs.push_back(normalizedK);
+-						if (nativeKs.size() > 8) throw std::runtime_error("native batch prototype supports at most eight candidates");
++						if (nativeKs.size() > 32) throw std::runtime_error("native batch prototype supports at most 32 candidates");
+ 					}
+ 					if (!input.eof()) throw std::runtime_error("malformed native batch file");
+ 					if (bNativeBatch2Alias && (nativeKs.size() != 2))
+ 						throw std::runtime_error("--native-batch2 requires exactly two candidates");
+-					if ((nativeKs.size() < 1) || (nativeKs.size() > 8))
+-						throw std::runtime_error("native batch production mode requires 1 to 8 candidates");
++					if ((nativeKs.size() < 1) || (nativeKs.size() > 32))
++						throw std::runtime_error("native batch production mode requires 1 to 32 candidates");
+ 					p.checkNativeBatch(nativeKs, nativeN, engine, stopFile, bStopOnPrime,
+diff --git a/src/ocl.h b/src/ocl.h
+--- a/src/ocl.h
++++ b/src/ocl.h
+@@ -290,4 +290,4 @@ public:
+ 	void setBatchCount(const size_t batchCount)
+ 	{
+-		if ((batchCount == 0) || (batchCount > 8)) throw std::runtime_error("invalid OpenCL batch count");
++		if ((batchCount == 0) || (batchCount > 32)) throw std::runtime_error("invalid OpenCL batch count");
+ 		_batchCount = batchCount;
+diff --git a/src/proth.h b/src/proth.h
+--- a/src/proth.h
++++ b/src/proth.h
+@@ -387,6 +387,6 @@ public:
+ 		const std::string & stopFile = std::string(), const bool stopOnPrime = false,
+ 		const bool kernelProfile = false, const bool phaseProfile = false)
+ 	{
+-		if ((batchKs.size() < 1) || (batchKs.size() > 8))
+-			throw std::runtime_error("native batch production mode requires 1 to 8 candidates");
++		if ((batchKs.size() < 1) || (batchKs.size() > 32))
++			throw std::runtime_error("native batch production mode requires 1 to 32 candidates");
+ 		for (size_t i = 0; i < batchKs.size(); ++i)

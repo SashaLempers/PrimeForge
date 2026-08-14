@@ -21,6 +21,8 @@ $planCachePatch = Join-Path $repositoryRoot 'patches\proth20-plan-cache.patch'
 $invariantPatch = Join-Path $repositoryRoot 'patches\proth20-invariant-context-prototype.patch'
 $nativeBatchPatch = Join-Path $repositoryRoot 'patches\proth20-native-batch-prototype.patch'
 $nativeProductionPatch = Join-Path $repositoryRoot 'patches\proth20-native-b8-production.patch'
+$nativeKernelProfilePatch = Join-Path $repositoryRoot 'patches\proth20-native-b8-kernel-profile.patch'
+$nativeB32ProductionPatch = Join-Path $repositoryRoot 'patches\proth20-native-b32-production.patch'
 
 function Resolve-ProjectPath {
     param([Parameter(Mandatory = $true)][string]$Path)
@@ -73,7 +75,7 @@ if (-not (Test-Path -LiteralPath $profilePatch -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $planCachePatch -PathType Leaf)) {
     throw "Pinned proth20 plan-cache patch is missing: $planCachePatch"
 }
-foreach ($requiredPatch in @($invariantPatch, $nativeBatchPatch, $nativeProductionPatch)) {
+foreach ($requiredPatch in @($invariantPatch, $nativeBatchPatch, $nativeProductionPatch, $nativeKernelProfilePatch, $nativeB32ProductionPatch)) {
     if (-not (Test-Path -LiteralPath $requiredPatch -PathType Leaf)) {
         throw "Pinned proth20 production patch is missing: $requiredPatch"
     }
@@ -128,6 +130,20 @@ foreach ($productionPatch in @($invariantPatch, $nativeBatchPatch, $nativeProduc
         Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', '--check', $productionPatch)
         Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', $productionPatch)
     }
+}
+
+$nativeKernelProfileApplied = Test-ReversePatch `
+    -SourcePath $sourcePath -PatchPath $nativeKernelProfilePatch
+if (-not $nativeKernelProfileApplied) {
+    Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', '--check', $nativeKernelProfilePatch)
+    Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', $nativeKernelProfilePatch)
+}
+
+$nativeB32ProductionApplied = Test-ReversePatch `
+    -SourcePath $sourcePath -PatchPath $nativeB32ProductionPatch
+if (-not $nativeB32ProductionApplied) {
+    Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', '--check', $nativeB32ProductionPatch)
+    Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', $nativeB32ProductionPatch)
 }
 
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'

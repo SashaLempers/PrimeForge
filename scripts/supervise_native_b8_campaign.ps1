@@ -14,6 +14,7 @@ param(
     [Parameter(Mandatory = $true)][string]$EngineSha256,
     [Parameter(Mandatory = $true)][string]$SurvivorSha256,
     [ValidateRange(0, 31)][int]$Device = 0,
+    [ValidateRange(1, 32)][int]$BatchSize = 32,
     [switch]$Resume
 )
 
@@ -144,7 +145,8 @@ $schedulerArguments = @(
     '--engine-sha256', $EngineSha256.ToLowerInvariant(),
     '--survivor-sha256', $SurvivorSha256.ToLowerInvariant(),
     '--supervisor-pid', [string]$PID,
-    '--device', [string]$Device
+    '--device', [string]$Device,
+    '--batch-size', [string]$BatchSize
 )
 $argumentLine = ($schedulerArguments | ForEach-Object { Quote-ProcessArgument ([string]$_) }) -join ' '
 

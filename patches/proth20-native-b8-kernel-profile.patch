@@ -1,0 +1,52 @@
+diff --git a/src/proth.h b/src/proth.h
+--- a/src/proth.h
++++ b/src/proth.h
+@@ -383,7 +383,8 @@ public:
+ 
+ public:
+ 	bool checkNativeBatch(const std::vector<uint32_t> & batchKs, const uint32_t n, engine & engine,
+-		const std::string & stopFile = std::string(), const bool stopOnPrime = false)
++		const std::string & stopFile = std::string(), const bool stopOnPrime = false,
++		const bool kernelProfile = false, const bool phaseProfile = false)
+ 	{
+ 		if ((batchKs.size() < 1) || (batchKs.size() > 8))
+ 			throw std::runtime_error("native batch production mode requires 1 to 8 candidates");
+@@ -411,7 +413,7 @@ public:
+ 			std::chrono::steady_clock::now() - witnessStart).count());
+ 
+ 		const std::chrono::steady_clock::time_point parameterBuildStart = std::chrono::steady_clock::now();
+-		gpmp X(batchKs.front(), n, engine, false, true, false, false, 0, batchKs);
++		gpmp X(batchKs.front(), n, engine, false, true, kernelProfile, phaseProfile, 0, batchKs);
+ 		X.synchronize();
+ 		const uint64_t parameterBuildMicroseconds = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+ 			std::chrono::steady_clock::now() - parameterBuildStart).count());
+@@ -438,6 +440,7 @@ public:
+ 			std::chrono::steady_clock::now() - hostToDeviceStart).count());
+ 
+ 		const uint32_t L = 1 << (arith::log2(n) / 2);
++		if (kernelProfile) X.resetKernelProfiles();
+ 		const std::chrono::steady_clock::time_point mainStart = std::chrono::steady_clock::now();
+ 		for (uint32_t i = 1; i < n; ++i)
+ 		{
+@@ -454,6 +457,7 @@ public:
+ 		X.synchronize();
+ 		for (size_t lane = 0; lane < batchKs.size(); ++lane)
+ 			if (X.getError(lane) != 0) throw std::runtime_error("GPU error detected in native batch main loop");
++		if (kernelProfile) X.displayKernelProfiles();
+ 		const uint64_t mainMicroseconds = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+ 			std::chrono::steady_clock::now() - mainStart).count());
+ 
+diff --git a/src/main.cpp b/src/main.cpp
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -277,8 +277,9 @@ public:
+ 					if (bNativeBatch2Alias && (nativeKs.size() != 2))
+ 						throw std::runtime_error("--native-batch2 requires exactly two candidates");
+ 					if ((nativeKs.size() < 1) || (nativeKs.size() > 8))
+ 						throw std::runtime_error("native batch production mode requires 1 to 8 candidates");
+-					p.checkNativeBatch(nativeKs, nativeN, engine, stopFile, bStopOnPrime);
++					p.checkNativeBatch(nativeKs, nativeN, engine, stopFile, bStopOnPrime,
++						bKernelProfile, bPhaseProfile);
+ 				}
+ 				else
+ 				{

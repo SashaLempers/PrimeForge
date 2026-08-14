@@ -738,3 +738,12 @@ future campaigns.
 - **Failure criterion:** the scheduler must compile on Linux CI even though actual Proth20 GPU execution is intentionally Windows-only.
 - **Conclusion:** both Linux builds are rejected. The lambda now declares `BatchExecution` explicitly, and the watchdog-status parser and its splitter are compiled only on Windows. No Windows execution path or mathematical operation changed. A fresh clean Windows Debug/Release run passes 43/43 tests in each configuration.
 - **Retry condition:** both the Linux/GCC and Windows/MSVC jobs for the corrective commit must complete successfully before launch.
+
+## NR-0080 - A forced native NTT plan did not improve end-to-end throughput
+
+- **Date:** 2026-08-14
+- **Change tested:** force square-plan index 5 and poly2int-plan index 3 (`256_4 sq_32 p2i_8_16`) instead of the normal Proth20 auto-selection on the same eight 20,000-digit composites.
+- **Evidence:** `benchmarks/evidence/native-b32-optimization/abba.tsv` and the hashed local record `out/benchmarks/plan-5-3-abba/summary.json`; order A/B/B/A, identical classifications, witnesses and `RES64`, Gerbicz PASS.
+- **Failure criterion:** retain only a reproducible increase in complete candidates/hour measured from process wall time.
+- **Conclusion:** automatic A averaged 9.077997 s and forced B averaged 9.095247 s. The forced plan regressed end-to-end wall time by about 0.190%, despite reducing parameter construction. The override is rejected and is not included in the production patch.
+- **Retry condition:** do not micro-tune fixed plans. Reconsider only if a later kernel or transform-layout change invalidates the current autotuner measurements.

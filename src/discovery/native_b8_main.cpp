@@ -218,6 +218,7 @@ struct Arguments {
     std::string survivor_sha256;
     std::uint64_t supervisor_pid{};
     std::uint32_t device{};
+    std::uint32_t batch_size{primeforge::discovery::native_b8::max_batch_size};
 };
 
 [[nodiscard]] Arguments parse_arguments(const int argc, char** argv) {
@@ -240,13 +241,15 @@ struct Arguments {
         else if (argument == "--survivor-sha256") values.survivor_sha256 = next();
         else if (argument == "--supervisor-pid") values.supervisor_pid = std::stoull(next());
         else if (argument == "--device") values.device = static_cast<std::uint32_t>(std::stoul(next()));
-        else throw std::invalid_argument("unknown native B8 scheduler argument: " + argument);
+        else if (argument == "--batch-size") values.batch_size = static_cast<std::uint32_t>(std::stoul(next()));
+        else throw std::invalid_argument("unknown native batch scheduler argument: " + argument);
     }
     if (values.campaign_directory.empty() || values.queue.empty() || values.parent_completed.empty() ||
         values.engine.empty() || values.watchdog.empty() || values.campaign_id.empty() ||
         values.parent_campaign_id.empty() || values.engine_commit.empty() || values.engine_sha256.empty() ||
-        values.survivor_sha256.empty() || values.supervisor_pid == 0U) {
-        throw std::invalid_argument("native B8 scheduler arguments are incomplete");
+        values.survivor_sha256.empty() || values.supervisor_pid == 0U || values.batch_size == 0U ||
+        values.batch_size > primeforge::discovery::native_b8::max_batch_size) {
+        throw std::invalid_argument("native batch scheduler arguments are incomplete");
     }
     values.campaign_directory = std::filesystem::absolute(values.campaign_directory);
     values.queue = std::filesystem::absolute(values.queue);
@@ -266,7 +269,7 @@ int main(int argc, char** argv) {
         primeforge::PortableSha256Provider sha256;
         if (!std::filesystem::is_regular_file(arguments.engine) ||
             hash_file(arguments.engine, sha256) != arguments.engine_sha256) {
-            throw std::runtime_error("native B8 engine binary hash mismatch");
+            throw std::runtime_error("native batch engine binary hash mismatch");
         }
         if (!std::filesystem::is_regular_file(arguments.watchdog)) {
             throw std::runtime_error("campaign watchdog executable is missing");
@@ -354,7 +357,7 @@ int main(int argc, char** argv) {
                         primeforge::work::write_checkpoint_atomically(worker_stop, "STOP\n");
                         worker.terminate();
                         watchdog.terminate();
-                        throw std::runtime_error("native B8 worker made no observable progress for 30 minutes");
+                        throw std::runtime_error("native batch worker made no observable progress for 30 minutes");
                     }
                     std::this_thread::sleep_for(std::chrono::milliseconds{200});
                 }
@@ -380,7 +383,7 @@ int main(int argc, char** argv) {
                 const auto reason = final_watchdog.find("reason");
                 if (execution.stopped && reason != final_watchdog.end() &&
                     reason->second != "NONE" && reason->second != "EXTERNAL_GRACEFUL_STOP") {
-                    execution.error = "watchdog stopped native B8 worker: " + reason->second;
+                    execution.error = "watchdog stopped native batch worker: " + reason->second;
                 }
                 runtime_sink({});
                 return execution;
@@ -389,7 +392,7 @@ int main(int argc, char** argv) {
                 static_cast<void>(resource_sink);
                 static_cast<void>(runtime_sink);
                 static_cast<void>(external_stop);
-                throw std::runtime_error("native B8 GPU production execution is currently Windows-only");
+                throw std::runtime_error("native batch GPU production execution is currently Windows-only");
 #endif
             };
 
@@ -402,7 +405,7 @@ int main(int argc, char** argv) {
         config.engine_commit = arguments.engine_commit;
         config.engine_binary_sha256 = arguments.engine_sha256;
         config.survivor_list_sha256 = arguments.survivor_sha256;
-        config.batch_size = 8U;
+        config.batch_size = arguments.batch_size;
         config.supervisor_pid = arguments.supervisor_pid;
         // The first end-to-end A/B gate exceeded 3% because of lifecycle wait noise.
         // Keep the safety watchdog at 2 s, but downsample optional resource rows to 4 s.

@@ -183,6 +183,23 @@ void test_tail_and_checkpoint(const std::filesystem::path& root) {
           "campaign telemetry is not stream-parseable");
 }
 
+void test_b32_tail(const std::filesystem::path& root) {
+    primeforge::PortableSha256Provider sha256;
+    const auto directory = root / "b32-tail";
+    const auto candidates = corpus(65U);
+    auto config = config_for(directory, candidates);
+    config.batch_size = b8::max_batch_size;
+    std::vector<std::size_t> sizes;
+    const auto summary = b8::run_campaign(config, deterministic_executor(&sizes), sha256);
+    check(summary.state == "COMPLETE_NO_PRIME" && summary.completed_this_resume == 65U &&
+              summary.remaining == 0U,
+          "65-candidate B32 scheduler did not complete");
+    check(sizes == std::vector<std::size_t>({32U, 32U, 1U}),
+          "tail was not scheduled as B32+B32+B1");
+    check(mathematical_rows(directory / "candidate-results.tsv").size() == 65U,
+          "B32 tail scheduler produced a hole or duplicate");
+}
+
 void test_stop_resume(const std::filesystem::path& root) {
     primeforge::PortableSha256Provider sha256;
     const auto candidates = corpus(25U);
@@ -205,6 +222,32 @@ void test_stop_resume(const std::filesystem::path& root) {
               mathematical_rows(interrupted_directory / "candidate-results.tsv") ==
                   mathematical_rows(continuous_directory / "candidate-results.tsv"),
           "stop/resume mathematical results differ from continuous execution");
+}
+
+void test_b32_stop_resume(const std::filesystem::path& root) {
+    primeforge::PortableSha256Provider sha256;
+    const auto candidates = corpus(65U);
+    const auto interrupted_directory = root / "b32-interrupted";
+    auto interrupted_config = config_for(interrupted_directory, candidates);
+    interrupted_config.batch_size = b8::max_batch_size;
+    bool stopped = false;
+    const auto interrupted = b8::run_campaign(
+        interrupted_config, deterministic_executor(nullptr, &stopped), sha256, [&] { return stopped; });
+    check(interrupted.state == "STOPPED" && interrupted.completed_this_resume == 64U &&
+              interrupted.remaining == 1U,
+          "B32 checkpoint-aligned stop did not preserve exactly two lots");
+    stopped = false;
+    const auto resumed = b8::run_campaign(interrupted_config, deterministic_executor(), sha256);
+    check(resumed.state == "COMPLETE_NO_PRIME" && resumed.completed_this_resume == 65U,
+          "B32 resume did not finish the exact suffix");
+
+    const auto continuous_directory = root / "b32-continuous";
+    auto continuous_config = config_for(continuous_directory, candidates);
+    continuous_config.batch_size = b8::max_batch_size;
+    static_cast<void>(b8::run_campaign(continuous_config, deterministic_executor(), sha256));
+    check(mathematical_rows(interrupted_directory / "candidate-results.tsv") ==
+              mathematical_rows(continuous_directory / "candidate-results.tsv"),
+          "B32 stop/resume mathematical results differ from continuous execution");
 }
 
 void test_result_ahead_of_checkpoint_recovery(const std::filesystem::path& root) {
@@ -260,6 +303,26 @@ void test_stop_on_prime(const std::filesystem::path& root) {
           "non-first-lane prime or peer composite results were lost");
 }
 
+void test_b32_stop_on_prime(const std::filesystem::path& root) {
+    primeforge::PortableSha256Provider sha256;
+    const auto directory = root / "b32-prime";
+    auto config = config_for(directory, corpus(65U));
+    config.batch_size = b8::max_batch_size;
+    std::size_t calls = 0U;
+    const b8::BatchExecutor executor = [&](const b8::BatchRequest& request, const b8::ResourceSink&,
+                                           const b8::RuntimeIdsSink&, const b8::StopRequested&) {
+        ++calls;
+        return fake_execution(request, 31U);
+    };
+    const auto summary = b8::run_campaign(config, executor, sha256);
+    check(summary.state == "PRIME_FOUND" && summary.prime_found && summary.completed_this_resume == 32U &&
+              summary.remaining == 33U && calls == 1U,
+          "B32 stop-on-prime did not retain the whole in-flight batch and stop before the next one");
+    const auto rows = mathematical_rows(directory / "candidate-results.tsv");
+    check(rows.size() == 32U && rows[31].find("PROVEN_PRIME") != std::string::npos,
+          "B32 non-first-lane prime or peer composite results were lost");
+}
+
 void test_telemetry_limits_and_truncation(const std::filesystem::path& root) {
     const auto directory = root / "telemetry";
     std::filesystem::create_directories(directory);
@@ -306,13 +369,16 @@ int main() {
         std::filesystem::create_directories(root);
         test_parser();
         test_tail_and_checkpoint(root);
+        test_b32_tail(root);
         test_stop_resume(root);
+        test_b32_stop_resume(root);
         test_result_ahead_of_checkpoint_recovery(root);
         test_stop_on_prime(root);
+        test_b32_stop_on_prime(root);
         test_telemetry_limits_and_truncation(root);
         std::filesystem::remove_all(root);
         std::cout << "primeforge-native-b8-tests: PASS\n"
-                  << "covered=parser,B8+B8+B1,atomic-checkpoint,write-ahead-recovery,stop-resume,stop-on-prime,telemetry-soft-hard,truncated-tail\n";
+                  << "covered=parser,B8+B8+B1,B32+B32+B1,atomic-checkpoint,write-ahead-recovery,B8-stop-resume,B32-stop-resume,B8-stop-on-prime,B32-stop-on-prime,telemetry-soft-hard,truncated-tail\n";
         return 0;
     } catch (const std::exception& error) {
         std::filesystem::remove_all(root);

@@ -403,7 +403,7 @@ struct DurableResultState {
     while (offset < results.size()) {
         const auto& first = results[offset];
         if (first.batch_id != state.next_batch_id || first.batch_size == 0U ||
-            first.batch_size > 8U || results.size() - offset < first.batch_size) {
+            first.batch_size > max_batch_size || results.size() - offset < first.batch_size) {
             throw std::runtime_error("durable result batches are not contiguous and complete");
         }
         BatchRequest request;
@@ -716,8 +716,8 @@ std::string candidate_set_sha256(
 std::string ordered_batch_sha256(
     const std::vector<Candidate>& candidates,
     const Sha256Provider& sha256) {
-    if (candidates.empty() || candidates.size() > 8U) {
-        throw std::invalid_argument("native batch must contain one to eight candidates");
+    if (candidates.empty() || candidates.size() > max_batch_size) {
+        throw std::invalid_argument("native batch must contain one to 32 candidates");
     }
     return hash_bytes(canonical_candidates(candidates), sha256);
 }
@@ -727,8 +727,10 @@ BatchExecution parse_worker_output(
     const std::vector<Candidate>& expected,
     const int worker_exit_code) {
     const auto parse_start = Clock::now();
-    if (worker_exit_code != 0) { throw std::runtime_error("native B8 worker exited nonzero"); }
-    if (expected.empty() || expected.size() > 8U) { throw std::invalid_argument("expected native batch size is invalid"); }
+    if (worker_exit_code != 0) { throw std::runtime_error("native batch worker exited nonzero"); }
+    if (expected.empty() || expected.size() > max_batch_size) {
+        throw std::invalid_argument("expected native batch size is invalid");
+    }
     BatchExecution execution;
     execution.worker_exit_code = worker_exit_code;
     std::map<std::string, std::string, std::less<>> timing;
@@ -817,8 +819,8 @@ CampaignSummary run_campaign(
     StopRequested stop_requested) {
     if (config.campaign_directory.empty() || !std::filesystem::is_directory(config.campaign_directory) ||
         config.campaign_id.empty() || config.parent_campaign_id.empty() || config.engine_commit.empty() ||
-        config.batch_size != 8U || !executor) {
-        throw std::invalid_argument("invalid native B8 campaign configuration");
+        config.batch_size == 0U || config.batch_size > max_batch_size || !executor) {
+        throw std::invalid_argument("invalid native batch campaign configuration");
     }
     require_sha256(config.engine_binary_sha256, "engine_binary_sha256");
     require_sha256(config.survivor_list_sha256, "survivor_list_sha256");

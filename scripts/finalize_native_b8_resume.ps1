@@ -19,7 +19,7 @@ param(
     [uint64]$KMin = 75939069,
     [uint64]$KMax = 76077027,
     [uint32]$Exponent = 66411,
-    [ValidateRange(1, 8)][uint32]$BatchSize = 8
+    [ValidateRange(1, 32)][uint32]$BatchSize = 32
 )
 
 $ErrorActionPreference = 'Stop'

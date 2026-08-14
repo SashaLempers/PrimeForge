@@ -747,3 +747,12 @@ future campaigns.
 - **Failure criterion:** retain only a reproducible increase in complete candidates/hour measured from process wall time.
 - **Conclusion:** automatic A averaged 9.077997 s and forced B averaged 9.095247 s. The forced plan regressed end-to-end wall time by about 0.190%, despite reducing parameter construction. The override is rejected and is not included in the production patch.
 - **Retry condition:** do not micro-tune fixed plans. Reconsider only if a later kernel or transform-layout change invalidates the current autotuner measurements.
+
+## NR-0081 - Inline poly2int correction regressed the 100k-digit regime
+
+- **Date:** 2026-08-14
+- **Change tested:** fold the rare poly2int correction into the adjacent kernels for B32 at both small and large transforms.
+- **Evidence:** `benchmarks/evidence/native-digit-scaling-20260814/optimizations.tsv`; A/B/B/A on the same 32 closed candidates, with identical classifications, witnesses and RES64 values and Gerbicz PASS.
+- **Failure criterion:** retain a path in a regime only when complete validated candidates/hour improves reproducibly.
+- **Conclusion:** the variant improved 20k by 13.322083% and 40k by 8.120605%, but regressed 100k by 2.102932%. It is therefore enabled only for the measured RTX 5080 B32 transforms at or below 16,384. Transform 32,768 and unmeasured hardware use the separate safe correction path.
+- **Retry condition:** reconsider the large-transform variant only after a structural poly2int/layout change; do not try to rescue it through repeated parameter micro-tuning.

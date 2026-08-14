@@ -329,6 +329,13 @@ retained 20,000-digit corpus, with all witnesses, RES64 values and Gerbicz
 checks identical to the two-process reference. See
 `docs/reports/BREAKTHROUGH_JALON_D.md`. The patch remains experimental pending
 checkpoint-safe scheduler integration.
+The bounded 20k-to-100k digit scaling study and the retained adaptive B32
+reduction/poly2int work are documented in
+`docs/reports/NATIVE_DIGIT_SCALING_AND_ADAPTIVE_GPU_OPTIMIZATION_2026-08-14.md`.
+The direct A/B/B/A bookends improve complete validated throughput by 45.33% at
+20k digits and 28.02% at 100k digits with identical witnesses, RES64 values and
+Gerbicz PASS. This is `100k_digits`, not 100,000 candidates, and no discovery
+campaign was run.
 The guarded long-run component contract and exact commands are in
 `docs/pivot/RUNTIME_SAFETY.md`. No massive or prolonged benchmark has run yet.
 

@@ -836,3 +836,25 @@ performance work must attack the measured dominant loop using kernel-level
 profiling and then native multi-candidate NTT. Acceptance is based on identical
 complete results and aggregate candidates/hour against the retained two-worker
 baseline, not GPU utilization.
+
+## D-0091 - GPU configuration is selected centrally by measured regime
+
+**Status:** Accepted - 2026-08-14
+
+PrimeForge classifies GPU optimizations as generic, parametric or
+regime-specific. Generic reduction-boundary and finalization fusions are always
+enabled in the patched Proth20 path. The poly2int rare-fix folding is enabled
+only for the measured RTX 5080 B32 transforms at or below 16,384 because it
+improved 20k and 40k throughput but regressed 100k throughput. Transform 32,768
+retains the separate exact correction path.
+
+A central table selects the measured RTX 5080 B32 plan for transforms 8,192,
+16,384 and 32,768. Other GPUs, batches and transforms retain the bounded safe
+autotuner. The direct baseline/final A/B/B/A bookends improve complete validated
+throughput by 45.332785% at 20k digits and 28.022448% at 100k digits with
+identical classifications, witnesses and RES64 values and Gerbicz PASS.
+
+This table is not treated as universal or as a reason to tune every campaign.
+A future persistent tuner must authenticate the GPU, driver, kernel source,
+transform and batch, and must clear a repeatable minimum-gain gate before
+changing a cached selection.

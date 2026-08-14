@@ -1,0 +1,12 @@
+experiment	classification	regime	a_candidates_per_hour	b_candidates_per_hour	speedup	mathematical_results_identical	gerbicz	decision
+boundary_reduction_fusion	GENERIC	20k_digits	12639.474392	14552.269675	1.151335034	true	PASS	RETAIN
+boundary_reduction_fusion	GENERIC	100k_digits	2369.887723	2781.971708	1.173883337	true	PASS	RETAIN
+final_reduction_fusion	GENERIC	20k_digits	14311.374932	15978.181350	1.116467245	true	PASS	RETAIN
+final_reduction_fusion	GENERIC	100k_digits	2741.540306	3052.346122	1.113369049	true	PASS	RETAIN
+poly2int_rare_fix_folding	REGIME_SPECIFIC	20k_digits	15594.724621	17672.266709	1.133220826	true	PASS	RETAIN_BY_DISPATCH
+poly2int_rare_fix_folding	REGIME_SPECIFIC	40k_digits	7305.851445	7899.130788	1.081206051	true	PASS	RETAIN_BY_DISPATCH
+poly2int_rare_fix_folding	REGIME_SPECIFIC	100k_digits	3052.966589	2988.764778	0.978970680	true	PASS	REJECT_IN_THIS_REGIME
+measured_plan_table	PARAMETRIC	20k_digits	16634.752826	17944.675584	1.078746151	true	PASS	RETAIN
+measured_plan_table	PARAMETRIC	100k_digits	3125.967448	3176.193464	1.016067351	true	PASS	RETAIN
+baseline_to_final	ADAPTIVE_STACK	20k_digits	12689.478030	18441.971795	1.453327848	true	PASS	RETAIN
+baseline_to_final	ADAPTIVE_STACK	100k_digits	2502.821910	3204.173868	1.280224476	true	PASS	RETAIN

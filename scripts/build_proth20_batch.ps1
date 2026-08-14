@@ -23,6 +23,8 @@ $nativeBatchPatch = Join-Path $repositoryRoot 'patches\proth20-native-batch-prot
 $nativeProductionPatch = Join-Path $repositoryRoot 'patches\proth20-native-b8-production.patch'
 $nativeKernelProfilePatch = Join-Path $repositoryRoot 'patches\proth20-native-b8-kernel-profile.patch'
 $nativeB32ProductionPatch = Join-Path $repositoryRoot 'patches\proth20-native-b32-production.patch'
+$adaptiveReductionPatch = Join-Path $repositoryRoot 'patches\proth20-adaptive-reduction-poly2int.patch'
+$openClHeaderSync = Join-Path $repositoryRoot 'scripts\sync_proth20_opencl_header.ps1'
 
 function Resolve-ProjectPath {
     param([Parameter(Mandatory = $true)][string]$Path)
@@ -75,10 +77,13 @@ if (-not (Test-Path -LiteralPath $profilePatch -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $planCachePatch -PathType Leaf)) {
     throw "Pinned proth20 plan-cache patch is missing: $planCachePatch"
 }
-foreach ($requiredPatch in @($invariantPatch, $nativeBatchPatch, $nativeProductionPatch, $nativeKernelProfilePatch, $nativeB32ProductionPatch)) {
+foreach ($requiredPatch in @($invariantPatch, $nativeBatchPatch, $nativeProductionPatch, $nativeKernelProfilePatch, $nativeB32ProductionPatch, $adaptiveReductionPatch)) {
     if (-not (Test-Path -LiteralPath $requiredPatch -PathType Leaf)) {
         throw "Pinned proth20 production patch is missing: $requiredPatch"
     }
+}
+if (-not (Test-Path -LiteralPath $openClHeaderSync -PathType Leaf)) {
+    throw "OpenCL header synchronizer is missing: $openClHeaderSync"
 }
 if (-not (Test-Path -LiteralPath $openClPath -PathType Leaf)) {
     throw "OpenCL import library is missing: $openClPath"
@@ -98,7 +103,11 @@ if ($LASTEXITCODE -ne 0 -or $revision -ne $expectedRevision) {
 & git -C $sourcePath diff --quiet
 $sourceChanged = $LASTEXITCODE -ne 0
 $profileHeader = Join-Path $sourcePath 'src\primeforge_profile.h'
-if (-not $sourceChanged -and -not (Test-Path -LiteralPath $profileHeader -PathType Leaf)) {
+$adaptiveAlreadyApplied = Test-ReversePatch -SourcePath $sourcePath -PatchPath $adaptiveReductionPatch
+if ($adaptiveAlreadyApplied) {
+    # The complete pinned patch stack is already present. The generated OpenCL
+    # header is intentionally outside the adaptive source patch.
+} elseif (-not $sourceChanged -and -not (Test-Path -LiteralPath $profileHeader -PathType Leaf)) {
     Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', '--check', $batchPatch)
     Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', $batchPatch)
     Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', '--recount', '--unidiff-zero', '--check', $profilePatch)
@@ -115,36 +124,50 @@ if (-not $sourceChanged -and -not (Test-Path -LiteralPath $profileHeader -PathTy
     }
 }
 
-$planCacheApplied = Test-ReversePatch `
-    -SourcePath $sourcePath -PatchPath $planCachePatch -ZeroContext
-if (-not $planCacheApplied) {
-    Invoke-Checked -Executable git -Arguments @(
-        '-C', $sourcePath, 'apply', '--recount', '--unidiff-zero', '--check', $planCachePatch)
-    Invoke-Checked -Executable git -Arguments @(
-        '-C', $sourcePath, 'apply', '--recount', '--unidiff-zero', $planCachePatch)
-}
+if (-not $adaptiveAlreadyApplied) {
+    $planCacheApplied = Test-ReversePatch `
+        -SourcePath $sourcePath -PatchPath $planCachePatch -ZeroContext
+    if (-not $planCacheApplied) {
+        Invoke-Checked -Executable git -Arguments @(
+            '-C', $sourcePath, 'apply', '--recount', '--unidiff-zero', '--check', $planCachePatch)
+        Invoke-Checked -Executable git -Arguments @(
+            '-C', $sourcePath, 'apply', '--recount', '--unidiff-zero', $planCachePatch)
+    }
 
-foreach ($productionPatch in @($invariantPatch, $nativeBatchPatch, $nativeProductionPatch)) {
-    $alreadyApplied = Test-ReversePatch -SourcePath $sourcePath -PatchPath $productionPatch
-    if (-not $alreadyApplied) {
-        Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', '--check', $productionPatch)
-        Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', $productionPatch)
+    foreach ($productionPatch in @($invariantPatch, $nativeBatchPatch, $nativeProductionPatch)) {
+        $alreadyApplied = Test-ReversePatch -SourcePath $sourcePath -PatchPath $productionPatch
+        if (-not $alreadyApplied) {
+            Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', '--check', $productionPatch)
+            Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', $productionPatch)
+        }
+    }
+
+    $nativeKernelProfileApplied = Test-ReversePatch `
+        -SourcePath $sourcePath -PatchPath $nativeKernelProfilePatch
+    if (-not $nativeKernelProfileApplied) {
+        Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', '--check', $nativeKernelProfilePatch)
+        Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', $nativeKernelProfilePatch)
+    }
+
+    $nativeB32ProductionApplied = Test-ReversePatch `
+        -SourcePath $sourcePath -PatchPath $nativeB32ProductionPatch
+    if (-not $nativeB32ProductionApplied) {
+        Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', '--check', $nativeB32ProductionPatch)
+        Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', $nativeB32ProductionPatch)
     }
 }
 
-$nativeKernelProfileApplied = Test-ReversePatch `
-    -SourcePath $sourcePath -PatchPath $nativeKernelProfilePatch
-if (-not $nativeKernelProfileApplied) {
-    Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', '--check', $nativeKernelProfilePatch)
-    Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', $nativeKernelProfilePatch)
+$adaptiveReductionApplied = Test-ReversePatch `
+    -SourcePath $sourcePath -PatchPath $adaptiveReductionPatch
+if (-not $adaptiveReductionApplied) {
+    Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', '--check', $adaptiveReductionPatch)
+    Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', $adaptiveReductionPatch)
 }
 
-$nativeB32ProductionApplied = Test-ReversePatch `
-    -SourcePath $sourcePath -PatchPath $nativeB32ProductionPatch
-if (-not $nativeB32ProductionApplied) {
-    Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', '--check', $nativeB32ProductionPatch)
-    Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', $nativeB32ProductionPatch)
-}
+& $openClHeaderSync `
+    -SourceFile (Join-Path $sourcePath 'ocl\reduce.cl') `
+    -HeaderFile (Join-Path $sourcePath 'src\ocl\reduce.h') `
+    -VariableName 'src_ocl_reduce'
 
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 if (-not (Test-Path -LiteralPath $vswhere -PathType Leaf)) {

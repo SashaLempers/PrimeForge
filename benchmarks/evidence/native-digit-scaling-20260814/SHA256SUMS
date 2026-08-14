@@ -1,0 +1,6 @@
+692faba967a9be87b89375df9a3de2b0a8739dc89a761c2edf4d68283eaabde9  out/benchmarks/native-digit-scaling/baseline/summary.json
+01ba9c6044c2f5174c9e8e8f674de6867361c2c29f2fa7f236f8e57cea3a9d5c  out/benchmarks/native-digit-scaling/final-bookend-abba-20k/summary.json
+f99e62fc03df2db4c043fb13640948b327d0f5045cb3ba251c3c8f918178e180  out/benchmarks/native-digit-scaling/final-bookend-abba-100k/summary.json
+1880475dc7338b171806c50663c34e55d4ab624cc695499da1fe13f51a2f7ecd  out/benchmarks/native-digit-scaling/stop-resume-adaptive-20260814-v1.json
+c842457e5c6985dda7252d8dcc84af2dc8170767d2b494a6a5e61334ccb510a5  out/benchmarks/native-digit-scaling/corpus/manifest.json
+f6aae22cf4ad0d45c2d82a02d8ec7aee8339fd8deb413ed4d4e3b6f194b0ce40  patches/proth20-adaptive-reduction-poly2int.patch

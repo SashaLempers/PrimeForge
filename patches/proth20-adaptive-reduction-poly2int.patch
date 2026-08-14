@@ -1,0 +1,781 @@
+diff --git a/ocl/reduce.cl b/ocl/reduce.cl
+index 064fa2a..537adce 100644
+--- a/ocl/reduce.cl
++++ b/ocl/reduce.cl
+@@ -10,6 +10,46 @@ Please give feedback to the authors if improvement is realized. It is distribute
+ #define addmod_d(lhs, rhs) addmod_d_runtime((lhs), (rhs), candidate_params->d)
+ #define rem_d(q) rem_d_runtime((q), candidate_params->d, candidate_params->d_inv, candidate_params->d_shift)
+ 
++inline uint _poly2int_fixed_digit(__global const uint2 * restrict const x, const size_t k, const bool needs_fix)
++{
++#if PRIMEFORGE_FUSE_POLY2INT_FIX
++	if (!needs_fix) return x[k].s0;
++
++	int f = 0;
++	uint digit = 0;
++	for (size_t i = 0; i <= k; ++i)
++	{
++		f += x[i].s0;
++		digit = (uint)(f) & digit_mask;
++		f >>= digit_bit;
++	}
++	return digit;
++#else
++	(void)needs_fix;
++	return x[k].s0;
++#endif
++}
++
++inline void _poly2int_fix_serial(__global uint2 * restrict const x, __global int * restrict const err)
++{
++#if PRIMEFORGE_FUSE_POLY2INT_FIX
++	if (err[1] == 0) return;
++
++	int f = 0;
++	for (size_t k = 0; k < pconst_size; ++k)
++	{
++		f += x[k].s0;
++		x[k].s0 = (uint)(f) & digit_mask;
++		f >>= digit_bit;
++	}
++	err[0] = f;
++	err[1] = 0;
++#else
++	(void)x;
++	(void)err;
++#endif
++}
++
+ __kernel __attribute__((reqd_work_group_size(R64, 1, 1)))
+ void reduce_upsweep64(__global uint * restrict const t_base, const uint s, const uint j,
+ 	__global const candidate_params_t * restrict const candidate_params_base)
+@@ -53,6 +93,79 @@ void reduce_upsweep64(__global uint * restrict const t_base, const uint s, const
+ 	}
+ }
+ 
++__kernel __attribute__((reqd_work_group_size(R64, 1, 1)))
++void reduce_upsweep64_i(__global const uint2 * restrict const x_base,
++	__global uint * restrict const y_base, __global uint * restrict const t_base,
++	__global const uint * restrict const bp_base, __global int * restrict const err_base,
++	const uint s, const uint j,
++	__global const candidate_params_t * restrict const candidate_params_base)
++{
++	const size_t lane = get_global_id(1);
++	__global const uint2 * const x = x_base + lane * pconst_size;
++	__global uint * const y = y_base + lane * (pconst_size / 2);
++	__global uint * const t = t_base + lane * pconst_size;
++	__global const uint * const bp = bp_base + lane * (pconst_size / 2);
++	__global int * const err = err_base + 2 * lane;
++	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;
++	__local uint4 T_4[R64 / 4 + R64 / 16];
++	__local uint4 * const T2_4 = &T_4[R64 / 4];
++	__local uint * const T = (__local uint *)T_4;
++	__local uint * const T_2 = (__local uint *)T2_4;
++
++	const size_t i = get_local_id(0), blk = get_group_id(0), k = get_global_id(0);
++	__global uint * const tj = &t[j];
++	const size_t digit = 4 * k;
++#if PRIMEFORGE_FUSE_POLY2INT_FIX
++	const bool needs_fix = err[1] != 0;
++#else
++	const bool needs_fix = false;
++#endif
++
++	const uint xd0 = _poly2int_fixed_digit(x, pconst_e + digit + 0, needs_fix);
++	const uint xd1 = _poly2int_fixed_digit(x, pconst_e + digit + 1, needs_fix);
++	const uint xd2 = _poly2int_fixed_digit(x, pconst_e + digit + 2, needs_fix);
++	const uint xd3 = _poly2int_fixed_digit(x, pconst_e + digit + 3, needs_fix);
++	const uint xd4 = _poly2int_fixed_digit(x, pconst_e + digit + 4, needs_fix);
++	const uint xs0 = ((xd0 >> pconst_s) | (xd1 << (digit_bit - pconst_s))) & digit_mask;
++	const uint xs1 = ((xd1 >> pconst_s) | (xd2 << (digit_bit - pconst_s))) & digit_mask;
++	const uint xs2 = ((xd2 >> pconst_s) | (xd3 << (digit_bit - pconst_s))) & digit_mask;
++	const uint xs3 = ((xd3 >> pconst_s) | (xd4 << (digit_bit - pconst_s))) & digit_mask;
++	const uint4 u = (uint4)(
++		rem_d(xs0 * (ulong)(bp[digit + 0])),
++		rem_d(xs1 * (ulong)(bp[digit + 1])),
++		rem_d(xs2 * (ulong)(bp[digit + 2])),
++		rem_d(xs3 * (ulong)(bp[digit + 3])));
++	y[digit + 0] = xs0; y[digit + 1] = xs1; y[digit + 2] = xs2; y[digit + 3] = xs3;
++	if (k == 0) t[1] = _poly2int_fixed_digit(x, pconst_e, needs_fix) & ((1u << pconst_s) - 1);
++
++	__global uint4 * const tj1_4 = (__global uint4 *)&tj[0];
++	tj1_4[k] = u;
++	const uint u01 = addmod_d(u.s0, u.s1), u23 = addmod_d(u.s2, u.s3), u0123 = addmod_d(u01, u23);
++	T[i] = u0123;
++
++	barrier(CLK_LOCAL_MEM_FENCE);
++
++	tj[4 * (16 * s) + k] = u23; tj[5 * (16 * s) + k] = u0123;
++
++	if (i < R64 / 4)
++	{
++		const size_t k_4 = blk * R64 / 4 + i;
++		const uint4 v = T_4[i];
++		const uint v01 = addmod_d(v.s0, v.s1), v23 = addmod_d(v.s2, v.s3), v0123 = addmod_d(v01, v23);
++		tj[5 * (16 * s) + 4 * (4 * s) + k_4] = v23; tj[5 * (16 * s) + 5 * (4 * s) + k_4] = v0123; T_2[i] = v0123;
++	}
++
++	barrier(CLK_LOCAL_MEM_FENCE);
++
++	if (i < R64 / 16)
++	{
++		const size_t k_16 = blk * R64 / 16 + i;
++		const uint4 v = T2_4[i];
++		const uint v01 = addmod_d(v.s0, v.s1), v23 = addmod_d(v.s2, v.s3), v0123 = addmod_d(v01, v23);
++		tj[5 * (16 * s) + 5 * (4 * s) + 4 * s + k_16] = v23; tj[5 * (16 * s) + 5 * (4 * s) + 5 * s + k_16] = v0123;
++	}
++}
++
+ __kernel __attribute__((reqd_work_group_size(R64, 1, 1)))
+ void reduce_downsweep64(__global uint * restrict const t_base, const uint s, const uint j,
+ 	__global const candidate_params_t * restrict const candidate_params_base)
+@@ -101,6 +214,83 @@ void reduce_downsweep64(__global uint * restrict const t_base, const uint s, con
+ 	tj1_4[k] = (uint4)(u012, u02, u03, u0);
+ }
+ 
++inline void _reduce_o_digit(__global uint2 * restrict const x, __global const uint * restrict const y,
++	__global const uint * restrict const ibp, const size_t k, const uint tk, const ulong final_value,
++	__global const candidate_params_t * restrict const candidate_params)
++{
++	const uint mask = (k != pconst_size / 2 - 1) ? (uint)(-1) : 0;
++	const uint r_prev = rem_d((tk & mask) * (ulong)(ibp[k]));
++	const ulong q = ((ulong)(r_prev) << digit_bit) | y[k];
++	const uint q_d = mul_hi((uint)(q >> candidate_params->d_shift), candidate_params->d_inv);
++	const uint r = (uint)(q) - q_d * candidate_params->d;
++	const uint c = (r >= candidate_params->d) ? 1 : 0;
++	uint final_digit = (k < pconst_e) ? x[k].s0 : 0;
++	if (k >= pconst_e)
++	{
++		const size_t shift = (k - pconst_e) * digit_bit;
++		if (shift < 8 * sizeof(ulong)) final_digit = (uint)(final_value >> shift) & digit_mask;
++	}
++	x[k] = (uint2)(final_digit, q_d + c);
++}
++
++__kernel __attribute__((reqd_work_group_size(R64, 1, 1)))
++void reduce_downsweep64_o(__global uint2 * restrict const x_base,
++	__global const uint * restrict const y_base, __global uint * restrict const t_base,
++	__global const uint * restrict const ibp_base, const uint s, const uint j,
++	__global const candidate_params_t * restrict const candidate_params_base)
++{
++	const size_t lane = get_global_id(1);
++	__global uint2 * const x = x_base + lane * pconst_size;
++	__global const uint * const y = y_base + lane * (pconst_size / 2);
++	__global uint * const t = t_base + lane * pconst_size;
++	__global const uint * const ibp = ibp_base + lane * (pconst_size / 2);
++	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;
++	__local uint4 T_4[R64 / 4 + R64 / 16];
++	__local uint4 * const T2_4 = &T_4[R64 / 4];
++	__local uint * const T = (__local uint *)T_4;
++	__local uint * const T_2 = (__local uint *)T2_4;
++
++	const size_t i = get_local_id(0), blk = get_group_id(0), k = get_global_id(0);
++	__global uint * const tj = &t[j];
++
++	if (i < R64 / 16)
++	{
++		const size_t k_16 = blk * R64 / 16 + i;
++		__global const uint4 * const tj16_4 = (__global uint4 *)&tj[5 * (16 * s) + 5 * (4 * s)];
++		const uint u2 = tj[5 * (16 * s) + 5 * (4 * s) + 4 * s + k_16], u0 = tj[5 * (16 * s) + 5 * (4 * s) + 5 * s + k_16], u02 = addmod_d(u0, u2);
++		const uint4 u13 = tj16_4[k_16];
++		const uint u012 = addmod_d(u02, u13.s1), u03 = addmod_d(u0, u13.s3);
++		T2_4[i] = (uint4)(u012, u02, u03, u0);
++	}
++
++	barrier(CLK_LOCAL_MEM_FENCE);
++
++	if (i < R64 / 4)
++	{
++		const size_t k_4 = blk * R64 / 4 + i;
++		__global const uint4 * const tj4_4 = (__global uint4 *)&tj[5 * (16 * s)];
++		const uint u2 = tj[5 * (16 * s) + 4 * (4 * s) + k_4], u0 = T_2[i], u02 = addmod_d(u0, u2);
++		const uint4 u13 = tj4_4[k_4];
++		const uint u012 = addmod_d(u02, u13.s1), u03 = addmod_d(u0, u13.s3);
++		T_4[i] = (uint4)(u012, u02, u03, u0);
++	}
++
++	__global const uint4 * const tj1_4 = (__global uint4 *)&tj[0];
++	const uint u2 = tj[4 * (16 * s) + k];
++	const uint4 u13 = tj1_4[k];
++
++	barrier(CLK_LOCAL_MEM_FENCE);
++
++	const uint u0 = T[i], u02 = addmod_d(u0, u2);
++	const uint4 out = (uint4)(addmod_d(u02, u13.s1), u02, addmod_d(u0, u13.s3), u0);
++	const ulong final_value = ((ulong)(t[0]) << pconst_s) | t[1];
++	const size_t digit = 4 * k;
++	_reduce_o_digit(x, y, ibp, digit + 0, out.s0, final_value, candidate_params);
++	_reduce_o_digit(x, y, ibp, digit + 1, out.s1, final_value, candidate_params);
++	_reduce_o_digit(x, y, ibp, digit + 2, out.s2, final_value, candidate_params);
++	_reduce_o_digit(x, y, ibp, digit + 3, out.s3, final_value, candidate_params);
++}
++
+ inline void _reduce_upsweep4i(__local uint * restrict const T, __global const uint * restrict const t, const uint s, const size_t k,
+ 	__global const candidate_params_t * restrict const candidate_params)
+ {
+@@ -168,15 +358,19 @@ inline void _reduce_topsweep4(__global uint * restrict const t, __local uint * r
+ 
+ #define	S32		(32 / 4)
+ __kernel __attribute__((reqd_work_group_size(S32, 1, 1)))
+-void reduce_topsweep32(__global uint * restrict const t_base, const uint j,
++void reduce_topsweep32(__global uint2 * restrict const x_base, __global uint * restrict const t_base,
++	__global int * restrict const err_base, const uint j,
+ 	__global const candidate_params_t * restrict const candidate_params_base)
+ {
+ 	const size_t lane = get_global_id(1);
++	__global uint2 * const x = x_base + lane * pconst_size;
+ 	__global uint * const t = t_base + lane * pconst_size;
++	__global int * const err = err_base + 2 * lane;
+ 	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;
+ 	__local uint T[64];	// 20
+ 
+ 	const size_t i = get_local_id(0);
++	if (i == 0) _poly2int_fix_serial(x, err);
+ 
+ 	_reduce_upsweep4i(T, &t[j], S32, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+@@ -191,15 +385,19 @@ void reduce_topsweep32(__global uint * restrict const t_base, const uint j,
+ 
+ #define	S64		(64 / 4)
+ __kernel __attribute__((reqd_work_group_size(S64, 1, 1)))
+-void reduce_topsweep64(__global uint * restrict const t_base, const uint j,
++void reduce_topsweep64(__global uint2 * restrict const x_base, __global uint * restrict const t_base,
++	__global int * restrict const err_base, const uint j,
+ 	__global const candidate_params_t * restrict const candidate_params_base)
+ {
+ 	const size_t lane = get_global_id(1);
++	__global uint2 * const x = x_base + lane * pconst_size;
+ 	__global uint * const t = t_base + lane * pconst_size;
++	__global int * const err = err_base + 2 * lane;
+ 	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;
+ 	__local uint T[64];	// 40
+ 
+ 	const size_t i = get_local_id(0);
++	if (i == 0) _poly2int_fix_serial(x, err);
+ 
+ 	_reduce_upsweep4i(T, &t[j], S64, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+@@ -214,15 +412,19 @@ void reduce_topsweep64(__global uint * restrict const t_base, const uint j,
+ 
+ #define	S128	(128 / 4)
+ __kernel __attribute__((reqd_work_group_size(S128, 1, 1)))
+-void reduce_topsweep128(__global uint * restrict const t_base, const uint j,
++void reduce_topsweep128(__global uint2 * restrict const x_base, __global uint * restrict const t_base,
++	__global int * restrict const err_base, const uint j,
+ 	__global const candidate_params_t * restrict const candidate_params_base)
+ {
+ 	const size_t lane = get_global_id(1);
++	__global uint2 * const x = x_base + lane * pconst_size;
+ 	__global uint * const t = t_base + lane * pconst_size;
++	__global int * const err = err_base + 2 * lane;
+ 	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;
+ 	__local uint T[128];	// 82
+ 
+ 	const size_t i = get_local_id(0);
++	if (i == 0) _poly2int_fix_serial(x, err);
+ 
+ 	_reduce_upsweep4i(T, &t[j], S128, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+@@ -241,15 +443,19 @@ void reduce_topsweep128(__global uint * restrict const t_base, const uint j,
+ 
+ #define	S256	(256 / 4)
+ __kernel __attribute__((reqd_work_group_size(S256, 1, 1)))
+-void reduce_topsweep256(__global uint * restrict const t_base, const uint j,
++void reduce_topsweep256(__global uint2 * restrict const x_base, __global uint * restrict const t_base,
++	__global int * restrict const err_base, const uint j,
+ 	__global const candidate_params_t * restrict const candidate_params_base)
+ {
+ 	const size_t lane = get_global_id(1);
++	__global uint2 * const x = x_base + lane * pconst_size;
+ 	__global uint * const t = t_base + lane * pconst_size;
++	__global int * const err = err_base + 2 * lane;
+ 	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;
+ 	__local uint T[256];	// 168
+ 
+ 	const size_t i = get_local_id(0);
++	if (i == 0) _poly2int_fix_serial(x, err);
+ 
+ 	_reduce_upsweep4i(T, &t[j], S256, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+@@ -268,15 +474,19 @@ void reduce_topsweep256(__global uint * restrict const t_base, const uint j,
+ 
+ #define	S512	(512 / 4)
+ __kernel __attribute__((reqd_work_group_size(S512, 1, 1)))
+-void reduce_topsweep512(__global uint * restrict const t_base, const uint j,
++void reduce_topsweep512(__global uint2 * restrict const x_base, __global uint * restrict const t_base,
++	__global int * restrict const err_base, const uint j,
+ 	__global const candidate_params_t * restrict const candidate_params_base)
+ {
+ 	const size_t lane = get_global_id(1);
++	__global uint2 * const x = x_base + lane * pconst_size;
+ 	__global uint * const t = t_base + lane * pconst_size;
++	__global int * const err = err_base + 2 * lane;
+ 	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;
+ 	__local uint T[512];	// 340
+ 
+ 	const size_t i = get_local_id(0);
++	if (i == 0) _poly2int_fix_serial(x, err);
+ 
+ 	_reduce_upsweep4i(T, &t[j], S512, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+@@ -299,15 +509,19 @@ void reduce_topsweep512(__global uint * restrict const t_base, const uint j,
+ 
+ #define	S1024	(1024 / 4)
+ __kernel __attribute__((reqd_work_group_size(S1024, 1, 1)))
+-void reduce_topsweep1024(__global uint * restrict const t_base, const uint j,
++void reduce_topsweep1024(__global uint2 * restrict const x_base, __global uint * restrict const t_base,
++	__global int * restrict const err_base, const uint j,
+ 	__global const candidate_params_t * restrict const candidate_params_base)
+ {
+ 	const size_t lane = get_global_id(1);
++	__global uint2 * const x = x_base + lane * pconst_size;
+ 	__global uint * const t = t_base + lane * pconst_size;
++	__global int * const err = err_base + 2 * lane;
+ 	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;
+ 	__local uint T[1024];	// 680
+ 
+ 	const size_t i = get_local_id(0);
++	if (i == 0) _poly2int_fix_serial(x, err);
+ 
+ 	_reduce_upsweep4i(T, &t[j], S1024, i, candidate_params);
+ 	barrier(CLK_LOCAL_MEM_FENCE);
+@@ -331,6 +545,7 @@ void reduce_topsweep1024(__global uint * restrict const t_base, const uint j,
+ __kernel
+ void reduce_i(__global const uint2 * restrict const x_base, __global uint * restrict const y_base, __global uint * restrict const t_base,
+ 	__global const uint * restrict const bp_base,
++	__global int * restrict const err_base,
+ 	__global const candidate_params_t * restrict const candidate_params_base)
+ {
+ 	const size_t lane = get_global_id(1);
+@@ -338,14 +553,23 @@ void reduce_i(__global const uint2 * restrict const x_base, __global uint * rest
+ 	__global uint * const y = y_base + lane * (pconst_size / 2);
+ 	__global uint * const t = t_base + lane * pconst_size;
+ 	__global const uint * const bp = bp_base + lane * (pconst_size / 2);
++	__global int * const err = err_base + 2 * lane;
+ 	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;
+ 	const size_t k = get_global_id(0);
+-
+-	const uint xs = ((x[pconst_e + k].s0 >> pconst_s) | (x[pconst_e + k + 1].s0 << (digit_bit - pconst_s))) & digit_mask;
++#if PRIMEFORGE_FUSE_POLY2INT_FIX
++	const bool needs_fix = err[1] != 0;
++#else
++	const bool needs_fix = false;
++#endif
++
++	const uint xd0 = _poly2int_fixed_digit(x, pconst_e + k, needs_fix);
++	const uint xd1 = _poly2int_fixed_digit(x, pconst_e + k + 1, needs_fix);
++	const uint xs = ((xd0 >> pconst_s) | (xd1 << (digit_bit - pconst_s))) & digit_mask;
+ 	const uint u = rem_d(xs * (ulong)(bp[k]));
+ 
+ 	y[k] = xs;
+ 	t[k + 4] = u;
++	if (k == 0) t[1] = xd0 & ((1u << pconst_s) - 1);
+ }
+ 
+ __kernel
+@@ -373,7 +597,17 @@ void reduce_o(__global uint2 * restrict const x_base, __global const uint * rest
+ 	const uint r = (uint)(q) - q_d * candidate_params->d;
+ 	const uint c = (r >= candidate_params->d) ? 1 : 0;
+ 
+-	x[k] = (uint2)((k > pconst_e) ? 0 : x[k].s0, q_d + c);
++	uint final_digit = (k < pconst_e) ? x[k].s0 : 0;
++	if (k >= pconst_e)
++	{
++		const size_t shift = (k - pconst_e) * digit_bit;
++		if (shift < 8 * sizeof(ulong))
++		{
++			const ulong final_value = ((ulong)(t[0]) << pconst_s) | t[1];
++			final_digit = (uint)(final_value >> shift) & digit_mask;
++		}
++	}
++	x[k] = (uint2)(final_digit, q_d + c);
+ }
+ 
+ __kernel
+diff --git a/src/engine.h b/src/engine.h
+index 1d4b5f2..93843b6 100644
+--- a/src/engine.h
++++ b/src/engine.h
+@@ -39,7 +39,7 @@ private:
+ 	cl_kernel _poly2int0_8_16 = nullptr, _poly2int0_8_32 = nullptr, _poly2int0_8_64 = nullptr, _poly2int1_8 = nullptr;
+ 	cl_kernel _poly2int0_16_8 = nullptr, _poly2int0_16_16 = nullptr, _poly2int0_16_32 = nullptr, _poly2int1_16 = nullptr;
+ 	cl_kernel _poly2int2  = nullptr;
+-	cl_kernel _reduce_upsweep64 = nullptr, _reduce_downsweep64 = nullptr;
++	cl_kernel _reduce_upsweep64 = nullptr, _reduce_downsweep64 = nullptr, _reduce_upsweep64_i = nullptr, _reduce_downsweep64_o = nullptr;
+ 	cl_kernel _reduce_topsweep32 = nullptr, _reduce_topsweep64 = nullptr, _reduce_topsweep128 = nullptr;
+ 	cl_kernel _reduce_topsweep256 = nullptr, _reduce_topsweep512 = nullptr, _reduce_topsweep1024 = nullptr;
+ 	cl_kernel _reduce_i = nullptr, _reduce_o = nullptr, _reduce_f = nullptr, _reduce_x = nullptr, _reduce_z = nullptr;
+@@ -186,6 +186,39 @@ private:
+ 		_setKernelArg(kernel, 1, sizeof(cl_mem), &_y);
+ 		_setKernelArg(kernel, 2, sizeof(cl_mem), &_t);
+ 		_setKernelArg(kernel, 3, sizeof(cl_mem), forward ? &_bp : &_ibp);
++		if (forward)
++		{
++			_setKernelArg(kernel, 4, sizeof(cl_mem), &_err);
++			_setKernelArg(kernel, 5, sizeof(cl_mem), &_candidate_params);
++		}
++		else _setKernelArg(kernel, 4, sizeof(cl_mem), &_candidate_params);
++		return kernel;
++	}
++
++private:
++	inline cl_kernel _createFusedSweepKernel(const char * const kernelName, const bool forward)
++	{
++		cl_kernel kernel = _createKernel(kernelName);
++		_setKernelArg(kernel, 0, sizeof(cl_mem), &_x);
++		_setKernelArg(kernel, 1, sizeof(cl_mem), &_y);
++		_setKernelArg(kernel, 2, sizeof(cl_mem), &_t);
++		_setKernelArg(kernel, 3, sizeof(cl_mem), forward ? &_bp : &_ibp);
++		if (forward)
++		{
++			_setKernelArg(kernel, 4, sizeof(cl_mem), &_err);
++			_setKernelArg(kernel, 7, sizeof(cl_mem), &_candidate_params);
++		}
++		else _setKernelArg(kernel, 6, sizeof(cl_mem), &_candidate_params);
++		return kernel;
++	}
++
++private:
++	inline cl_kernel _createTopSweepKernel(const char * const kernelName)
++	{
++		cl_kernel kernel = _createKernel(kernelName);
++		_setKernelArg(kernel, 0, sizeof(cl_mem), &_x);
++		_setKernelArg(kernel, 1, sizeof(cl_mem), &_t);
++		_setKernelArg(kernel, 2, sizeof(cl_mem), &_err);
+ 		_setKernelArg(kernel, 4, sizeof(cl_mem), &_candidate_params);
+ 		return kernel;
+ 	}
+@@ -266,13 +299,15 @@ public:
+ 
+ 		_reduce_upsweep64 = _createSweepKernel("reduce_upsweep64", 3);
+ 		_reduce_downsweep64 = _createSweepKernel("reduce_downsweep64", 3);
++		_reduce_upsweep64_i = _createFusedSweepKernel("reduce_upsweep64_i", true);
++		_reduce_downsweep64_o = _createFusedSweepKernel("reduce_downsweep64_o", false);
+ 
+-		_reduce_topsweep32 = _createSweepKernel("reduce_topsweep32", 2);
+-		_reduce_topsweep64 = _createSweepKernel("reduce_topsweep64", 2);
+-		_reduce_topsweep128 = _createSweepKernel("reduce_topsweep128", 2);
+-		_reduce_topsweep256 = _createSweepKernel("reduce_topsweep256", 2);
+-		_reduce_topsweep512 = _createSweepKernel("reduce_topsweep512", 2);
+-		_reduce_topsweep1024 = _createSweepKernel("reduce_topsweep1024", 2);
++		_reduce_topsweep32 = _createTopSweepKernel("reduce_topsweep32");
++		_reduce_topsweep64 = _createTopSweepKernel("reduce_topsweep64");
++		_reduce_topsweep128 = _createTopSweepKernel("reduce_topsweep128");
++		_reduce_topsweep256 = _createTopSweepKernel("reduce_topsweep256");
++		_reduce_topsweep512 = _createTopSweepKernel("reduce_topsweep512");
++		_reduce_topsweep1024 = _createTopSweepKernel("reduce_topsweep1024");
+ 
+ 		_reduce_i = _createReduceKernel("reduce_i", true);
+ 		_reduce_o = _createReduceKernel("reduce_o", false);
+@@ -337,7 +372,7 @@ public:
+ 		_releaseKernel(_poly2int0_16_8); _releaseKernel(_poly2int0_16_16); _releaseKernel(_poly2int0_16_32); _releaseKernel(_poly2int1_16);
+ 		_releaseKernel(_poly2int2);
+ 
+-		_releaseKernel(_reduce_upsweep64); _releaseKernel(_reduce_downsweep64);
++		_releaseKernel(_reduce_upsweep64); _releaseKernel(_reduce_downsweep64); _releaseKernel(_reduce_upsweep64_i); _releaseKernel(_reduce_downsweep64_o);
+ 
+ 		_releaseKernel(_reduce_topsweep32); _releaseKernel(_reduce_topsweep64); _releaseKernel(_reduce_topsweep128);
+ 		_releaseKernel(_reduce_topsweep256); _releaseKernel(_reduce_topsweep512); _releaseKernel(_reduce_topsweep1024);
+@@ -506,14 +541,30 @@ private:
+ 		_executeKernel(kernel, (size / 4) * s, RED_BLK * (size / 4));
+ 	}
+ 
++	inline void _executeFusedInputSweepKernel(cl_kernel kernel, const cl_uint s, const cl_uint j, const size_t size)
++	{
++		_setKernelArg(kernel, 5, sizeof(cl_uint), &s);
++		_setKernelArg(kernel, 6, sizeof(cl_uint), &j);
++		_executeKernel(kernel, (size / 4) * s, RED_BLK * (size / 4));
++	}
++
++	inline void _executeFusedOutputSweepKernel(cl_kernel kernel, const cl_uint s, const cl_uint j, const size_t size)
++	{
++		_setKernelArg(kernel, 4, sizeof(cl_uint), &s);
++		_setKernelArg(kernel, 5, sizeof(cl_uint), &j);
++		_executeKernel(kernel, (size / 4) * s, RED_BLK * (size / 4));
++	}
++
+ public:
+ 	void reduce_upsweep64(const cl_uint s, const cl_uint j) { _executeUDsweepKernel(_reduce_upsweep64, s, j, 64); }
+ 	void reduce_downsweep64(const cl_uint s, const cl_uint j) { _executeUDsweepKernel(_reduce_downsweep64, s, j, 64); }
++	void reduce_upsweep64_i(const cl_uint s, const cl_uint j) { _executeFusedInputSweepKernel(_reduce_upsweep64_i, s, j, 64); }
++	void reduce_downsweep64_o(const cl_uint s, const cl_uint j) { _executeFusedOutputSweepKernel(_reduce_downsweep64_o, s, j, 64); }
+ 
+ private:
+ 	inline void _executeTopsweepKernel(cl_kernel kernel, const cl_uint j, const size_t size)
+ 	{
+-		_setKernelArg(kernel, 1, sizeof(cl_uint), &j);
++		_setKernelArg(kernel, 3, sizeof(cl_uint), &j);
+ 		_executeKernel(kernel, size / 4, size / 4);
+ 	}
+ 
+diff --git a/src/gpmp.h b/src/gpmp.h
+index 2e544bc..9a930a0 100644
+--- a/src/gpmp.h
++++ b/src/gpmp.h
+@@ -47,6 +47,50 @@ private:
+ 		return cache;
+ 	}
+ 
++	struct engine_config
++	{
++		bool fuse_reduction_boundaries;
++		bool fuse_reduction_finalize;
++		bool fuse_poly2int_fix;
++		const char * square_plan;
++		const char * poly2int_plan;
++		const char * profile;
++	};
++
++	static engine_config choose_config(const engine & engine, const size_t transform_size, const size_t batch_size)
++	{
++		const bool validated_rtx_5080 =
++			(engine.getDeviceVendor().find("NVIDIA") != std::string::npos) &&
++			(engine.getDeviceName().find("RTX 5080") != std::string::npos);
++		const bool measured_small_transform_regime = (transform_size <= 16384) && (batch_size == 32);
++		const bool sufficient_memory = engine.getGlobalMemSize() >= (cl_ulong(8) << 30);
++		const bool measured_profile = validated_rtx_5080 && (batch_size == 32);
++		const char * square_plan = nullptr;
++		const char * poly2int_plan = nullptr;
++		if (measured_profile && (transform_size == 8192))
++		{
++			square_plan = "1024_4 sq_8";
++			poly2int_plan = "p2i_4_64";
++		}
++		else if (measured_profile && (transform_size == 16384))
++		{
++			square_plan = "256_8 sq_64";
++			poly2int_plan = "p2i_8_16";
++		}
++		else if (measured_profile && (transform_size == 32768))
++		{
++			square_plan = "64_16 sq_512";
++			poly2int_plan = "p2i_16_16";
++		}
++		return engine_config{
++			true,
++			true,
++			validated_rtx_5080 && measured_small_transform_regime && sufficient_memory,
++			square_plan,
++			poly2int_plan,
++			validated_rtx_5080 ? "primeforge.rtx5080.b32.v1" : "primeforge.safe-generic.v1"};
++	}
++
+ private:
+ 	static const uint32_t P1 = 2130706433u;		// 127 * 2^24 + 1 = 2^31 - 2^24 + 1
+ 	static const uint32_t P2 = 2013265921u;		//  15 * 2^27 + 1 = 2^31 - 2^27 + 1
+@@ -94,6 +138,7 @@ private:
+ 	const bool _isBoinc;
+ 	bool _ext512, _ext1024;
+ 	std::vector<uint32_t> _batchKs;
++	const engine_config _config;
+ 	engine & _engine;
+ 	plan _plan;
+ 	std::vector<cl_uint2> _mem;
+@@ -226,6 +271,7 @@ private:
+ 		const primeforge_profile::time_point sourceStart = primeforge_profile::now();
+ 		std::stringstream src;
+ 		src << "#define\tdigit_bit\t" << _digit_bit << std::endl << std::endl;
++		src << "#define\tPRIMEFORGE_FUSE_POLY2INT_FIX\t" << (_config.fuse_poly2int_fix ? 1 : 0) << std::endl;
+ 
+ 		src << _engine.oclDefines() << std::endl;
+ 
+@@ -375,6 +421,7 @@ public:
+ 		_digit_bit(digitBit(k, n)), _size(transformSize(k, n, _digit_bit)), _k(k), _n(n), _isBoinc(isBoinc),
+ 		_ext512(engine.getMaxWorkGroupSize() >= 512), _ext1024((engine.getMaxWorkGroupSize() >= 1024) && (engine.getLocalMemSize() >= 32768)),
+ 		_batchKs(batchKs.empty() ? std::vector<uint32_t>(1, k) : batchKs),
++		_config(choose_config(engine, _size, _batchKs.size())),
+ 		_engine(engine), _mem(_size * _batchKs.size()), _phaseProfile(phaseProfile), _profileIndex(profileIndex)
+ 	{
+ 		if (engine.getMaxWorkGroupSize() < 256) throw std::runtime_error("The maximum work-group size must be equal to or greater than 256");
+@@ -402,9 +449,21 @@ reset:
+ 		_emitPhase("PLAN_ENUMERATION", planStart);
+ 
+ 		size_t bestSq_i = 0, bestP2i_i = 0;
++		const bool measuredPlan = bestPlan && (_config.square_plan != nullptr) && (_config.poly2int_plan != nullptr);
++		if (measuredPlan)
++		{
++			bestSq_i = _plan.findSquareSeq(size, _config.square_plan);
++			bestP2i_i = _plan.findPoly2intFn(_config.poly2int_plan);
++			_emitCounter("PLAN_PROFILE_HIT", 1);
++		}
++		else _emitCounter("PLAN_PROFILE_HIT", 0);
+ 		const plan_class cacheKey(size, _digit_bit, _ext512, _ext1024, _batchKs.size());
+ 		const std::map<plan_class, cached_plan>::const_iterator cached = planCache().find(cacheKey);
+-		if (bestPlan && (cached != planCache().end()))
++		if (measuredPlan)
++		{
++			_emitCounter("PLAN_CACHE_HIT", 0);
++		}
++		else if (bestPlan && (cached != planCache().end()))
+ 		{
+ 			bestSq_i = cached->second.square_sequence;
+ 			bestP2i_i = cached->second.poly2int_function;
+@@ -503,6 +562,18 @@ public:
+ 
+ public:
+ 	std::string getPlanString() const { return _plan.getPlanString(_size); }
++	std::string getConfigString() const
++	{
++		std::ostringstream ss;
++		ss << _config.profile
++			<< " transform=" << _size
++			<< " batch=" << _batchKs.size()
++			<< " reduction_boundaries=" << (_config.fuse_reduction_boundaries ? "FUSED" : "CLASSIC")
++			<< " reduction_finalize=" << (_config.fuse_reduction_finalize ? "FUSED" : "CLASSIC")
++			<< " poly2int_fix=" << (_config.fuse_poly2int_fix ? "INLINE_RARE_PATH" : "SEPARATE_SAFE_PATH")
++			<< " plan_source=" << ((_config.square_plan != nullptr) ? "MEASURED_TABLE" : "BOUNDED_AUTOTUNE");
++		return ss.str();
++	}
+ 	size_t getPlanSquareSeqCount() const { return _plan.getSquareSeqCount(); }
+ 	void setPlanSquareSeq(const size_t i) { _plan.setSquareSeq(_size, i); }
+ 	void displayKernelProfiles() const
+@@ -800,7 +871,7 @@ public:
+ 
+ 		_plan.execSquareSeq(_engine);
+ 		_plan.execPoly2intFn(_engine);
+-		_engine.poly2int_fix();
++		if (!_config.fuse_poly2int_fix) _engine.poly2int_fix();
+ 
+ 		// x size is size
+ 
+@@ -1060,18 +1131,23 @@ private:
+ 
+ 		// Daisuke Takahashi, A parallel algorithm for multiple-precision division by a single-precision integer.
+ 
+-		_engine.reduce_i();
+-
+ 		// x size is size / 2, x = X mod B^(size / 2), y = X / (B^e * 2^s)
+ 
+ 		const cl_uint n = cl_uint(_size / 2);
+ 		cl_uint j = 4;		// alignment (cl_uint4)
+ 		cl_uint s = n / 4;
++		bool inputFused = false;
+ 		for (; s > 256; s /= 64)
+ 		{
+-			_engine.reduce_upsweep64(s / 16, j);
++			if (!inputFused)
++			{
++				_engine.reduce_upsweep64_i(s / 16, j);
++				inputFused = true;
++			}
++			else _engine.reduce_upsweep64(s / 16, j);
+ 			j += 5 * (16 + 4 + 1) * (s / 16);
+ 		}
++		if (!inputFused) _engine.reduce_i();
+ 
+ 		if (s == 256)        _engine.reduce_topsweep1024(j);
+ 		else if (s == 128)   _engine.reduce_topsweep512(j);
+@@ -1080,20 +1156,28 @@ private:
+ 		else if (s == 16)    _engine.reduce_topsweep64(j);
+ 		else /*if (s == 8)*/ _engine.reduce_topsweep32(j);
+ 
++		bool outputFused = false;
+ 		while (s < n / 4)
+ 		{
+ 			s *= 64;
+ 			j -= 5 * (16 + 4 + 1) * (s / 16);
+-			_engine.reduce_downsweep64(s / 16, j);
++			if (s == n / 4)
++			{
++				_engine.reduce_downsweep64_o(s / 16, j);
++				outputFused = true;
++			}
++			else _engine.reduce_downsweep64(s / 16, j);
+ 		}
+ 
+ 		// t[4 + k] remainders y[k + 1] / d, t[0] = remainder y[0] / d
+ 
+-		_engine.reduce_o();
++		if (!outputFused) _engine.reduce_o();
+ 
+ 		// x size is size / 2, x[0] = X mod B^n, x[1] = Y
+ 
+-		_engine.reduce_f();
++		// reduce_i/reduce_upsweep64_i preserves the low source bits in t[1].
++		// reduce_o/reduce_downsweep64_o reconstructs the final high component
++		// while it already writes x, avoiding a separate one-work-item launch.
+ 
+ 		// x size is size / 2, _x[0] = R, _x[1] = Y
+ 	}
+diff --git a/src/ocl.h b/src/ocl.h
+index 72802f2..d5d268f 100644
+--- a/src/ocl.h
++++ b/src/ocl.h
+@@ -205,8 +205,11 @@ private:
+ #endif
+ 	size_t _syncCount = 0;
+ 	cl_ulong _localMemSize = 0;
++	cl_ulong _globalMemSize = 0;
+ 	size_t _maxWorkGroupSize = 0;
+ 	cl_ulong _timerResolution = 0;
++	std::string _deviceName;
++	std::string _deviceVendor;
+ 	cl_context _context = nullptr;
+ 	cl_command_queue _queueF = nullptr;
+ 	cl_command_queue _queueP = nullptr;
+@@ -240,12 +243,15 @@ public:
+ 
+ 		char deviceName[1024]; oclFatal(clGetDeviceInfo(_device, CL_DEVICE_NAME, 1024, deviceName, nullptr));
+ 		char deviceVendor[1024]; oclFatal(clGetDeviceInfo(_device, CL_DEVICE_VENDOR, 1024, deviceVendor, nullptr));
++		_deviceName = deviceName;
++		_deviceVendor = deviceVendor;
+ 		char deviceVersion[1024]; oclFatal(clGetDeviceInfo(_device, CL_DEVICE_VERSION, 1024, deviceVersion, nullptr));
+ 		char driverVersion[1024]; oclFatal(clGetDeviceInfo(_device, CL_DRIVER_VERSION, 1024, driverVersion, nullptr));
+ 
+ 		cl_uint computeUnits; oclFatal(clGetDeviceInfo(_device, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(computeUnits), &computeUnits, nullptr));
+ 		cl_uint maxClockFrequency; oclFatal(clGetDeviceInfo(_device, CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(maxClockFrequency), &maxClockFrequency, nullptr));
+ 		cl_ulong memSize; oclFatal(clGetDeviceInfo(_device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(memSize), &memSize, nullptr));
++		_globalMemSize = memSize;
+ 		cl_ulong memCacheSize; oclFatal(clGetDeviceInfo(_device, CL_DEVICE_GLOBAL_MEM_CACHE_SIZE, sizeof(memCacheSize), &memCacheSize, nullptr));
+ 		cl_uint memCacheLineSize; oclFatal(clGetDeviceInfo(_device, CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE, sizeof(memCacheLineSize), &memCacheLineSize, nullptr));
+ 		oclFatal(clGetDeviceInfo(_device, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(_localMemSize), &_localMemSize, nullptr));
+@@ -288,6 +294,9 @@ public:
+ public:
+ 	size_t getMaxWorkGroupSize() const { return _maxWorkGroupSize; }
+ 	size_t getLocalMemSize() const { return _localMemSize; }
++	cl_ulong getGlobalMemSize() const { return _globalMemSize; }
++	const std::string & getDeviceName() const { return _deviceName; }
++	const std::string & getDeviceVendor() const { return _deviceVendor; }
+ 	void setBatchCount(const size_t batchCount)
+ 	{
+ 		if ((batchCount == 0) || (batchCount > 32)) throw std::runtime_error("invalid OpenCL batch count");
+diff --git a/src/plan.h b/src/plan.h
+index cea7159..b55fd10 100644
+--- a/src/plan.h
++++ b/src/plan.h
+@@ -278,12 +278,23 @@ public:
+ 
+ public:
+ 	size_t getSquareSeqCount() const { return _squareSplitter.getSquareSize(); }
++	size_t findSquareSeq(const size_t size, const std::string & name) const
++	{
++		for (size_t i = 0, count = _squareSplitter.getSquareSize(); i < count; ++i)
++			if (_squareSplitter.getString(size, i) == name) return i;
++		throw std::runtime_error("configured square plan is unavailable: " + name);
++	}
+ 	void setSquareSeq(const size_t size, const size_t i) { _square_i = i; _squareSeq.init(size, _squareSplitter.getSquareSeq(i)); }
+ 	void execSquareSeq(engine & engine) { _squareSeq.exec(engine); }
+ 	std::string getSquareSeqString(const size_t size) const { return _squareSplitter.getString(size, _square_i); }
+ 
+ public:
+ 	size_t getPoly2intCount() const { return _p2iFn.size(); }
++	size_t findPoly2intFn(const std::string & name) const
++	{
++		for (size_t i = 0; i < _p2iFn.size(); ++i) if (_p2iFn[i]._name == name) return i;
++		throw std::runtime_error("configured poly2int plan is unavailable: " + name);
++	}
+ 	void setPoly2intFn(const size_t i) { _poly2int_i = i; _poly2intFn = _p2iFn[i]._fn; }
+ 	void execPoly2intFn(engine & engine) { (engine.*_poly2intFn)(); }
+ 	std::string getPoly2intString() const { return _p2iFn[_poly2int_i]._name; }
+diff --git a/src/proth.h b/src/proth.h
+index 24f757b..cbc54fb 100644
+--- a/src/proth.h
++++ b/src/proth.h
+@@ -418,6 +418,7 @@ public:
+ 			std::chrono::steady_clock::now() - parameterBuildStart).count());
+ 		std::ostringstream planMarker;
+ 		planMarker << "PRIMEFORGE_NATIVE_BATCH_PLAN\t" << X.getPlanString() << std::endl;
++		planMarker << "PRIMEFORGE_NATIVE_BATCH_CONFIG\t" << X.getConfigString() << std::endl;
+ 		pio::print(planMarker.str());
+ 
+ 		const std::chrono::steady_clock::time_point aPowKStart = std::chrono::steady_clock::now();

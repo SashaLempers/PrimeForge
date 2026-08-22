@@ -58,12 +58,15 @@ Les résultats durables sont groupés par `batch_id`, avec hash de la liste
 ordonnée, hash individuel et hash du lot. Au chargement, le scheduler exige des
 lots contigus, complets, ordonnés et préfixes exacts de la queue immuable.
 
-La petite fenêtre de crash entre le remplacement atomique du fichier de
-résultats et celui du checkpoint est traitée comme un journal d'écriture : un
+La petite fenêtre de crash entre l'ajout durable au fichier de résultats et le
+remplacement atomique du checkpoint est traitée comme un journal d'écriture : un
 lot complet dont tous les hashes passent peut être en avance sur le checkpoint.
-Le checkpoint est alors reconstruit avant tout nouveau travail. Un lot incomplet
-n'est jamais fusionné. Les tests couvrent B8+B8+B1, arrêt/reprise, checkpoint en
-retard, absence de trou/doublon et conservation du suffixe exact.
+Depuis le jalon de scaling du 2026-08-22, le checkpoint v2 conserve un curseur et
+une chaîne de hashes `BATCH_CHAIN_V1`, au lieu de réécrire et rehacher tout
+l'historique. Un checkpoint v1 valide reste migrable. Une ligne finale tronquée
+ou un lot final partiel sont ramenés au dernier lot complet. Les tests couvrent
+B8+B8+B1, arrêt/reprise, migration v1→v2, checkpoint en retard, absence de
+trou/doublon et conservation du suffixe exact.
 
 Chaque tentative possède ses propres entrées et journaux ; une tentative après
 crash ne réécrit donc pas les artefacts bruts de la précédente.

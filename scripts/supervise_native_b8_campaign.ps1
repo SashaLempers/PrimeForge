@@ -14,7 +14,9 @@ param(
     [Parameter(Mandatory = $true)][string]$EngineSha256,
     [Parameter(Mandatory = $true)][string]$SurvivorSha256,
     [ValidateRange(0, 31)][int]$Device = 0,
-    [ValidateRange(1, 32)][int]$BatchSize = 32,
+    [string]$BatchSize = '32',
+    [uint64]$TransformLength = 0,
+    [string]$GpuName = '',
     [switch]$Resume
 )
 
@@ -90,6 +92,14 @@ $parentCompleted = Resolve-ExistingFile $ParentCompletedPath
 $engine = Resolve-ExistingFile $EnginePath
 $watchdog = Resolve-ExistingFile $WatchdogPath
 
+if ($BatchSize -ne 'auto') {
+    $parsedBatchSize = 0
+    if (-not [int]::TryParse($BatchSize, [ref]$parsedBatchSize) -or
+        $parsedBatchSize -lt 1 -or $parsedBatchSize -gt 32) {
+        throw 'BatchSize must be auto or an integer in 1..32.'
+    }
+}
+
 if ((Get-FileHash -Algorithm SHA256 -LiteralPath $engine).Hash.ToLowerInvariant() -ne
     $EngineSha256.ToLowerInvariant()) {
     throw 'Native B8 engine hash mismatch before supervisor launch.'
@@ -148,6 +158,12 @@ $schedulerArguments = @(
     '--device', [string]$Device,
     '--batch-size', [string]$BatchSize
 )
+if ($TransformLength -ne 0) {
+    $schedulerArguments += @('--transform-length', [string]$TransformLength)
+}
+if (-not [string]::IsNullOrWhiteSpace($GpuName)) {
+    $schedulerArguments += @('--gpu-name', $GpuName)
+}
 $argumentLine = ($schedulerArguments | ForEach-Object { Quote-ProcessArgument ([string]$_) }) -join ' '
 
 $schedulerProcess = $null

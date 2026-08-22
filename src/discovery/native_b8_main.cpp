@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "primeforge/core/sha256.hpp"
+#include "primeforge/discovery/native_batch_dispatch.hpp"
 #include "primeforge/discovery/native_b8_campaign.hpp"
 #include "primeforge/work/work_unit.hpp"
 
@@ -219,6 +220,9 @@ struct Arguments {
     std::uint64_t supervisor_pid{};
     std::uint32_t device{};
     std::uint32_t batch_size{primeforge::discovery::native_b8::max_batch_size};
+    bool automatic_batch_size{};
+    std::uint64_t transform_length{};
+    std::string gpu_name;
 };
 
 [[nodiscard]] Arguments parse_arguments(const int argc, char** argv) {
@@ -241,14 +245,21 @@ struct Arguments {
         else if (argument == "--survivor-sha256") values.survivor_sha256 = next();
         else if (argument == "--supervisor-pid") values.supervisor_pid = std::stoull(next());
         else if (argument == "--device") values.device = static_cast<std::uint32_t>(std::stoul(next()));
-        else if (argument == "--batch-size") values.batch_size = static_cast<std::uint32_t>(std::stoul(next()));
+        else if (argument == "--batch-size") {
+            const auto value = next();
+            if (value == "auto") values.automatic_batch_size = true;
+            else values.batch_size = static_cast<std::uint32_t>(std::stoul(value));
+        }
+        else if (argument == "--transform-length") values.transform_length = std::stoull(next());
+        else if (argument == "--gpu-name") values.gpu_name = next();
         else throw std::invalid_argument("unknown native batch scheduler argument: " + argument);
     }
     if (values.campaign_directory.empty() || values.queue.empty() || values.parent_completed.empty() ||
         values.engine.empty() || values.watchdog.empty() || values.campaign_id.empty() ||
         values.parent_campaign_id.empty() || values.engine_commit.empty() || values.engine_sha256.empty() ||
-        values.survivor_sha256.empty() || values.supervisor_pid == 0U || values.batch_size == 0U ||
-        values.batch_size > primeforge::discovery::native_b8::max_batch_size) {
+        values.survivor_sha256.empty() || values.supervisor_pid == 0U ||
+        (!values.automatic_batch_size && (values.batch_size == 0U ||
+            values.batch_size > primeforge::discovery::native_b8::max_batch_size))) {
         throw std::invalid_argument("native batch scheduler arguments are incomplete");
     }
     values.campaign_directory = std::filesystem::absolute(values.campaign_directory);
@@ -405,11 +416,24 @@ int main(int argc, char** argv) {
         config.engine_commit = arguments.engine_commit;
         config.engine_binary_sha256 = arguments.engine_sha256;
         config.survivor_list_sha256 = arguments.survivor_sha256;
-        config.batch_size = arguments.batch_size;
+        const auto dispatch = primeforge::discovery::select_native_batch({
+            arguments.gpu_name,
+            arguments.transform_length,
+            primeforge::discovery::native_b8::max_batch_size,
+            arguments.automatic_batch_size
+                ? std::optional<std::uint32_t>{}
+                : std::optional<std::uint32_t>{arguments.batch_size}});
+        config.batch_size = dispatch.batch_size;
         config.supervisor_pid = arguments.supervisor_pid;
         // The first end-to-end A/B gate exceeded 3% because of lifecycle wait noise.
         // Keep the safety watchdog at 2 s, but downsample optional resource rows to 4 s.
         config.telemetry_limits.normal_resource_interval_seconds = 4U;
+        std::cout << "native_b8.dispatch_policy=" << dispatch.policy_id << '\n'
+                  << "native_b8.dispatch_reason=" << dispatch.reason << '\n'
+                  << "native_b8.dispatch_batch_size=" << dispatch.batch_size << '\n'
+                  << "native_b8.dispatch_plan_policy=" << dispatch.plan_policy_id << '\n'
+                  << "native_b8.dispatch_plan_mode=" << dispatch.plan_mode << '\n'
+                  << "native_b8.dispatch_transform_length=" << arguments.transform_length << '\n';
         const auto summary = primeforge::discovery::native_b8::run_campaign(
             config, executor, sha256, stop_requested);
         std::cout << "native_b8.state=" << summary.state << '\n'

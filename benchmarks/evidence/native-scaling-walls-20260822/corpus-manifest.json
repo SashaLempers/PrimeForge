@@ -1,0 +1,283 @@
+{
+  "schema": "primeforge.native_digit_scaling_corpus.v1",
+  "generated_utc": "2026-08-22T10:17:18Z",
+  "generator_version": "primeforge.native-digit-scaling-corpus.v1",
+  "base_commit": "54ffb095a81e75d414b328c60ff48eddce977f1b",
+  "digit_formula": "floor(log10(k)+n*log10(2))+1",
+  "maximum_batch_size": 32,
+  "discovery_status": "NOT_A_DISCOVERY_CAMPAIGN",
+  "entries": [
+    {
+      "requested_digits": 100000,
+      "exact_digits": 100000,
+      "exponent": 332166,
+      "k_min": "12402363",
+      "k_max": "12402475",
+      "k_step": 2,
+      "selection": "FIRST_32_ODD_K_PASSING_PINNED_PROTH20_WITNESS_PREFLIGHT",
+      "witnesses": [
+        5,
+        3,
+        5,
+        3,
+        3,
+        3,
+        7,
+        3,
+        5,
+        3,
+        5,
+        3,
+        19,
+        3,
+        3,
+        3,
+        5,
+        3,
+        5,
+        3,
+        11,
+        3,
+        3,
+        11,
+        3,
+        5,
+        3,
+        5,
+        3,
+        7,
+        3,
+        3
+      ],
+      "seed": "PrimeForge|primeforge.native-digit-scaling-corpus.v1|base=54ffb095a81e75d414b328c60ff48eddce977f1b|digits=100000|batch=32",
+      "seed_sha256": "592e8c65e122ed29cd85abaaff1d1c9c18f992b304200418b41eedab122059d4",
+      "purpose": "CLOSED_NON_DISCOVERY_SCALING_BENCHMARK",
+      "files": {
+        "b1": {
+          "file": "digits-100000-b1.txt",
+          "sha256": "109da2cb47cd8dcc3cb4f226b7196223f45f8e9656935e9b885939a1dd8847b7",
+          "candidates": 1
+        },
+        "b8": {
+          "file": "digits-100000-b8.txt",
+          "sha256": "369707ce105089e5e1b7d39bd730355424f85c8dbfb53532272042cd89430ca2",
+          "candidates": 8
+        },
+        "b16": {
+          "file": "digits-100000-b16.txt",
+          "sha256": "872dd72ad4a713ad2e7a4e4756623d311c04e0beb4205bac1cee2b74e7159e97",
+          "candidates": 16
+        },
+        "b32": {
+          "file": "digits-100000-b32.txt",
+          "sha256": "1143e897958a6291c96c6b77f385e1cf798285b02ea69207873847fa270ff7db",
+          "candidates": 32
+        }
+      }
+    },
+    {
+      "requested_digits": 200000,
+      "exact_digits": 200000,
+      "exponent": 664359,
+      "k_min": "50332293",
+      "k_max": "50332403",
+      "k_step": 2,
+      "selection": "FIRST_32_ODD_K_PASSING_PINNED_PROTH20_WITNESS_PREFLIGHT",
+      "witnesses": [
+        3,
+        5,
+        3,
+        7,
+        3,
+        11,
+        3,
+        5,
+        3,
+        3,
+        5,
+        3,
+        7,
+        3,
+        13,
+        3,
+        5,
+        3,
+        3,
+        5,
+        3,
+        3,
+        7,
+        3,
+        5,
+        3,
+        3,
+        5,
+        3,
+        11,
+        3,
+        3
+      ],
+      "seed": "PrimeForge|primeforge.native-digit-scaling-corpus.v1|base=54ffb095a81e75d414b328c60ff48eddce977f1b|digits=200000|batch=32",
+      "seed_sha256": "9b12f54adc1ed6c6cd2756445dfdfd3e8947a6f83ffe715597c48c2c23fb33cc",
+      "purpose": "CLOSED_NON_DISCOVERY_SCALING_BENCHMARK",
+      "files": {
+        "b1": {
+          "file": "digits-200000-b1.txt",
+          "sha256": "1b93b860fe512756cc9edd6c73ad4bb43bd32c213ca4ce53cff0a94858b3cf00",
+          "candidates": 1
+        },
+        "b8": {
+          "file": "digits-200000-b8.txt",
+          "sha256": "17c853d72d7cdd865f924b1c62ad43296b0444ac656e8c58d5063bee2ebf637b",
+          "candidates": 8
+        },
+        "b16": {
+          "file": "digits-200000-b16.txt",
+          "sha256": "2e385c710e32ce60f0655abbff432601a8e653068724e369df97733239443655",
+          "candidates": 16
+        },
+        "b32": {
+          "file": "digits-200000-b32.txt",
+          "sha256": "2d14ddb401b602dc081754e195249e2d3e6e6e7be1c3ab7cc386752b6813e091",
+          "candidates": 32
+        }
+      }
+    },
+    {
+      "requested_digits": 300000,
+      "exact_digits": 300000,
+      "exponent": 996551,
+      "k_min": "32105185",
+      "k_max": "32105297",
+      "k_step": 2,
+      "selection": "FIRST_32_ODD_K_PASSING_PINNED_PROTH20_WITNESS_PREFLIGHT",
+      "witnesses": [
+        5,
+        3,
+        3,
+        5,
+        3,
+        13,
+        3,
+        3,
+        5,
+        3,
+        3,
+        5,
+        3,
+        7,
+        3,
+        11,
+        3,
+        5,
+        3,
+        3,
+        5,
+        3,
+        7,
+        3,
+        19,
+        3,
+        5,
+        3,
+        3,
+        5,
+        3,
+        3
+      ],
+      "seed": "PrimeForge|primeforge.native-digit-scaling-corpus.v1|base=54ffb095a81e75d414b328c60ff48eddce977f1b|digits=300000|batch=32",
+      "seed_sha256": "e2ca3497d904304d3c0af8c6dd187ca2ec119066d54b032ff6488852473e4e9e",
+      "purpose": "CLOSED_NON_DISCOVERY_SCALING_BENCHMARK",
+      "files": {
+        "b1": {
+          "file": "digits-300000-b1.txt",
+          "sha256": "ce4a9e585c18e9401d304f680848c37c8d64a9dc04eda362d2b0c000d11f4563",
+          "candidates": 1
+        },
+        "b8": {
+          "file": "digits-300000-b8.txt",
+          "sha256": "2ce0f61b06ecd3a57b05bc0c142159b2d4cba4e7efd3d4184de5b7c233fe9ed5",
+          "candidates": 8
+        },
+        "b16": {
+          "file": "digits-300000-b16.txt",
+          "sha256": "8bcb1f9fe715abf9173e92b1f023b727c2c6cab5451dcd8d1e8b669ac6b14ba0",
+          "candidates": 16
+        },
+        "b32": {
+          "file": "digits-300000-b32.txt",
+          "sha256": "f2d969baf9e295b79e14cf2bf8b87db806ef936518e7f9671d8f565becd8050f",
+          "candidates": 32
+        }
+      }
+    },
+    {
+      "requested_digits": 500000,
+      "exact_digits": 500000,
+      "exponent": 1660936,
+      "k_min": "58682815",
+      "k_max": "58682929",
+      "k_step": 2,
+      "selection": "FIRST_32_ODD_K_PASSING_PINNED_PROTH20_WITNESS_PREFLIGHT",
+      "witnesses": [
+        3,
+        5,
+        3,
+        3,
+        3,
+        7,
+        3,
+        5,
+        3,
+        5,
+        3,
+        17,
+        3,
+        3,
+        3,
+        5,
+        3,
+        5,
+        3,
+        3,
+        3,
+        13,
+        3,
+        5,
+        3,
+        5,
+        3,
+        7,
+        3,
+        3,
+        13,
+        3
+      ],
+      "seed": "PrimeForge|primeforge.native-digit-scaling-corpus.v1|base=54ffb095a81e75d414b328c60ff48eddce977f1b|digits=500000|batch=32",
+      "seed_sha256": "637356c991542726cdfea2b4997d30c1388c751e6a395a06b08f364b08b49ad4",
+      "purpose": "CLOSED_NON_DISCOVERY_SCALING_BENCHMARK",
+      "files": {
+        "b1": {
+          "file": "digits-500000-b1.txt",
+          "sha256": "39f77b7caf8e9c2099bc138f489cc12561abb9df67b5d2c780b792c744b0260b",
+          "candidates": 1
+        },
+        "b8": {
+          "file": "digits-500000-b8.txt",
+          "sha256": "20e5648edf65ea955cec416872ee3c05befe5d63b0a9ee947ad6911ac4b6daa0",
+          "candidates": 8
+        },
+        "b16": {
+          "file": "digits-500000-b16.txt",
+          "sha256": "63dee604049c7835f49158a65dd4325ad1a4365a8b062dd60bedd9bbfda6f8ce",
+          "candidates": 16
+        },
+        "b32": {
+          "file": "digits-500000-b32.txt",
+          "sha256": "d7eb3a57239a5d0b18c9a15f1c8e55f17f1257781022e9f2f8bdd3f1b3e409b6",
+          "candidates": 32
+        }
+      }
+    }
+  ]
+}

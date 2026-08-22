@@ -1,0 +1,15 @@
+{
+  "schema": "primeforge.native_scaling_study.validation.v1",
+  "summary_files": 20,
+  "result_records_consistent_across_overlapping_batches": true,
+  "all_exit_zero": true,
+  "all_gerbicz_pass": true,
+  "all_whea_zero": true,
+  "non_power_throttling_reasons": [],
+  "sw_power_cap_is_reported_not_treated_as_thermal_error": true,
+  "maximum_cpu_temperature_c": 76.625,
+  "maximum_gpu_temperature_c": 71.0,
+  "temperature_gate": "PASS",
+  "ncu_opencl_kernel_profile": "UNAVAILABLE_NO_KERNELS_CAPTURED",
+  "status": "PASS"
+}

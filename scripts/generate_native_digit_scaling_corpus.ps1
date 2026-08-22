@@ -160,7 +160,7 @@ foreach ($digits in $DigitCounts) {
     $kMax = [uint64]$accepted[$accepted.Count - 1].k
 
     $files = [ordered]@{}
-    foreach ($batch in @(8, 16, 32)) {
+    foreach ($batch in @(1, 8, 16, 32)) {
         if ($batch -gt $MaximumBatchSize) { continue }
         $name = 'digits-{0:D6}-b{1}.txt' -f $digits, $batch
         $path = Join-Path $outputPath $name

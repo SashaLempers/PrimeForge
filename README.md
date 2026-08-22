@@ -339,6 +339,14 @@ campaign was run.
 The guarded long-run component contract and exact commands are in
 `docs/pivot/RUNTIME_SAFETY.md`. No massive or prolonged benchmark has run yet.
 
+The large-scaling optimization removes the native campaign's quadratic result
+rewrites with a durable append-only journal and checkpoint hash chain. Optional
+`--batch-size auto` dispatches the measured RTX 5080 regimes by transform length
+(B32 through 65,536, B16 through 131,072, B8 through 262,144) and uses B1 for
+unmeasured hardware or transforms. Exact A/B/B/A persistence measurements and
+the rejected bounded GPU prototypes are in
+`docs/reports/LARGE_SCALING_OPTIMIZATION_20260822.md`.
+
 Milestone evidence is kept in `docs/reports/`. Stage 11 remains a scoped negative
 result: offline adaptation reproduced fixed-low and online exploration added cost
 on its retained regimes. Old telemetry-incomplete timings keep

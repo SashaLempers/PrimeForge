@@ -159,7 +159,14 @@ function Get-TelemetrySummary {
     param([Parameter(Mandatory)][string]$Path)
     $samples = [Collections.Generic.List[object]]::new()
     if (Test-Path -LiteralPath $Path -PathType Leaf) {
-        foreach ($line in [IO.File]::ReadLines($Path)) {
+        $stream = [IO.FileStream]::new(
+            $Path, [IO.FileMode]::Open, [IO.FileAccess]::Read,
+            [IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete)
+        try {
+            $reader = [IO.StreamReader]::new($stream, [Text.Encoding]::UTF8, $true, 4096, $true)
+            try { $telemetryText = $reader.ReadToEnd() } finally { $reader.Dispose() }
+        } finally { $stream.Dispose() }
+        foreach ($line in ($telemetryText -split "`r?`n")) {
             if ([string]::IsNullOrWhiteSpace($line)) { continue }
             try { $samples.Add(($line | ConvertFrom-Json)) } catch { }
         }
@@ -274,9 +281,10 @@ try {
 } finally {
     $clock.Stop()
     if (-not $monitor.HasExited) {
-        Stop-Process -Id $monitor.Id -ErrorAction SilentlyContinue
-        $monitor.WaitForExit()
+        $monitor.Kill($true)
+        $monitor.WaitForExit(10000)
     }
+    $monitor.Dispose()
 }
 
 [IO.File]::WriteAllText($stdoutPath, $stdout, $utf8)

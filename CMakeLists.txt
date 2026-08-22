@@ -199,7 +199,10 @@ target_compile_features(primeforge_runtime PUBLIC cxx_std_23)
 primeforge_enable_strict_warnings(primeforge_runtime)
 target_link_libraries(primeforge_mvp PUBLIC PrimeForge::runtime)
 
-add_library(primeforge_native_b8 STATIC src/discovery/native_b8_campaign.cpp)
+add_library(primeforge_native_b8 STATIC
+    src/discovery/native_b8_campaign.cpp
+    src/discovery/native_batch_dispatch.cpp
+)
 add_library(PrimeForge::native_b8 ALIAS primeforge_native_b8)
 target_include_directories(primeforge_native_b8
     PUBLIC
@@ -340,6 +343,11 @@ add_executable(primeforge-native-b8-tests tests/native_b8_campaign_test.cpp)
 target_link_libraries(primeforge-native-b8-tests PRIVATE PrimeForge::native_b8)
 target_compile_features(primeforge-native-b8-tests PRIVATE cxx_std_23)
 primeforge_enable_strict_warnings(primeforge-native-b8-tests)
+
+add_executable(primeforge-native-persistence-benchmark tests/native_b8_persistence_benchmark.cpp)
+target_link_libraries(primeforge-native-persistence-benchmark PRIVATE PrimeForge::native_b8)
+target_compile_features(primeforge-native-persistence-benchmark PRIVATE cxx_std_23)
+primeforge_enable_strict_warnings(primeforge-native-persistence-benchmark)
 
 add_executable(primeforge-work-unit-tests tests/work_unit_test.cpp)
 target_link_libraries(primeforge-work-unit-tests PRIVATE PrimeForge::core)

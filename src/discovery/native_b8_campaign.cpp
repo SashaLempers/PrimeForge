@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cerrno>
 #include <charconv>
 #include <chrono>
 #include <cmath>
@@ -14,6 +15,7 @@
 #include <ctime>
 #include <fstream>
 #include <iomanip>
+#include <iterator>
 #include <limits>
 #include <set>
 #include <span>
@@ -191,7 +193,7 @@ void discard_truncated_final_line(const std::filesystem::path& path) {
     if (content.empty() || content.back() == '\n') { return; }
     const auto newline = content.find_last_of('\n');
     if (newline == std::string::npos) {
-        throw std::runtime_error("campaign telemetry has no complete schema line");
+        throw std::runtime_error("durable TSV has no complete schema line");
     }
     std::filesystem::resize_file(path, newline + 1U);
 }
@@ -327,6 +329,75 @@ constexpr std::string_view results_header =
     return content;
 }
 
+[[nodiscard]] std::string serialize_result_rows(const std::span<const StoredResult> results) {
+    std::string content;
+    for (const auto& stored : results) {
+        const auto& result = stored.result;
+        content += stored.campaign_id + "\t" + std::to_string(stored.batch_id) + "\t" +
+            stored.ordered_candidate_hash + "\t" + std::to_string(stored.batch_size) + "\t" +
+            std::to_string(result.lane_id) + "\t" + std::to_string(result.candidate.k) + "\t" +
+            std::to_string(result.candidate.n) + "\t" + stored.engine_hash + "\t" + stored.start_utc + "\t" +
+            stored.terminal_status + "\t" + result.classification + "\t" + std::to_string(result.witness) +
+            "\t" + result.res64 + "\t" + result.validation_status + "\t" +
+            result.candidate_result_hash + "\t" + stored.batch_result_hash + "\n";
+    }
+    return content;
+}
+
+void ensure_result_log(const std::filesystem::path& path) {
+    if (!std::filesystem::exists(path)) {
+        work::write_checkpoint_atomically(path, std::string{results_header});
+    }
+}
+
+void append_file_durably(const std::filesystem::path& path, const std::string_view content) {
+    if (content.empty()) { throw std::invalid_argument("durable append content must not be empty"); }
+#if defined(_WIN32)
+    const HANDLE handle = CreateFileW(
+        path.c_str(), FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (handle == INVALID_HANDLE_VALUE) { throw std::runtime_error("cannot open result log for append"); }
+    std::size_t offset{};
+    while (offset < content.size()) {
+        const auto chunk = static_cast<DWORD>(std::min<std::size_t>(
+            content.size() - offset,
+            static_cast<std::size_t>((std::numeric_limits<DWORD>::max)())));
+        DWORD written{};
+        if (WriteFile(handle, content.data() + offset, chunk, &written, nullptr) == 0 || written == 0U) {
+            CloseHandle(handle);
+            throw std::runtime_error("cannot append result log");
+        }
+        offset += written;
+    }
+    if (FlushFileBuffers(handle) == 0) {
+        CloseHandle(handle);
+        throw std::runtime_error("cannot durably flush result log");
+    }
+    CloseHandle(handle);
+#else
+    const int descriptor = ::open(path.c_str(), O_WRONLY | O_APPEND);
+    if (descriptor < 0) { throw std::runtime_error("cannot open result log for append"); }
+    std::size_t offset{};
+    while (offset < content.size()) {
+        const auto written = ::write(descriptor, content.data() + offset, content.size() - offset);
+        if (written <= 0) {
+            const auto error = errno;
+            ::close(descriptor);
+            throw std::system_error(error, std::generic_category(), "append result log");
+        }
+        offset += static_cast<std::size_t>(written);
+    }
+    if (::fsync(descriptor) != 0) {
+        const auto error = errno;
+        ::close(descriptor);
+        throw std::system_error(error, std::generic_category(), "fsync result log");
+    }
+    if (::close(descriptor) != 0) {
+        throw std::system_error(errno, std::generic_category(), "close result log");
+    }
+#endif
+}
+
 [[nodiscard]] std::vector<StoredResult> read_results(
     const std::filesystem::path& path,
     const CampaignConfig& config,
@@ -393,18 +464,38 @@ constexpr std::string_view results_header =
 struct DurableResultState {
     std::uint64_t next_batch_id{};
     std::vector<std::size_t> batch_end_offsets{0U};
+    std::vector<std::string> result_chain_hashes;
+    std::vector<std::string> last_batch_hashes{std::string(64U, '0')};
+    std::size_t complete_result_count{};
+    bool incomplete_final_batch{};
 };
+
+[[nodiscard]] std::string advance_result_chain(
+    const std::string_view previous,
+    const std::string_view batch_result_hash,
+    const std::size_t batch_size,
+    const Sha256Provider& sha256) {
+    return hash_bytes(
+        std::string{previous} + "\t" + std::string{batch_result_hash} + "\t" +
+            std::to_string(batch_size) + "\n",
+        sha256);
+}
 
 [[nodiscard]] DurableResultState validate_result_batches(
     const std::vector<StoredResult>& results,
     const Sha256Provider& sha256) {
     DurableResultState state;
+    state.result_chain_hashes.push_back(hash_bytes(results_header, sha256));
     std::size_t offset{};
     while (offset < results.size()) {
         const auto& first = results[offset];
         if (first.batch_id != state.next_batch_id || first.batch_size == 0U ||
-            first.batch_size > max_batch_size || results.size() - offset < first.batch_size) {
+            first.batch_size > max_batch_size) {
             throw std::runtime_error("durable result batches are not contiguous and complete");
+        }
+        if (results.size() - offset < first.batch_size) {
+            state.incomplete_final_batch = true;
+            break;
         }
         BatchRequest request;
         request.batch_id = first.batch_id;
@@ -431,10 +522,14 @@ struct DurableResultState {
         offset += first.batch_size;
         ++state.next_batch_id;
         state.batch_end_offsets.push_back(offset);
+        state.result_chain_hashes.push_back(advance_result_chain(
+            state.result_chain_hashes.back(), first.batch_result_hash, first.batch_size, sha256));
+        state.last_batch_hashes.push_back(first.batch_result_hash);
         if (has_prime && offset != results.size()) {
             throw std::runtime_error("durable results continue after a proven-prime batch");
         }
     }
+    state.complete_result_count = offset;
     return state;
 }
 
@@ -453,7 +548,8 @@ void validate_checkpoint(
         return;
     }
     const auto checkpoint = read_file(path);
-    if (require_json_string(checkpoint, "schema_version") != "1" ||
+    const auto schema_version = require_json_string(checkpoint, "schema_version");
+    if ((schema_version != "1" && schema_version != "2") ||
         require_json_string(checkpoint, "campaign_id") != config.campaign_id ||
         require_json_string(checkpoint, "parent_campaign_id") != config.parent_campaign_id ||
         require_json_string(checkpoint, "engine_commit") != config.engine_commit ||
@@ -472,56 +568,82 @@ void validate_checkpoint(
         throw std::runtime_error("checkpoint is ahead of durable complete result batches");
     }
     const auto resume_count = result_state.batch_end_offsets[static_cast<std::size_t>(checkpoint_next)];
-    std::vector<StoredResult> prefix(results.begin(), results.begin() + static_cast<std::ptrdiff_t>(resume_count));
-    auto completed = parent_completed;
-    for (const auto& stored : prefix) { completed.push_back(stored.result.candidate); }
-    const std::vector<Candidate> checkpoint_remaining(
-        queue.begin() + static_cast<std::ptrdiff_t>(resume_count), queue.end());
     const auto expected_last_id = checkpoint_next == 0U ? 0U : checkpoint_next - 1U;
-    const auto expected_last_hash = checkpoint_next == 0U
-        ? std::string(64U, '0') : prefix.back().batch_result_hash;
-    if (parse_unsigned<std::size_t>(
-            require_json_string(checkpoint, "completed_unique_count"), "completed_unique_count") != completed.size() ||
-        require_json_string(checkpoint, "candidate_results_hash") != hash_bytes(serialize_results(prefix), sha256) ||
-        require_json_string(checkpoint, "completed_set_sha256") != candidate_set_sha256(completed, sha256) ||
-        require_json_string(checkpoint, "remaining_queue_sha256") != candidate_set_sha256(checkpoint_remaining, sha256) ||
-        parse_unsigned<std::uint64_t>(require_json_string(checkpoint, "last_batch_id"), "last_batch_id") != expected_last_id ||
-        require_json_string(checkpoint, "last_batch_hash") != expected_last_hash) {
+    const auto& expected_last_hash = result_state.last_batch_hashes[static_cast<std::size_t>(checkpoint_next)];
+    bool valid = parse_unsigned<std::size_t>(
+            require_json_string(checkpoint, "completed_unique_count"), "completed_unique_count") ==
+            parent_completed.size() + resume_count &&
+        parse_unsigned<std::uint64_t>(require_json_string(checkpoint, "last_batch_id"), "last_batch_id") ==
+            expected_last_id &&
+        require_json_string(checkpoint, "last_batch_hash") == expected_last_hash;
+    if (schema_version == "1") {
+        std::vector<StoredResult> prefix(
+            results.begin(), results.begin() + static_cast<std::ptrdiff_t>(resume_count));
+        auto completed = parent_completed;
+        for (const auto& stored : prefix) { completed.push_back(stored.result.candidate); }
+        const std::vector<Candidate> checkpoint_remaining(
+            queue.begin() + static_cast<std::ptrdiff_t>(resume_count), queue.end());
+        valid = valid &&
+            require_json_string(checkpoint, "candidate_results_hash") ==
+                hash_bytes(serialize_results(prefix), sha256) &&
+            require_json_string(checkpoint, "completed_set_sha256") ==
+                candidate_set_sha256(completed, sha256) &&
+            require_json_string(checkpoint, "remaining_queue_sha256") ==
+                candidate_set_sha256(checkpoint_remaining, sha256);
+    } else {
+        valid = valid &&
+            require_json_string(checkpoint, "candidate_results_hash_kind") == "BATCH_CHAIN_V1" &&
+            require_json_string(checkpoint, "candidate_results_hash") ==
+                result_state.result_chain_hashes[static_cast<std::size_t>(checkpoint_next)] &&
+            parse_unsigned<std::size_t>(
+                require_json_string(checkpoint, "completed_resume_count"), "completed_resume_count") ==
+                resume_count &&
+            parse_unsigned<std::size_t>(
+                require_json_string(checkpoint, "remaining_offset"), "remaining_offset") == resume_count &&
+            parse_unsigned<std::size_t>(
+                require_json_string(checkpoint, "remaining_count"), "remaining_count") ==
+                queue.size() - resume_count &&
+            require_json_string(checkpoint, "parent_completed_sha256") ==
+                candidate_set_sha256(parent_completed, sha256) &&
+            require_json_string(checkpoint, "remaining_queue_source_sha256") ==
+                candidate_set_sha256(queue, sha256);
+    }
+    if (!valid) {
         throw std::runtime_error("checkpoint content hash or count mismatch");
     }
     static_cast<void>(require_json_string(checkpoint, "updated_utc"));
 }
 
-[[nodiscard]] std::vector<Candidate> resume_completed_candidates(const std::vector<StoredResult>& results) {
-    std::vector<Candidate> candidates;
-    candidates.reserve(results.size());
-    for (const auto& result : results) { candidates.push_back(result.result.candidate); }
-    return candidates;
-}
-
 [[nodiscard]] std::string checkpoint_json(
     const CampaignConfig& config,
-    const std::vector<Candidate>& all_completed,
-    const std::vector<Candidate>& remaining,
-    const std::string_view results_hash,
+    const std::size_t parent_completed_count,
+    const std::string_view parent_completed_hash,
+    const std::size_t queue_size,
+    const std::string_view queue_hash,
+    const std::size_t completed_resume_count,
+    const std::string_view results_chain_hash,
     const std::uint64_t next_batch_id,
     const std::uint64_t last_batch_id,
     const std::string_view last_batch_hash,
     const std::string_view terminal_status,
-    const Sha256Provider& sha256,
     const std::string_view updated) {
     return "{\"campaign_id\":" + json_escape(config.campaign_id) +
-        ",\"candidate_results_hash\":" + json_escape(results_hash) +
-        ",\"completed_set_sha256\":" + json_escape(candidate_set_sha256(all_completed, sha256)) +
-        ",\"completed_unique_count\":" + json_escape(std::to_string(all_completed.size())) +
+        ",\"candidate_results_hash\":" + json_escape(results_chain_hash) +
+        ",\"candidate_results_hash_kind\":\"BATCH_CHAIN_V1\"" +
+        ",\"completed_resume_count\":" + json_escape(std::to_string(completed_resume_count)) +
+        ",\"completed_unique_count\":" +
+            json_escape(std::to_string(parent_completed_count + completed_resume_count)) +
         ",\"engine_binary_sha256\":" + json_escape(config.engine_binary_sha256) +
         ",\"engine_commit\":" + json_escape(config.engine_commit) +
         ",\"last_batch_hash\":" + json_escape(last_batch_hash) +
         ",\"last_batch_id\":" + json_escape(std::to_string(last_batch_id)) +
         ",\"next_batch_id\":" + json_escape(std::to_string(next_batch_id)) +
         ",\"parent_campaign_id\":" + json_escape(config.parent_campaign_id) +
-        ",\"remaining_queue_sha256\":" + json_escape(candidate_set_sha256(remaining, sha256)) +
-        ",\"schema_version\":\"1\""
+        ",\"parent_completed_sha256\":" + json_escape(parent_completed_hash) +
+        ",\"remaining_count\":" + json_escape(std::to_string(queue_size - completed_resume_count)) +
+        ",\"remaining_offset\":" + json_escape(std::to_string(completed_resume_count)) +
+        ",\"remaining_queue_source_sha256\":" + json_escape(queue_hash) +
+        ",\"schema_version\":\"2\""
         ",\"survivor_list_sha256\":" + json_escape(config.survivor_list_sha256) +
         ",\"terminal_status\":" + json_escape(terminal_status) +
         ",\"updated_utc\":" + json_escape(updated) + "}\n";
@@ -843,9 +965,15 @@ CampaignSummary run_campaign(
     std::filesystem::create_directories(config.campaign_directory / "logs");
     std::filesystem::create_directories(config.campaign_directory / "work");
 
+    ensure_result_log(results_path);
+    discard_truncated_final_line(results_path);
     auto stored_results = read_results(results_path, config, sha256);
-    auto results_content = serialize_results(stored_results);
-    const auto result_state = validate_result_batches(stored_results, sha256);
+    auto result_state = validate_result_batches(stored_results, sha256);
+    if (result_state.incomplete_final_batch) {
+        stored_results.resize(result_state.complete_result_count);
+        work::write_checkpoint_atomically(results_path, serialize_results(stored_results));
+        result_state = validate_result_batches(stored_results, sha256);
+    }
     if (stored_results.size() > queue.size()) {
         throw std::runtime_error("durable results exceed the immutable remaining queue");
     }
@@ -857,8 +985,11 @@ CampaignSummary run_campaign(
     validate_checkpoint(
         checkpoint_path, config, stored_results, result_state, parent_completed, queue, sha256);
     std::uint64_t next_batch_id = result_state.next_batch_id;
-    std::vector<Candidate> remaining(
-        queue.begin() + static_cast<std::ptrdiff_t>(stored_results.size()), queue.end());
+    std::size_t remaining_offset = stored_results.size();
+    const auto remaining_count = [&] { return queue.size() - remaining_offset; };
+    std::string results_chain_hash = result_state.result_chain_hashes.back();
+    const auto parent_completed_hash = candidate_set_sha256(parent_completed, sha256);
+    const auto queue_hash = candidate_set_sha256(queue, sha256);
 
     TelemetryWriter telemetry(telemetry_path, config.campaign_id, config.telemetry_limits);
     double accumulated_gpu_energy_wh{};
@@ -895,13 +1026,13 @@ CampaignSummary run_campaign(
             ",\"completed_this_resume\":" + json_escape(std::to_string(completed_resume)) +
             ",\"completed_total\":" + json_escape(std::to_string(parent_completed.size() + completed_resume)) +
             ",\"error_count\":" + json_escape(std::to_string(error_count)) +
-            ",\"eta_utc\":" + json_escape(eta_utc(remaining.size(), throughput())) +
+            ",\"eta_utc\":" + json_escape(eta_utc(remaining_count(), throughput())) +
             ",\"gpu_power_w\":" + json_escape(last_gpu_power) +
             ",\"gpu_temperature_c\":" + json_escape(last_gpu_temperature) +
             ",\"last_checkpoint_utc\":" + json_escape(last_checkpoint_utc) +
             ",\"last_error\":" + json_escape(last_error) +
             ",\"prime_found\":" + std::string{prime_found ? "true" : "false"} +
-            ",\"remaining\":" + json_escape(std::to_string(remaining.size())) +
+            ",\"remaining\":" + json_escape(std::to_string(remaining_count())) +
             ",\"state\":" + json_escape(state) +
             ",\"supervisor_pid\":" + json_escape(std::to_string(config.supervisor_pid)) +
             ",\"telemetry_bytes\":" + json_escape(std::to_string(telemetry.bytes_written())) +
@@ -914,20 +1045,18 @@ CampaignSummary run_campaign(
 
     telemetry.append("RUN_START", "PROCESS_GLOBAL", {
         {"completed_unique", std::to_string(parent_completed.size() + stored_results.size())},
-        {"remaining", std::to_string(remaining.size())},
+        {"remaining", std::to_string(remaining_count())},
         {"engine_hash", config.engine_binary_sha256},
         {"message", "native B=8 production resume"}}, true);
     write_status();
 
     auto durable_checkpoint = [&](const std::uint64_t last_batch_id, const std::string_view last_batch_hash,
-                                  const std::string_view terminal_status) {
-        auto all_completed = parent_completed;
-        const auto resume_candidates = resume_completed_candidates(stored_results);
-        all_completed.insert(all_completed.end(), resume_candidates.begin(), resume_candidates.end());
+                                   const std::string_view terminal_status) {
         last_checkpoint_utc = utc_now();
         const auto content = checkpoint_json(
-            config, all_completed, remaining, hash_bytes(results_content, sha256), next_batch_id,
-            last_batch_id, last_batch_hash, terminal_status, sha256, last_checkpoint_utc);
+            config, parent_completed.size(), parent_completed_hash, queue.size(), queue_hash,
+            stored_results.size(), results_chain_hash, next_batch_id, last_batch_id,
+            last_batch_hash, terminal_status, last_checkpoint_utc);
         work::write_checkpoint_atomically(checkpoint_path, content);
         checkpoint_bytes_written += content.size();
     };
@@ -939,7 +1068,7 @@ CampaignSummary run_campaign(
     telemetry.flush(true);
     write_status();
 
-    while (!remaining.empty() && !prime_found) {
+    while (remaining_count() != 0U && !prime_found) {
         if (stop_requested()) {
             state = "STOPPED";
             durable_checkpoint(last_batch_id, last_batch_hash, state);
@@ -950,8 +1079,10 @@ CampaignSummary run_campaign(
 
         const auto batch_start_clock = Clock::now();
         const auto prepare_start = Clock::now();
-        const auto count = std::min<std::size_t>(config.batch_size, remaining.size());
-        std::vector<Candidate> candidates(remaining.begin(), remaining.begin() + static_cast<std::ptrdiff_t>(count));
+        const auto count = std::min<std::size_t>(config.batch_size, remaining_count());
+        std::vector<Candidate> candidates(
+            queue.begin() + static_cast<std::ptrdiff_t>(remaining_offset),
+            queue.begin() + static_cast<std::ptrdiff_t>(remaining_offset + count));
         BatchRequest request;
         request.batch_id = next_batch_id;
         request.candidates = candidates;
@@ -986,7 +1117,7 @@ CampaignSummary run_campaign(
             fields["active_batch_id"] = std::to_string(request.batch_id);
             fields["active_batch_size"] = std::to_string(count);
             fields["completed_unique"] = std::to_string(parent_completed.size() + stored_results.size());
-            fields["remaining"] = std::to_string(remaining.size());
+            fields["remaining"] = std::to_string(remaining_count());
             fields["survivor_queue_bytes"] = std::to_string(std::filesystem::file_size(config.remaining_queue_path));
             fields["telemetry_buffer_bytes"] = std::to_string(telemetry.buffered_bytes());
             fields["checkpoint_bytes_written"] = std::to_string(checkpoint_bytes_written);
@@ -1087,21 +1218,29 @@ CampaignSummary run_campaign(
         });
 
         const auto persist_start = Clock::now();
+        std::vector<StoredResult> batch_stored_results;
+        batch_stored_results.reserve(execution.results.size());
         for (const auto& result : execution.results) {
-            stored_results.push_back({
+            batch_stored_results.push_back({
                 config.campaign_id, request.batch_id, request.ordered_candidate_hash, count, result,
                 config.engine_binary_sha256, request.start_utc, "BATCH_COMPLETE", current_batch_hash});
         }
-        results_content = serialize_results(stored_results);
-        work::write_checkpoint_atomically(results_path, results_content);
+        append_file_durably(results_path, serialize_result_rows(batch_stored_results));
+        stored_results.insert(
+            stored_results.end(),
+            std::make_move_iterator(batch_stored_results.begin()),
+            std::make_move_iterator(batch_stored_results.end()));
+        results_chain_hash = advance_result_chain(
+            results_chain_hash, current_batch_hash, count, sha256);
         const auto result_persist_us = static_cast<std::uint64_t>(
             std::chrono::duration_cast<std::chrono::microseconds>(Clock::now() - persist_start).count());
-        remaining.erase(remaining.begin(), remaining.begin() + static_cast<std::ptrdiff_t>(count));
+        remaining_offset += count;
         ++next_batch_id;
         last_batch_id = request.batch_id;
         last_batch_hash = current_batch_hash;
         prime_found = prime_found || batch_has_prime;
-        state = prime_found ? "PRIME_FOUND" : (remaining.empty() ? "COMPLETE_NO_PRIME" : "IN_PROGRESS");
+        state = prime_found ? "PRIME_FOUND" :
+            (remaining_count() == 0U ? "COMPLETE_NO_PRIME" : "IN_PROGRESS");
 
         for (const auto& result : execution.results) {
             telemetry.append("CANDIDATE_RESULT", "CANDIDATE_EXACT", {
@@ -1142,8 +1281,8 @@ CampaignSummary run_campaign(
         telemetry.append("CHECKPOINT", "PROCESS_GLOBAL", {
             {"batch_id", std::to_string(request.batch_id)}, {"checkpoint_us", std::to_string(checkpoint_us)},
             {"completed_unique", std::to_string(parent_completed.size() + stored_results.size())},
-            {"remaining", std::to_string(remaining.size())}, {"terminal_status", state},
-            {"result_hash", hash_bytes(results_content, sha256)}}, true);
+            {"remaining", std::to_string(remaining_count())}, {"terminal_status", state},
+            {"result_hash", results_chain_hash}}, true);
         telemetry.append("BATCH_END", "BATCH_SHARED", {
             {"batch_id", std::to_string(request.batch_id)}, {"batch_size", std::to_string(count)},
             {"terminal_status", state}, {"result_hash", current_batch_hash},
@@ -1153,15 +1292,15 @@ CampaignSummary run_campaign(
         if (prime_found) { break; }
     }
 
-    if (state == "IN_PROGRESS" && remaining.empty()) { state = "COMPLETE_NO_PRIME"; }
+    if (state == "IN_PROGRESS" && remaining_count() == 0U) { state = "COMPLETE_NO_PRIME"; }
     telemetry.append("RUN_END", "PROCESS_GLOBAL", {
         {"terminal_status", state}, {"completed_unique", std::to_string(parent_completed.size() + stored_results.size())},
-        {"remaining", std::to_string(remaining.size())}}, true);
+        {"remaining", std::to_string(remaining_count())}}, true);
     telemetry.flush(true);
     write_status();
     return {
-        state, parent_completed.size(), stored_results.size(), remaining.size(), next_batch_id,
-        prime_found, throughput(), hash_bytes(results_content, sha256)};
+        state, parent_completed.size(), stored_results.size(), remaining_count(), next_batch_id,
+        prime_found, throughput(), hash_bytes(read_file(results_path), sha256)};
 }
 
 }  // namespace primeforge::discovery::native_b8

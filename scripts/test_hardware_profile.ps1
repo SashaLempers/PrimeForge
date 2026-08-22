@@ -27,10 +27,20 @@ $profileBytesB = [System.IO.File]::ReadAllBytes($profileB)
 $identityBytesA = [System.IO.File]::ReadAllBytes($identityA)
 $identityBytesB = [System.IO.File]::ReadAllBytes($identityB)
 
-$profileHashA = (Get-FileHash -Algorithm SHA256 -LiteralPath $profileA).Hash
-$profileHashB = (Get-FileHash -Algorithm SHA256 -LiteralPath $profileB).Hash
-$identityHashA = (Get-FileHash -Algorithm SHA256 -LiteralPath $identityA).Hash
-$identityHashB = (Get-FileHash -Algorithm SHA256 -LiteralPath $identityB).Hash
+function Get-Sha256Hex {
+    param([Parameter(Mandatory = $true)][byte[]]$Bytes)
+    $algorithm = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString($algorithm.ComputeHash($Bytes))).Replace('-', '')
+    } finally {
+        $algorithm.Dispose()
+    }
+}
+
+$profileHashA = Get-Sha256Hex $profileBytesA
+$profileHashB = Get-Sha256Hex $profileBytesB
+$identityHashA = Get-Sha256Hex $identityBytesA
+$identityHashB = Get-Sha256Hex $identityBytesB
 if ($profileBytesA.Length -ne $profileBytesB.Length -or $profileHashA -ne $profileHashB) { throw 'Repeated profile bytes differ.' }
 if ($identityBytesA.Length -ne $identityBytesB.Length -or $identityHashA -ne $identityHashB) { throw 'Repeated identity bytes differ.' }
 if ($profileBytesA.Length -ge 3 -and $profileBytesA[0] -eq 0xef -and $profileBytesA[1] -eq 0xbb -and $profileBytesA[2] -eq 0xbf) { throw 'Profile contains a UTF-8 BOM.' }

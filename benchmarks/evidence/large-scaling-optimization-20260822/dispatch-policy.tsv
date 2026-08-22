@@ -1,0 +1,5 @@
+policy_id	hardware_match	transform_max	batch_size	plan_policy	plan_mode	fallback	evidence
+primeforge.native-batch.rtx5080-scaling-20260822.v1	NVIDIA_GEFORCE_RTX_5080	65536	32	primeforge.native-plan.proth20-autotune.v1	ENGINE_AUTOTUNE	NO	MEASURED_BEST_BATCH_FIXED_PLAN_REJECTED
+primeforge.native-batch.rtx5080-scaling-20260822.v1	NVIDIA_GEFORCE_RTX_5080	131072	16	primeforge.native-plan.proth20-autotune.v1	ENGINE_AUTOTUNE	NO	LOWEST_WITHIN_1_PERCENT_OF_MEASURED_PEAK_FIXED_PLAN_REJECTED
+primeforge.native-batch.rtx5080-scaling-20260822.v1	NVIDIA_GEFORCE_RTX_5080	262144	8	primeforge.native-plan.proth20-autotune.v1	ENGINE_AUTOTUNE	NO	MEASURED_B8_EQUALS_B16_WITH_HALF_LATENCY_FIXED_PLAN_REJECTED
+primeforge.native-batch.safe-fallback.v1	UNMEASURED_HARDWARE_OR_TRANSFORM	UNKNOWN	1	primeforge.native-plan.safe-autotune.v1	ENGINE_AUTOTUNE	YES	CONSERVATIVE_UNMEASURED_FALLBACK

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "primeforge/core/sha256.hpp"
+#include "primeforge/discovery/native_batch_dispatch.hpp"
 #include "primeforge/discovery/native_b8_campaign.hpp"
 
 #include <chrono>
@@ -10,6 +11,7 @@
 #include <iomanip>
 #include <iostream>
 #include <optional>
+#include <span>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -141,6 +143,24 @@ void write_candidates(const std::filesystem::path& path, const std::vector<b8::C
     return {std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
 }
 
+[[nodiscard]] std::string hash_text(
+    const std::string_view text,
+    const primeforge::Sha256Provider& sha256) {
+    return primeforge::sha256_to_hex(
+        sha256.digest(std::as_bytes(std::span{text.data(), text.size()})));
+}
+
+[[nodiscard]] std::string last_result_batch_hash(const std::filesystem::path& path) {
+    auto content = read_text(path);
+    while (!content.empty() && (content.back() == '\n' || content.back() == '\r')) { content.pop_back(); }
+    const auto line_begin = content.find_last_of('\n');
+    const auto field_begin = content.find_last_of('\t');
+    check(field_begin != std::string::npos &&
+              (line_begin == std::string::npos || field_begin > line_begin),
+          "cannot recover the last durable batch hash");
+    return content.substr(field_begin + 1U);
+}
+
 void write_text(const std::filesystem::path& path, const std::string& content) {
     std::ofstream output(path, std::ios::binary | std::ios::trunc);
     output << content;
@@ -163,6 +183,28 @@ void test_parser() {
                  "nonzero worker exit was accepted");
     const auto stopped = b8::parse_worker_output("PRIMEFORGE_NATIVE_BATCH_STOPPED\n", candidates, 0);
     check(stopped.stopped && stopped.results.empty(), "clean stopped batch marker was not retained");
+}
+
+void test_batch_dispatch() {
+    using primeforge::discovery::NativeBatchDispatchRequest;
+    using primeforge::discovery::select_native_batch;
+    const auto small = select_native_batch({"NVIDIA GeForce RTX 5080", 65'536U, 32U, {}});
+    check(small.batch_size == 32U && small.plan_mode == "ENGINE_AUTOTUNE" &&
+              small.plan_policy_id == "primeforge.native-plan.proth20-autotune.v1",
+          "RTX 5080 65536-transform dispatch mismatch");
+    check(select_native_batch({"NVIDIA GeForce RTX 5080", 131'072U, 32U, {}}).batch_size == 16U,
+          "RTX 5080 131072-transform dispatch mismatch");
+    check(select_native_batch({"NVIDIA GeForce RTX 5080", 262'144U, 32U, {}}).batch_size == 8U,
+          "RTX 5080 262144-transform dispatch mismatch");
+    check(select_native_batch({"NVIDIA GeForce RTX 5080", 131'072U, 8U, {}}).batch_size == 8U,
+          "dispatch did not respect engine capacity");
+    check(select_native_batch({"unknown GPU", 65'536U, 32U, {}}).batch_size == 1U &&
+              select_native_batch({"NVIDIA GeForce RTX 5080", 0U, 32U, {}}).batch_size == 1U &&
+              select_native_batch({"NVIDIA GeForce RTX 5080", 524'288U, 32U, {}}).batch_size == 1U,
+          "unmeasured dispatch did not choose the safe B1 fallback");
+    check(select_native_batch(NativeBatchDispatchRequest{
+              "unknown GPU", 0U, 32U, std::optional<std::uint32_t>{16U}}).batch_size == 16U,
+          "explicit dispatch request was not preserved");
 }
 
 void test_tail_and_checkpoint(const std::filesystem::path& root) {
@@ -284,6 +326,83 @@ void test_result_ahead_of_checkpoint_recovery(const std::filesystem::path& root)
           "validated result file ahead of checkpoint was not recovered idempotently");
 }
 
+void test_incomplete_appended_batch_recovery(const std::filesystem::path& root) {
+    primeforge::PortableSha256Provider sha256;
+    const auto directory = root / "incomplete-appended-batch";
+    const auto candidates = corpus(17U);
+    const auto config = config_for(directory, candidates);
+    bool stop = false;
+    const b8::BatchExecutor first = [&](const b8::BatchRequest& request, const b8::ResourceSink&,
+                                        const b8::RuntimeIdsSink&, const b8::StopRequested&) {
+        stop = true;
+        return fake_execution(request);
+    };
+    const auto stopped = b8::run_campaign(config, first, sha256, [&] { return stop; });
+    check(stopped.state == "STOPPED" && stopped.completed_this_resume == 8U,
+          "incomplete append recovery setup did not persist one batch");
+
+    const auto result_path = directory / "candidate-results.tsv";
+    std::istringstream input(read_text(result_path));
+    std::string truncated;
+    std::string line;
+    for (std::size_t index = 0U; index < 5U && std::getline(input, line); ++index) {
+        truncated += line + "\n";
+    }
+    write_text(result_path, truncated);
+    std::filesystem::remove(directory / "campaign.checkpoint.json");
+
+    std::vector<std::size_t> sizes;
+    const auto recovered = b8::run_campaign(config, deterministic_executor(&sizes), sha256);
+    check(recovered.state == "COMPLETE_NO_PRIME" && recovered.completed_this_resume == 17U &&
+              sizes == std::vector<std::size_t>({8U, 8U, 1U}) &&
+              mathematical_rows(result_path).size() == 17U,
+          "incomplete final append was not rolled back to the last complete batch");
+}
+
+void test_schema_v1_checkpoint_migration(const std::filesystem::path& root) {
+    primeforge::PortableSha256Provider sha256;
+    const auto directory = root / "schema-v1-migration";
+    const auto candidates = corpus(17U);
+    const auto config = config_for(directory, candidates);
+    bool stop = false;
+    const b8::BatchExecutor first = [&](const b8::BatchRequest& request, const b8::ResourceSink&,
+                                        const b8::RuntimeIdsSink&, const b8::StopRequested&) {
+        stop = true;
+        return fake_execution(request);
+    };
+    const auto stopped = b8::run_campaign(config, first, sha256, [&] { return stop; });
+    check(stopped.state == "STOPPED" && stopped.completed_this_resume == 8U,
+          "schema-v1 migration setup did not persist one batch");
+
+    const auto results_path = directory / "candidate-results.tsv";
+    const auto results_content = read_text(results_path);
+    std::vector<b8::Candidate> completed{{3U, 66'411U}, {5U, 66'411U}};
+    completed.insert(completed.end(), candidates.begin(), candidates.begin() + 8);
+    const std::vector<b8::Candidate> remaining(candidates.begin() + 8, candidates.end());
+    const auto checkpoint =
+        "{\"campaign_id\":\"" + config.campaign_id +
+        "\",\"candidate_results_hash\":\"" + hash_text(results_content, sha256) +
+        "\",\"completed_set_sha256\":\"" + b8::candidate_set_sha256(completed, sha256) +
+        "\",\"completed_unique_count\":\"10\",\"engine_binary_sha256\":\"" +
+        config.engine_binary_sha256 + "\",\"engine_commit\":\"" + config.engine_commit +
+        "\",\"last_batch_hash\":\"" + last_result_batch_hash(results_path) +
+        "\",\"last_batch_id\":\"0\",\"next_batch_id\":\"1\",\"parent_campaign_id\":\"" +
+        config.parent_campaign_id + "\",\"remaining_queue_sha256\":\"" +
+        b8::candidate_set_sha256(remaining, sha256) +
+        "\",\"schema_version\":\"1\",\"survivor_list_sha256\":\"" +
+        config.survivor_list_sha256 +
+        "\",\"terminal_status\":\"STOPPED\",\"updated_utc\":\"2026-08-22T00:00:00Z\"}\n";
+    write_text(directory / "campaign.checkpoint.json", checkpoint);
+
+    std::vector<std::size_t> sizes;
+    const auto migrated = b8::run_campaign(config, deterministic_executor(&sizes), sha256);
+    check(migrated.state == "COMPLETE_NO_PRIME" && migrated.completed_this_resume == 17U &&
+              sizes == std::vector<std::size_t>({8U, 1U}) &&
+              read_text(directory / "campaign.checkpoint.json").find("\"schema_version\":\"2\"") !=
+                  std::string::npos,
+          "schema-v1 checkpoint was not validated and migrated to schema v2");
+}
+
 void test_stop_on_prime(const std::filesystem::path& root) {
     primeforge::PortableSha256Provider sha256;
     const auto directory = root / "prime";
@@ -368,17 +487,20 @@ int main() {
     try {
         std::filesystem::create_directories(root);
         test_parser();
+        test_batch_dispatch();
         test_tail_and_checkpoint(root);
         test_b32_tail(root);
         test_stop_resume(root);
         test_b32_stop_resume(root);
         test_result_ahead_of_checkpoint_recovery(root);
+        test_incomplete_appended_batch_recovery(root);
+        test_schema_v1_checkpoint_migration(root);
         test_stop_on_prime(root);
         test_b32_stop_on_prime(root);
         test_telemetry_limits_and_truncation(root);
         std::filesystem::remove_all(root);
         std::cout << "primeforge-native-b8-tests: PASS\n"
-                  << "covered=parser,B8+B8+B1,B32+B32+B1,atomic-checkpoint,write-ahead-recovery,B8-stop-resume,B32-stop-resume,B8-stop-on-prime,B32-stop-on-prime,telemetry-soft-hard,truncated-tail\n";
+                  << "covered=parser,transform-dispatch,B8+B8+B1,B32+B32+B1,atomic-checkpoint,write-ahead-recovery,incomplete-append-recovery,schema-v1-migration,B8-stop-resume,B32-stop-resume,B8-stop-on-prime,B32-stop-on-prime,telemetry-soft-hard,truncated-tail\n";
         return 0;
     } catch (const std::exception& error) {
         std::filesystem::remove_all(root);

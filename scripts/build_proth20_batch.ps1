@@ -24,6 +24,7 @@ $nativeProductionPatch = Join-Path $repositoryRoot 'patches\proth20-native-b8-pr
 $nativeKernelProfilePatch = Join-Path $repositoryRoot 'patches\proth20-native-b8-kernel-profile.patch'
 $nativeB32ProductionPatch = Join-Path $repositoryRoot 'patches\proth20-native-b32-production.patch'
 $adaptiveReductionPatch = Join-Path $repositoryRoot 'patches\proth20-adaptive-reduction-poly2int.patch'
+$scaling500kPatch = Join-Path $repositoryRoot 'patches\proth20-500k-b12-radix256.patch'
 $openClHeaderSync = Join-Path $repositoryRoot 'scripts\sync_proth20_opencl_header.ps1'
 
 function Resolve-ProjectPath {
@@ -77,7 +78,7 @@ if (-not (Test-Path -LiteralPath $profilePatch -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $planCachePatch -PathType Leaf)) {
     throw "Pinned proth20 plan-cache patch is missing: $planCachePatch"
 }
-foreach ($requiredPatch in @($invariantPatch, $nativeBatchPatch, $nativeProductionPatch, $nativeKernelProfilePatch, $nativeB32ProductionPatch, $adaptiveReductionPatch)) {
+foreach ($requiredPatch in @($invariantPatch, $nativeBatchPatch, $nativeProductionPatch, $nativeKernelProfilePatch, $nativeB32ProductionPatch, $adaptiveReductionPatch, $scaling500kPatch)) {
     if (-not (Test-Path -LiteralPath $requiredPatch -PathType Leaf)) {
         throw "Pinned proth20 production patch is missing: $requiredPatch"
     }
@@ -103,7 +104,9 @@ if ($LASTEXITCODE -ne 0 -or $revision -ne $expectedRevision) {
 & git -C $sourcePath diff --quiet
 $sourceChanged = $LASTEXITCODE -ne 0
 $profileHeader = Join-Path $sourcePath 'src\primeforge_profile.h'
-$adaptiveAlreadyApplied = Test-ReversePatch -SourcePath $sourcePath -PatchPath $adaptiveReductionPatch
+$scaling500kAlreadyApplied = Test-ReversePatch -SourcePath $sourcePath -PatchPath $scaling500kPatch
+$adaptiveAlreadyApplied = $scaling500kAlreadyApplied -or `
+    (Test-ReversePatch -SourcePath $sourcePath -PatchPath $adaptiveReductionPatch)
 if ($adaptiveAlreadyApplied) {
     # The complete pinned patch stack is already present. The generated OpenCL
     # header is intentionally outside the adaptive source patch.
@@ -157,11 +160,16 @@ if (-not $adaptiveAlreadyApplied) {
     }
 }
 
-$adaptiveReductionApplied = Test-ReversePatch `
-    -SourcePath $sourcePath -PatchPath $adaptiveReductionPatch
-if (-not $adaptiveReductionApplied) {
-    Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', '--check', $adaptiveReductionPatch)
-    Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', $adaptiveReductionPatch)
+if (-not $scaling500kAlreadyApplied) {
+    $adaptiveReductionApplied = Test-ReversePatch `
+        -SourcePath $sourcePath -PatchPath $adaptiveReductionPatch
+    if (-not $adaptiveReductionApplied) {
+        Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', '--check', $adaptiveReductionPatch)
+        Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', $adaptiveReductionPatch)
+    }
+
+    Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', '--check', $scaling500kPatch)
+    Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', $scaling500kPatch)
 }
 
 & $openClHeaderSync `

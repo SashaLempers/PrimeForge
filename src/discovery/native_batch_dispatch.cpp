@@ -57,18 +57,23 @@ NativeBatchDispatchDecision select_native_batch(const NativeBatchDispatchRequest
     } else if (request.transform_length <= 131'072U) {
         measured_batch = 16U;
         reason = "RTX5080_TRANSFORM_LE_131072";
-    } else if (request.transform_length <= 262'144U) {
-        measured_batch = 8U;
-        reason = "RTX5080_TRANSFORM_LE_262144";
+    } else if (request.transform_length == 262'144U) {
+        measured_batch = 12U;
+        reason = "RTX5080_TRANSFORM_262144_B12_MEASURED";
     } else {
         reason = "UNMEASURED_TRANSFORM";
     }
+    const auto selected_batch = std::min(measured_batch, request.engine_max_batch_size);
+    const bool measured_500k_profile =
+        request.transform_length == 262'144U && selected_batch == 12U;
     return {
-        std::min(measured_batch, request.engine_max_batch_size),
-        "primeforge.native-batch.rtx5080-scaling-20260822.v1",
+        selected_batch,
+        "primeforge.native-batch.rtx5080-scaling-20260823.v2",
         std::move(reason),
-        "primeforge.native-plan.proth20-autotune.v1",
-        "ENGINE_AUTOTUNE",
+        measured_500k_profile
+            ? "primeforge.native-plan.rtx5080-500k-b12-radix256-wg128.v1"
+            : "primeforge.native-plan.proth20-autotune.v1",
+        measured_500k_profile ? "MEASURED_TABLE" : "ENGINE_AUTOTUNE",
         measured_batch != 1U};
 }
 

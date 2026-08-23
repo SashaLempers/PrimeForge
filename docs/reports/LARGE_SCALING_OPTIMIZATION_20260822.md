@@ -4,6 +4,11 @@ Date de clôture expérimentale : 2026-08-22
 Base validée : `cd18043bc75d460845d2db892d8b90317a8e3a52`  
 Périmètre : optimisation bornée, aucun calcul de découverte.
 
+> Mise à jour du 2026-08-23 : le verdict GPU de ce rapport est historique. Le
+> jalon suivant a retenu B12 + radix-256/WG128 à NTT 262 144 ; voir
+> `500K_GPU_SCALING_OPTIMIZATION_20260823.md`. Les résultats de persistance du
+> présent rapport restent valides.
+
 ## Verdict
 
 Le mur générique de persistance quadratique est supprimé. Le journal des résultats est désormais

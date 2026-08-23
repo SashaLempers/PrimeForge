@@ -1,0 +1,433 @@
+diff --git a/ocl/reduce.cl b/ocl/reduce.cl
+index 537adce..75e8987 100644
+--- a/ocl/reduce.cl
++++ b/ocl/reduce.cl
+@@ -337,6 +337,236 @@ inline void _reduce_downsweep4o(__global uint * restrict const t, __local const
+ 	to[0] = (uint4)(u012, u02, u03, u0);
+ }
+ 
++// A radix-256 global sweep keeps the same four-way scan primitive as the
++// validated radix-64 path.  This variant uses 128 threads and emits two roots
++// per work-group; the global reduction factor remains 256.  At transform
++// length 262144 this reduces the division scan from five global synchronization
++// points to three.  The final root array starts at 425 * s so it can be reused
++// in-place as the next level, exactly like the radix-64 layout at 105 * s.
++#define R256_WG 128
++#define R256_L2 (R256_WG + 5 * (R256_WG / 4))
++#define R256_L3 (R256_L2 + 5 * (R256_WG / 16))
++#define R256_L4 (R256_L3 + 5 * (R256_WG / 64))
++#define R256_LOCAL_SIZE (R256_L4 + (R256_WG / 64))
++
++__kernel __attribute__((reqd_work_group_size(R256_WG, 1, 1)))
++void reduce_upsweep256(__global uint * restrict const t_base, const uint s, const uint j,
++	__global const candidate_params_t * restrict const candidate_params_base)
++{
++	const size_t lane = get_global_id(1);
++	__global uint * const t = t_base + lane * pconst_size;
++	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;
++	__local uint T[R256_LOCAL_SIZE];
++
++	const size_t i = get_local_id(0), blk = get_group_id(0);
++	__global uint * const tj = &t[j];
++	_reduce_upsweep4i(T, &tj[4 * R256_WG * blk], R256_WG, i, candidate_params);
++	barrier(CLK_LOCAL_MEM_FENCE);
++	if (i < R256_WG / 4) _reduce_upsweep4(&T[R256_WG], R256_WG / 4, i, candidate_params);
++	barrier(CLK_LOCAL_MEM_FENCE);
++	if (i < R256_WG / 16) _reduce_upsweep4(&T[R256_L2], R256_WG / 16, i, candidate_params);
++	barrier(CLK_LOCAL_MEM_FENCE);
++	if (i < R256_WG / 64) _reduce_upsweep4(&T[R256_L3], R256_WG / 64, i, candidate_params);
++	barrier(CLK_LOCAL_MEM_FENCE);
++
++	const size_t k256 = blk * R256_WG + i;
++	tj[256 * s + k256] = T[i];
++	tj[320 * s + k256] = T[R256_WG + i];
++	if (i < R256_WG / 4)
++	{
++		const size_t k64 = blk * (R256_WG / 4) + i;
++		tj[384 * s + k64] = T[R256_WG + 4 * (R256_WG / 4) + i];
++		tj[400 * s + k64] = T[R256_L2 + i];
++	}
++	if (i < R256_WG / 16)
++	{
++		const size_t k16 = blk * (R256_WG / 16) + i;
++		tj[416 * s + k16] = T[R256_L2 + 4 * (R256_WG / 16) + i];
++		tj[420 * s + k16] = T[R256_L3 + i];
++	}
++	if (i < R256_WG / 64)
++	{
++		const size_t k4 = blk * (R256_WG / 64) + i;
++		tj[424 * s + k4] = T[R256_L3 + 4 * (R256_WG / 64) + i];
++		tj[425 * s + k4] = T[R256_L4 + i];
++	}
++}
++
++__kernel __attribute__((reqd_work_group_size(R256_WG, 1, 1)))
++void reduce_upsweep256_i(__global const uint2 * restrict const x_base,
++	__global uint * restrict const y_base, __global uint * restrict const t_base,
++	__global const uint * restrict const bp_base, __global int * restrict const err_base,
++	const uint s, const uint j,
++	__global const candidate_params_t * restrict const candidate_params_base)
++{
++	const size_t lane = get_global_id(1);
++	__global const uint2 * const x = x_base + lane * pconst_size;
++	__global uint * const y = y_base + lane * (pconst_size / 2);
++	__global uint * const t = t_base + lane * pconst_size;
++	__global const uint * const bp = bp_base + lane * (pconst_size / 2);
++	__global int * const err = err_base + 2 * lane;
++	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;
++	__local uint T[R256_LOCAL_SIZE];
++
++	const size_t i = get_local_id(0), blk = get_group_id(0), k = get_global_id(0);
++	__global uint * const tj = &t[j];
++	const size_t digit = 4 * k;
++#if PRIMEFORGE_FUSE_POLY2INT_FIX
++	const bool needs_fix = err[1] != 0;
++#else
++	const bool needs_fix = false;
++#endif
++	const uint xd0 = _poly2int_fixed_digit(x, pconst_e + digit + 0, needs_fix);
++	const uint xd1 = _poly2int_fixed_digit(x, pconst_e + digit + 1, needs_fix);
++	const uint xd2 = _poly2int_fixed_digit(x, pconst_e + digit + 2, needs_fix);
++	const uint xd3 = _poly2int_fixed_digit(x, pconst_e + digit + 3, needs_fix);
++	const uint xd4 = _poly2int_fixed_digit(x, pconst_e + digit + 4, needs_fix);
++	const uint xs0 = ((xd0 >> pconst_s) | (xd1 << (digit_bit - pconst_s))) & digit_mask;
++	const uint xs1 = ((xd1 >> pconst_s) | (xd2 << (digit_bit - pconst_s))) & digit_mask;
++	const uint xs2 = ((xd2 >> pconst_s) | (xd3 << (digit_bit - pconst_s))) & digit_mask;
++	const uint xs3 = ((xd3 >> pconst_s) | (xd4 << (digit_bit - pconst_s))) & digit_mask;
++	const uint4 u = (uint4)(
++		rem_d(xs0 * (ulong)(bp[digit + 0])),
++		rem_d(xs1 * (ulong)(bp[digit + 1])),
++		rem_d(xs2 * (ulong)(bp[digit + 2])),
++		rem_d(xs3 * (ulong)(bp[digit + 3])));
++	y[digit + 0] = xs0; y[digit + 1] = xs1; y[digit + 2] = xs2; y[digit + 3] = xs3;
++	if (k == 0) t[1] = _poly2int_fixed_digit(x, pconst_e, needs_fix) & ((1u << pconst_s) - 1);
++
++	((__global uint4 *)tj)[k] = u;
++	const uint u01 = addmod_d(u.s0, u.s1), u23 = addmod_d(u.s2, u.s3);
++	T[i] = u23;
++	T[R256_WG + i] = addmod_d(u01, u23);
++	barrier(CLK_LOCAL_MEM_FENCE);
++	if (i < R256_WG / 4) _reduce_upsweep4(&T[R256_WG], R256_WG / 4, i, candidate_params);
++	barrier(CLK_LOCAL_MEM_FENCE);
++	if (i < R256_WG / 16) _reduce_upsweep4(&T[R256_L2], R256_WG / 16, i, candidate_params);
++	barrier(CLK_LOCAL_MEM_FENCE);
++	if (i < R256_WG / 64) _reduce_upsweep4(&T[R256_L3], R256_WG / 64, i, candidate_params);
++	barrier(CLK_LOCAL_MEM_FENCE);
++
++	const size_t k256 = blk * R256_WG + i;
++	tj[256 * s + k256] = T[i];
++	tj[320 * s + k256] = T[R256_WG + i];
++	if (i < R256_WG / 4)
++	{
++		const size_t k64 = blk * (R256_WG / 4) + i;
++		tj[384 * s + k64] = T[R256_WG + 4 * (R256_WG / 4) + i];
++		tj[400 * s + k64] = T[R256_L2 + i];
++	}
++	if (i < R256_WG / 16)
++	{
++		const size_t k16 = blk * (R256_WG / 16) + i;
++		tj[416 * s + k16] = T[R256_L2 + 4 * (R256_WG / 16) + i];
++		tj[420 * s + k16] = T[R256_L3 + i];
++	}
++	if (i < R256_WG / 64)
++	{
++		const size_t k4 = blk * (R256_WG / 64) + i;
++		tj[424 * s + k4] = T[R256_L3 + 4 * (R256_WG / 64) + i];
++		tj[425 * s + k4] = T[R256_L4 + i];
++	}
++}
++
++__kernel __attribute__((reqd_work_group_size(R256_WG, 1, 1)))
++void reduce_downsweep256(__global uint * restrict const t_base, const uint s, const uint j,
++	__global const candidate_params_t * restrict const candidate_params_base)
++{
++	const size_t lane = get_global_id(1);
++	__global uint * const t = t_base + lane * pconst_size;
++	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;
++	__local uint T[R256_LOCAL_SIZE];
++
++	const size_t i = get_local_id(0), blk = get_group_id(0);
++	__global uint * const tj = &t[j];
++	const size_t k256 = blk * R256_WG + i;
++	T[i] = tj[256 * s + k256];
++	T[R256_WG + i] = tj[320 * s + k256];
++	if (i < R256_WG / 4)
++	{
++		const size_t k64 = blk * (R256_WG / 4) + i;
++		T[R256_WG + 4 * (R256_WG / 4) + i] = tj[384 * s + k64];
++		T[R256_L2 + i] = tj[400 * s + k64];
++	}
++	if (i < R256_WG / 16)
++	{
++		const size_t k16 = blk * (R256_WG / 16) + i;
++		T[R256_L2 + 4 * (R256_WG / 16) + i] = tj[416 * s + k16];
++		T[R256_L3 + i] = tj[420 * s + k16];
++	}
++	if (i < R256_WG / 64)
++	{
++		const size_t k4 = blk * (R256_WG / 64) + i;
++		T[R256_L3 + 4 * (R256_WG / 64) + i] = tj[424 * s + k4];
++		T[R256_L4 + i] = tj[425 * s + k4];
++	}
++	barrier(CLK_LOCAL_MEM_FENCE);
++	if (i < R256_WG / 64) _reduce_downsweep4(&T[R256_L3], R256_WG / 64, i, candidate_params);
++	barrier(CLK_LOCAL_MEM_FENCE);
++	if (i < R256_WG / 16) _reduce_downsweep4(&T[R256_L2], R256_WG / 16, i, candidate_params);
++	barrier(CLK_LOCAL_MEM_FENCE);
++	if (i < R256_WG / 4) _reduce_downsweep4(&T[R256_WG], R256_WG / 4, i, candidate_params);
++	barrier(CLK_LOCAL_MEM_FENCE);
++	_reduce_downsweep4o(&tj[4 * R256_WG * blk], T, R256_WG, i, candidate_params);
++}
++
++__kernel __attribute__((reqd_work_group_size(R256_WG, 1, 1)))
++void reduce_downsweep256_o(__global uint2 * restrict const x_base,
++	__global const uint * restrict const y_base, __global uint * restrict const t_base,
++	__global const uint * restrict const ibp_base, const uint s, const uint j,
++	__global const candidate_params_t * restrict const candidate_params_base)
++{
++	const size_t lane = get_global_id(1);
++	__global uint2 * const x = x_base + lane * pconst_size;
++	__global const uint * const y = y_base + lane * (pconst_size / 2);
++	__global uint * const t = t_base + lane * pconst_size;
++	__global const uint * const ibp = ibp_base + lane * (pconst_size / 2);
++	__global const candidate_params_t * const candidate_params = candidate_params_base + lane;
++	__local uint T[R256_LOCAL_SIZE];
++
++	const size_t i = get_local_id(0), blk = get_group_id(0), k = get_global_id(0);
++	__global uint * const tj = &t[j];
++	const size_t k256 = blk * R256_WG + i;
++	T[i] = tj[256 * s + k256];
++	T[R256_WG + i] = tj[320 * s + k256];
++	if (i < R256_WG / 4)
++	{
++		const size_t k64 = blk * (R256_WG / 4) + i;
++		T[R256_WG + 4 * (R256_WG / 4) + i] = tj[384 * s + k64];
++		T[R256_L2 + i] = tj[400 * s + k64];
++	}
++	if (i < R256_WG / 16)
++	{
++		const size_t k16 = blk * (R256_WG / 16) + i;
++		T[R256_L2 + 4 * (R256_WG / 16) + i] = tj[416 * s + k16];
++		T[R256_L3 + i] = tj[420 * s + k16];
++	}
++	if (i < R256_WG / 64)
++	{
++		const size_t k4 = blk * (R256_WG / 64) + i;
++		T[R256_L3 + 4 * (R256_WG / 64) + i] = tj[424 * s + k4];
++		T[R256_L4 + i] = tj[425 * s + k4];
++	}
++	barrier(CLK_LOCAL_MEM_FENCE);
++	if (i < R256_WG / 64) _reduce_downsweep4(&T[R256_L3], R256_WG / 64, i, candidate_params);
++	barrier(CLK_LOCAL_MEM_FENCE);
++	if (i < R256_WG / 16) _reduce_downsweep4(&T[R256_L2], R256_WG / 16, i, candidate_params);
++	barrier(CLK_LOCAL_MEM_FENCE);
++	if (i < R256_WG / 4) _reduce_downsweep4(&T[R256_WG], R256_WG / 4, i, candidate_params);
++	barrier(CLK_LOCAL_MEM_FENCE);
++
++	__global const uint4 * const input = (__global const uint4 *)&tj[4 * R256_WG * blk];
++	const uint u2 = T[i], u0 = T[R256_WG + i], u02 = addmod_d(u0, u2);
++	const uint4 u13 = input[i];
++	const uint4 out = (uint4)(addmod_d(u02, u13.s1), u02, addmod_d(u0, u13.s3), u0);
++	const ulong final_value = ((ulong)(t[0]) << pconst_s) | t[1];
++	const size_t digit = 4 * k;
++	_reduce_o_digit(x, y, ibp, digit + 0, out.s0, final_value, candidate_params);
++	_reduce_o_digit(x, y, ibp, digit + 1, out.s1, final_value, candidate_params);
++	_reduce_o_digit(x, y, ibp, digit + 2, out.s2, final_value, candidate_params);
++	_reduce_o_digit(x, y, ibp, digit + 3, out.s3, final_value, candidate_params);
++}
++
+ inline void _reduce_topsweep2(__global uint * restrict const t, __local uint * restrict const T,
+ 	__global const candidate_params_t * restrict const candidate_params)
+ {
+diff --git a/src/engine.h b/src/engine.h
+index 93843b6..1f5bdf7 100644
+--- a/src/engine.h
++++ b/src/engine.h
+@@ -40,6 +40,7 @@ private:
+ 	cl_kernel _poly2int0_16_8 = nullptr, _poly2int0_16_16 = nullptr, _poly2int0_16_32 = nullptr, _poly2int1_16 = nullptr;
+ 	cl_kernel _poly2int2  = nullptr;
+ 	cl_kernel _reduce_upsweep64 = nullptr, _reduce_downsweep64 = nullptr, _reduce_upsweep64_i = nullptr, _reduce_downsweep64_o = nullptr;
++	cl_kernel _reduce_upsweep256 = nullptr, _reduce_downsweep256 = nullptr, _reduce_upsweep256_i = nullptr, _reduce_downsweep256_o = nullptr;
+ 	cl_kernel _reduce_topsweep32 = nullptr, _reduce_topsweep64 = nullptr, _reduce_topsweep128 = nullptr;
+ 	cl_kernel _reduce_topsweep256 = nullptr, _reduce_topsweep512 = nullptr, _reduce_topsweep1024 = nullptr;
+ 	cl_kernel _reduce_i = nullptr, _reduce_o = nullptr, _reduce_f = nullptr, _reduce_x = nullptr, _reduce_z = nullptr;
+@@ -301,6 +302,10 @@ public:
+ 		_reduce_downsweep64 = _createSweepKernel("reduce_downsweep64", 3);
+ 		_reduce_upsweep64_i = _createFusedSweepKernel("reduce_upsweep64_i", true);
+ 		_reduce_downsweep64_o = _createFusedSweepKernel("reduce_downsweep64_o", false);
++		_reduce_upsweep256 = _createSweepKernel("reduce_upsweep256", 3);
++		_reduce_downsweep256 = _createSweepKernel("reduce_downsweep256", 3);
++		_reduce_upsweep256_i = _createFusedSweepKernel("reduce_upsweep256_i", true);
++		_reduce_downsweep256_o = _createFusedSweepKernel("reduce_downsweep256_o", false);
+ 
+ 		_reduce_topsweep32 = _createTopSweepKernel("reduce_topsweep32");
+ 		_reduce_topsweep64 = _createTopSweepKernel("reduce_topsweep64");
+@@ -373,6 +378,7 @@ public:
+ 		_releaseKernel(_poly2int2);
+ 
+ 		_releaseKernel(_reduce_upsweep64); _releaseKernel(_reduce_downsweep64); _releaseKernel(_reduce_upsweep64_i); _releaseKernel(_reduce_downsweep64_o);
++		_releaseKernel(_reduce_upsweep256); _releaseKernel(_reduce_downsweep256); _releaseKernel(_reduce_upsweep256_i); _releaseKernel(_reduce_downsweep256_o);
+ 
+ 		_releaseKernel(_reduce_topsweep32); _releaseKernel(_reduce_topsweep64); _releaseKernel(_reduce_topsweep128);
+ 		_releaseKernel(_reduce_topsweep256); _releaseKernel(_reduce_topsweep512); _releaseKernel(_reduce_topsweep1024);
+@@ -560,6 +566,30 @@ public:
+ 	void reduce_downsweep64(const cl_uint s, const cl_uint j) { _executeUDsweepKernel(_reduce_downsweep64, s, j, 64); }
+ 	void reduce_upsweep64_i(const cl_uint s, const cl_uint j) { _executeFusedInputSweepKernel(_reduce_upsweep64_i, s, j, 64); }
+ 	void reduce_downsweep64_o(const cl_uint s, const cl_uint j) { _executeFusedOutputSweepKernel(_reduce_downsweep64_o, s, j, 64); }
++	void reduce_upsweep256(const cl_uint s, const cl_uint j)
++	{
++		_setKernelArg(_reduce_upsweep256, 1, sizeof(cl_uint), &s);
++		_setKernelArg(_reduce_upsweep256, 2, sizeof(cl_uint), &j);
++		_executeKernel(_reduce_upsweep256, 64 * size_t(s), 128);
++	}
++	void reduce_downsweep256(const cl_uint s, const cl_uint j)
++	{
++		_setKernelArg(_reduce_downsweep256, 1, sizeof(cl_uint), &s);
++		_setKernelArg(_reduce_downsweep256, 2, sizeof(cl_uint), &j);
++		_executeKernel(_reduce_downsweep256, 64 * size_t(s), 128);
++	}
++	void reduce_upsweep256_i(const cl_uint s, const cl_uint j)
++	{
++		_setKernelArg(_reduce_upsweep256_i, 5, sizeof(cl_uint), &s);
++		_setKernelArg(_reduce_upsweep256_i, 6, sizeof(cl_uint), &j);
++		_executeKernel(_reduce_upsweep256_i, 64 * size_t(s), 128);
++	}
++	void reduce_downsweep256_o(const cl_uint s, const cl_uint j)
++	{
++		_setKernelArg(_reduce_downsweep256_o, 4, sizeof(cl_uint), &s);
++		_setKernelArg(_reduce_downsweep256_o, 5, sizeof(cl_uint), &j);
++		_executeKernel(_reduce_downsweep256_o, 64 * size_t(s), 128);
++	}
+ 
+ private:
+ 	inline void _executeTopsweepKernel(cl_kernel kernel, const cl_uint j, const size_t size)
+diff --git a/src/gpmp.h b/src/gpmp.h
+index 9a930a0..12bccd5 100644
+--- a/src/gpmp.h
++++ b/src/gpmp.h
+@@ -52,6 +52,7 @@ private:
+ 		bool fuse_reduction_boundaries;
+ 		bool fuse_reduction_finalize;
+ 		bool fuse_poly2int_fix;
++		bool radix256_reduction;
+ 		const char * square_plan;
+ 		const char * poly2int_plan;
+ 		const char * profile;
+@@ -65,6 +66,8 @@ private:
+ 		const bool measured_small_transform_regime = (transform_size <= 16384) && (batch_size == 32);
+ 		const bool sufficient_memory = engine.getGlobalMemSize() >= (cl_ulong(8) << 30);
+ 		const bool measured_profile = validated_rtx_5080 && (batch_size == 32);
++		const bool measured_500k_batch = validated_rtx_5080 && sufficient_memory &&
++			(transform_size == 262144) && (batch_size == 12);
+ 		const char * square_plan = nullptr;
+ 		const char * poly2int_plan = nullptr;
+ 		if (measured_profile && (transform_size == 8192))
+@@ -82,13 +85,20 @@ private:
+ 			square_plan = "64_16 sq_512";
+ 			poly2int_plan = "p2i_16_16";
+ 		}
++		else if (measured_500k_batch)
++		{
++			square_plan = "256_8 sq_1024";
++			poly2int_plan = "p2i_8_64";
++		}
+ 		return engine_config{
+ 			true,
+ 			true,
+ 			validated_rtx_5080 && measured_small_transform_regime && sufficient_memory,
++			measured_500k_batch,
+ 			square_plan,
+ 			poly2int_plan,
+-			validated_rtx_5080 ? "primeforge.rtx5080.b32.v1" : "primeforge.safe-generic.v1"};
++			measured_500k_batch ? "primeforge.rtx5080.500k-b12-radix256-wg128.v1" :
++				(validated_rtx_5080 ? "primeforge.rtx5080.b32.v1" : "primeforge.safe-generic.v1")};
+ 	}
+ 
+ private:
+@@ -571,6 +581,7 @@ public:
+ 			<< " reduction_boundaries=" << (_config.fuse_reduction_boundaries ? "FUSED" : "CLASSIC")
+ 			<< " reduction_finalize=" << (_config.fuse_reduction_finalize ? "FUSED" : "CLASSIC")
+ 			<< " poly2int_fix=" << (_config.fuse_poly2int_fix ? "INLINE_RARE_PATH" : "SEPARATE_SAFE_PATH")
++			<< " reduction_radix=" << (_config.radix256_reduction ? 256 : 64)
+ 			<< " plan_source=" << ((_config.square_plan != nullptr) ? "MEASURED_TABLE" : "BOUNDED_AUTOTUNE");
+ 		return ss.str();
+ 	}
+@@ -1137,15 +1148,31 @@ private:
+ 		cl_uint j = 4;		// alignment (cl_uint4)
+ 		cl_uint s = n / 4;
+ 		bool inputFused = false;
+-		for (; s > 256; s /= 64)
++		if (_config.radix256_reduction)
+ 		{
+-			if (!inputFused)
++			for (; s > 256; s /= 256)
+ 			{
+-				_engine.reduce_upsweep64_i(s / 16, j);
+-				inputFused = true;
++				if (!inputFused)
++				{
++					_engine.reduce_upsweep256_i(s / 64, j);
++					inputFused = true;
++				}
++				else _engine.reduce_upsweep256(s / 64, j);
++				j += 5 * (64 + 16 + 4 + 1) * (s / 64);
++			}
++		}
++		else
++		{
++			for (; s > 256; s /= 64)
++			{
++				if (!inputFused)
++				{
++					_engine.reduce_upsweep64_i(s / 16, j);
++					inputFused = true;
++				}
++				else _engine.reduce_upsweep64(s / 16, j);
++				j += 5 * (16 + 4 + 1) * (s / 16);
+ 			}
+-			else _engine.reduce_upsweep64(s / 16, j);
+-			j += 5 * (16 + 4 + 1) * (s / 16);
+ 		}
+ 		if (!inputFused) _engine.reduce_i();
+ 
+@@ -1157,16 +1184,33 @@ private:
+ 		else /*if (s == 8)*/ _engine.reduce_topsweep32(j);
+ 
+ 		bool outputFused = false;
+-		while (s < n / 4)
++		if (_config.radix256_reduction)
+ 		{
+-			s *= 64;
+-			j -= 5 * (16 + 4 + 1) * (s / 16);
+-			if (s == n / 4)
++			while (s < n / 4)
+ 			{
+-				_engine.reduce_downsweep64_o(s / 16, j);
+-				outputFused = true;
++				s *= 256;
++				j -= 5 * (64 + 16 + 4 + 1) * (s / 64);
++				if (s == n / 4)
++				{
++					_engine.reduce_downsweep256_o(s / 64, j);
++					outputFused = true;
++				}
++				else _engine.reduce_downsweep256(s / 64, j);
++			}
++		}
++		else
++		{
++			while (s < n / 4)
++			{
++				s *= 64;
++				j -= 5 * (16 + 4 + 1) * (s / 16);
++				if (s == n / 4)
++				{
++					_engine.reduce_downsweep64_o(s / 16, j);
++					outputFused = true;
++				}
++				else _engine.reduce_downsweep64(s / 16, j);
+ 			}
+-			else _engine.reduce_downsweep64(s / 16, j);
+ 		}
+ 
+ 		// t[4 + k] remainders y[k + 1] / d, t[0] = remainder y[0] / d

@@ -342,10 +342,17 @@ The guarded long-run component contract and exact commands are in
 The large-scaling optimization removes the native campaign's quadratic result
 rewrites with a durable append-only journal and checkpoint hash chain. Optional
 `--batch-size auto` dispatches the measured RTX 5080 regimes by transform length
-(B32 through 65,536, B16 through 131,072, B8 through 262,144) and uses B1 for
+(B32 through 65,536, B16 through 131,072, B12 at 262,144) and uses B1 for
 unmeasured hardware or transforms. Exact A/B/B/A persistence measurements and
 the rejected bounded GPU prototypes are in
 `docs/reports/LARGE_SCALING_OPTIMIZATION_20260822.md`.
+
+The measured 500k-digit production profile uses B12 with
+`256_8 sq_1024 p2i_8_64` and a radix-256/WG128 reduction on the RTX 5080. It
+improves the same-session complete-throughput baseline by 15.648537%, reproduces
+121.540999 candidates/hour from a fresh pinned-source build, and keeps exact
+RES64 records and Gerbicz PASS. Scope, rejected variants and raw evidence indexes
+are documented in `docs/reports/500K_GPU_SCALING_OPTIMIZATION_20260823.md`.
 
 Milestone evidence is kept in `docs/reports/`. Stage 11 remains a scoped negative
 result: offline adaptation reproduced fixed-low and online exploration added cost

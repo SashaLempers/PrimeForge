@@ -756,3 +756,21 @@ future campaigns.
 - **Failure criterion:** retain a path in a regime only when complete validated candidates/hour improves reproducibly.
 - **Conclusion:** the variant improved 20k by 13.322083% and 40k by 8.120605%, but regressed 100k by 2.102932%. It is therefore enabled only for the measured RTX 5080 B32 transforms at or below 16,384. Transform 32,768 and unmeasured hardware use the separate safe correction path.
 - **Retry condition:** reconsider the large-transform variant only after a structural poly2int/layout change; do not try to rescue it through repeated parameter micro-tuning.
+
+## NR-0082 - 500k kernel micro-variants did not clear the end-to-end gate
+
+- **Date:** 2026-08-23
+- **Change tested:** bounded RTX 5080 screens around the retained 500k B12/radix-256 path: radix WG64, 32-bit square indices, square SoA layout, poly2int0 unroll, poly2int8 WG128 and branchless poly2int1.
+- **Evidence:** `benchmarks/evidence/500k-scaling-optimization-20260823/experiments.tsv`; all advanced correctness arms kept exact result records and Gerbicz PASS. The respective screening signals were +0.733%, +0.498%, -3.215%, +0.480%, +0.043% and -18.056%.
+- **Failure criterion:** a kernel micro-change advances only with a reproducible material gain; weak proxy changes do not justify a multi-minute full gate.
+- **Conclusion:** all variants are rejected. The small positive signals are below the preregistered practical threshold and the two regressions are decisive. No rescue tuning is allowed for these forms.
+- **Retry condition:** revisit only after a structural layout or kernel-fusion change alters the measured profile; do not repeat the same parameter changes.
+
+## NR-0083 - Additional 500k batch and arithmetic variants added no useful gain
+
+- **Date:** 2026-08-23
+- **Change tested:** B13 proxy, mul/rem arithmetic on top of B12/radix-256 and speculative poly2int replay.
+- **Evidence:** `benchmarks/evidence/500k-scaling-optimization-20260823/throughput.tsv` and `experiments.tsv`. B13 was only about +0.17% on the bounded proxy. Mul/rem reached 120.153989 candidates/hour, 0.973147% below the retained mean. The speculative full run reached 121.748249 candidates/hour but its trigger count was zero, so it did not exercise the proposed path and its +0.340788% difference is noise rather than demonstrated algorithmic value.
+- **Failure criterion:** retain only an exercised change with reproducible complete candidates/hour improvement and identical mathematical output.
+- **Conclusion:** all three variants are rejected. B12/radix-256/WG128 remains the production profile.
+- **Retry condition:** B13 may be reconsidered only if a later engine change moves the batch optimum materially; mul/rem and the untriggered replay require a new structural justification before any repeat.

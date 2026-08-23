@@ -194,12 +194,20 @@ void test_batch_dispatch() {
           "RTX 5080 65536-transform dispatch mismatch");
     check(select_native_batch({"NVIDIA GeForce RTX 5080", 131'072U, 32U, {}}).batch_size == 16U,
           "RTX 5080 131072-transform dispatch mismatch");
-    check(select_native_batch({"NVIDIA GeForce RTX 5080", 262'144U, 32U, {}}).batch_size == 8U,
+    const auto large = select_native_batch({"NVIDIA GeForce RTX 5080", 262'144U, 32U, {}});
+    check(large.batch_size == 12U && large.plan_mode == "MEASURED_TABLE" &&
+              large.plan_policy_id ==
+                  "primeforge.native-plan.rtx5080-500k-b12-radix256-wg128.v1",
           "RTX 5080 262144-transform dispatch mismatch");
+    const auto capacity_limited =
+        select_native_batch({"NVIDIA GeForce RTX 5080", 262'144U, 8U, {}});
+    check(capacity_limited.batch_size == 8U && capacity_limited.plan_mode == "ENGINE_AUTOTUNE",
+          "capacity-limited 262144-transform dispatch advertised an unavailable measured plan");
     check(select_native_batch({"NVIDIA GeForce RTX 5080", 131'072U, 8U, {}}).batch_size == 8U,
           "dispatch did not respect engine capacity");
     check(select_native_batch({"unknown GPU", 65'536U, 32U, {}}).batch_size == 1U &&
               select_native_batch({"NVIDIA GeForce RTX 5080", 0U, 32U, {}}).batch_size == 1U &&
+              select_native_batch({"NVIDIA GeForce RTX 5080", 200'000U, 32U, {}}).batch_size == 1U &&
               select_native_batch({"NVIDIA GeForce RTX 5080", 524'288U, 32U, {}}).batch_size == 1U,
           "unmeasured dispatch did not choose the safe B1 fallback");
     check(select_native_batch(NativeBatchDispatchRequest{

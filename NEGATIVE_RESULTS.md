@@ -774,3 +774,30 @@ future campaigns.
 - **Failure criterion:** retain only an exercised change with reproducible complete candidates/hour improvement and identical mathematical output.
 - **Conclusion:** all three variants are rejected. B12/radix-256/WG128 remains the production profile.
 - **Retry condition:** B13 may be reconsidered only if a later engine change moves the batch optimum materially; mul/rem and the untriggered replay require a new structural justification before any repeat.
+
+## NR-0084 - NTT 524288 batches above B6 reduced useful throughput
+
+- **Date:** 2026-08-23
+- **Change tested:** bounded RTX 5080 sweep B1/B2/B4/B5/B6/B7/B8/B10/B12/B16 on the same deterministic 830,000-digit transform-524288 corpus.
+- **Evidence:** `benchmarks/evidence/ntt524288-b6-radix256-20260823/batch_sweep.tsv`; the final neighborhood repeats measured B6 at 22,293.758 useful candidate-iterations/s, B7 at -0.494125%, B8 at -2.132389% and B5 at -2.805654%. B10, B12 and B16 regressed further.
+- **Failure criterion:** a larger batch advances only when useful work per second increases reproducibly; VRAM fit or GPU utilization alone is not success.
+- **Conclusion:** B6 is retained. B7 is close but lower, and every larger tested batch is worse. No rescue tuning of B7/B8/B10/B12/B16 is allowed on the current kernels.
+- **Retry condition:** revisit only after a structural NTT, reduction or memory-layout change moves the measured optimum.
+
+## NR-0085 - NTT 524288 plan micro-tuning reached the noise floor
+
+- **Date:** 2026-08-23
+- **Change tested:** all 22 square sequences and all nine poly2int plans, followed by longer confirmation of the top candidates.
+- **Evidence:** `benchmarks/evidence/ntt524288-b6-radix256-20260823/square_plan_sweep.tsv` and `poly2int_sweep.tsv`. The confirmed square winner leads the runner-up by only 0.181%; the poly2int winner leads by 0.268%.
+- **Failure criterion:** continued micro-tuning requires a material reproducible end-to-end signal.
+- **Conclusion:** `256_4 sq_2048 p2i_8_64` is retained as the measured best, but the remaining differences are too small to justify further local parameter search. Work stops at this boundary.
+- **Retry condition:** repeat only after kernels, driver or transform layout changes materially.
+
+## NR-0086 - The first bounded-probe smoke was not Windows PowerShell compatible
+
+- **Date:** 2026-08-23
+- **Change tested:** invoke the bounded scaling probe through Windows PowerShell 5.1, matching the documented Windows environment.
+- **Evidence:** the first smoke rejected `.NET` APIs `ProcessStartInfo.ArgumentList` and `Process.Kill(Boolean)` that exist in PowerShell 7's runtime but not Windows PowerShell 5.1. No mathematical result from that attempt was retained.
+- **Failure criterion:** the benchmark harness must start and clean up under both supported PowerShell runtimes.
+- **Conclusion:** argument quoting now has a Windows PowerShell fallback, environment injection uses the available API, and process cleanup uses the common `Kill()` overload. A fresh bounded smoke completed with the requested iteration count and no surviving monitor process.
+- **Retry condition:** retain a Windows PowerShell smoke in the final local validation whenever the process launcher changes.

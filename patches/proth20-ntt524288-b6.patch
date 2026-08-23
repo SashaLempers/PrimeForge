@@ -1,0 +1,40 @@
+diff --git a/src/gpmp.h b/src/gpmp.h
+--- a/src/gpmp.h
++++ b/src/gpmp.h
+@@ -68,6 +68,8 @@ private:
+ 		const bool measured_profile = validated_rtx_5080 && (batch_size == 32);
+ 		const bool measured_500k_batch = validated_rtx_5080 && sufficient_memory &&
+ 			(transform_size == 262144) && (batch_size == 12);
++		const bool measured_ntt524288_batch = validated_rtx_5080 && sufficient_memory &&
++			(transform_size == 524288) && (batch_size == 6);
+ 		const char * square_plan = nullptr;
+ 		const char * poly2int_plan = nullptr;
+ 		if (measured_profile && (transform_size == 8192))
+@@ -88,17 +90,25 @@ private:
+ 		else if (measured_500k_batch)
+ 		{
+ 			square_plan = "256_8 sq_1024";
+ 			poly2int_plan = "p2i_8_64";
+ 		}
++		else if (measured_ntt524288_batch)
++		{
++			square_plan = "256_4 sq_2048";
++			poly2int_plan = "p2i_8_64";
++		}
+ 		return engine_config{
+ 			true,
+ 			true,
+ 			validated_rtx_5080 && measured_small_transform_regime && sufficient_memory,
+-			measured_500k_batch,
++			measured_500k_batch || measured_ntt524288_batch,
+ 			square_plan,
+ 			poly2int_plan,
+ 			measured_500k_batch ? "primeforge.rtx5080.500k-b12-radix256-wg128.v1" :
+-				(validated_rtx_5080 ? "primeforge.rtx5080.b32.v1" : "primeforge.safe-generic.v1")};
++				(measured_ntt524288_batch ?
++					"primeforge.rtx5080.ntt524288-b6-radix256-wg128.v1" :
++					(validated_rtx_5080 ? "primeforge.rtx5080.b32.v1" :
++						"primeforge.safe-generic.v1"))};
+ 	}
+ 
+ private:

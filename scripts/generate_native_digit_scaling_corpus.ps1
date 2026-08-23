@@ -5,6 +5,7 @@ param(
     [string]$OutputDirectory = 'out\benchmarks\native-digit-scaling\corpus',
     [int[]]$DigitCounts = @(20000, 40000, 60000, 80000, 100000),
     [ValidateRange(1, 32)][int]$MaximumBatchSize = 32,
+    [ValidateRange(1, 32)][int[]]$BatchSizes = @(1, 2, 4, 8, 12, 16, 32),
     [string]$BaseCommit = ''
 )
 
@@ -18,6 +19,14 @@ $generatorVersion = 'primeforge.native-digit-scaling-corpus.v1'
 $domainMin = [uint64]10000001
 $domainMax = [uint64]99999999
 $log10Two = [Math]::Log10(2.0)
+
+$normalizedBatchSizes = @($BatchSizes | Sort-Object -Unique)
+if ($normalizedBatchSizes.Count -eq 0) {
+    throw 'BatchSizes must contain at least one batch size.'
+}
+if (@($normalizedBatchSizes | Where-Object { $_ -gt $MaximumBatchSize }).Count -ne 0) {
+    throw 'Every requested batch size must be at most MaximumBatchSize.'
+}
 
 if ([string]::IsNullOrWhiteSpace($BaseCommit)) {
     $BaseCommit = (& git -C $repositoryRoot rev-parse HEAD).Trim()
@@ -160,8 +169,7 @@ foreach ($digits in $DigitCounts) {
     $kMax = [uint64]$accepted[$accepted.Count - 1].k
 
     $files = [ordered]@{}
-    foreach ($batch in @(1, 8, 16, 32)) {
-        if ($batch -gt $MaximumBatchSize) { continue }
+    foreach ($batch in $normalizedBatchSizes) {
         $name = 'digits-{0:D6}-b{1}.txt' -f $digits, $batch
         $path = Join-Path $outputPath $name
         [IO.File]::WriteAllText($path, (($records | Select-Object -First $batch) -join "`n") + "`n", $utf8)
@@ -195,6 +203,7 @@ $manifest = [pscustomobject][ordered]@{
     base_commit = $BaseCommit
     digit_formula = 'floor(log10(k)+n*log10(2))+1'
     maximum_batch_size = $MaximumBatchSize
+    generated_batch_sizes = $normalizedBatchSizes
     discovery_status = 'NOT_A_DISCOVERY_CAMPAIGN'
     entries = @($entries)
 }

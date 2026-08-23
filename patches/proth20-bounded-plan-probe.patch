@@ -1,0 +1,189 @@
+diff --git a/src/gpmp.h b/src/gpmp.h
+--- a/src/gpmp.h
++++ b/src/gpmp.h
+@@ -16,6 +16,7 @@ Please give feedback to the authors if improvement is realized. It is distribute
+ #include <algorithm>
+ #include <cstdint>
+ #include <cmath>
++#include <cstdlib>
+ #include <map>
+ #include <sstream>
+ #include <tuple>
+@@ -56,6 +57,7 @@ private:
+ 		const char * square_plan;
+ 		const char * poly2int_plan;
+ 		const char * profile;
++		const char * plan_source;
+ 	};
+ 
+ 	static engine_config choose_config(const engine & engine, const size_t transform_size, const size_t batch_size)
+@@ -70,9 +72,21 @@ private:
+ 			(transform_size == 262144) && (batch_size == 12);
+ 		const bool measured_ntt524288_batch = validated_rtx_5080 && sufficient_memory &&
+ 			(transform_size == 524288) && (batch_size == 6);
++		const char * const forced_square_plan = std::getenv("PRIMEFORGE_EXPERIMENTAL_SQUARE_PLAN");
++		const char * const forced_poly2int_plan = std::getenv("PRIMEFORGE_EXPERIMENTAL_POLY2INT_PLAN");
++		const bool has_forced_square = (forced_square_plan != nullptr) && (forced_square_plan[0] != '\0');
++		const bool has_forced_poly2int = (forced_poly2int_plan != nullptr) && (forced_poly2int_plan[0] != '\0');
++		if (has_forced_square != has_forced_poly2int)
++			throw std::runtime_error("experimental plan override requires both square and poly2int plans");
++		const bool forced_plan = has_forced_square && has_forced_poly2int;
+ 		const char * square_plan = nullptr;
+ 		const char * poly2int_plan = nullptr;
+-		if (measured_profile && (transform_size == 8192))
++		if (forced_plan)
++		{
++			square_plan = forced_square_plan;
++			poly2int_plan = forced_poly2int_plan;
++		}
++		else if (measured_profile && (transform_size == 8192))
+ 		{
+ 			square_plan = "1024_4 sq_8";
+ 			poly2int_plan = "p2i_4_64";
+@@ -104,11 +118,14 @@ private:
+ 			measured_500k_batch || measured_ntt524288_batch,
+ 			square_plan,
+ 			poly2int_plan,
+-			measured_500k_batch ? "primeforge.rtx5080.500k-b12-radix256-wg128.v1" :
+-				(measured_ntt524288_batch ?
+-					"primeforge.rtx5080.ntt524288-b6-radix256-wg128.v1" :
+-					(validated_rtx_5080 ? "primeforge.rtx5080.b32.v1" :
+-						"primeforge.safe-generic.v1"))};
++			forced_plan ? "primeforge.experimental.plan-override.v1" :
++				(measured_500k_batch ? "primeforge.rtx5080.500k-b12-radix256-wg128.v1" :
++					(measured_ntt524288_batch ?
++						"primeforge.rtx5080.ntt524288-b6-radix256-wg128.v1" :
++						(validated_rtx_5080 ? "primeforge.rtx5080.b32.v1" :
++							"primeforge.safe-generic.v1"))),
++			forced_plan ? "EXPERIMENTAL_OVERRIDE" :
++				((square_plan != nullptr) ? "MEASURED_TABLE" : "BOUNDED_AUTOTUNE")};
+ 	}
+ 
+ private:
+@@ -592,7 +609,7 @@ public:
+ 			<< " reduction_finalize=" << (_config.fuse_reduction_finalize ? "FUSED" : "CLASSIC")
+ 			<< " poly2int_fix=" << (_config.fuse_poly2int_fix ? "INLINE_RARE_PATH" : "SEPARATE_SAFE_PATH")
+ 			<< " reduction_radix=" << (_config.radix256_reduction ? 256 : 64)
+-			<< " plan_source=" << ((_config.square_plan != nullptr) ? "MEASURED_TABLE" : "BOUNDED_AUTOTUNE");
++			<< " plan_source=" << _config.plan_source;
+ 		return ss.str();
+ 	}
+ 	size_t getPlanSquareSeqCount() const { return _plan.getSquareSeqCount(); }
+diff --git a/src/proth.h b/src/proth.h
+--- a/src/proth.h
++++ b/src/proth.h
+@@ -13,6 +13,7 @@ Please give feedback to the authors if improvement is realized. It is distribute
+ #include "pio.h"
+ #include "timer.h"
+ 
++#include <algorithm>
+ #include <thread>
+ #include <chrono>
+ #include <filesystem>
+@@ -385,7 +386,8 @@ public:
+ public:
+ 	bool checkNativeBatch(const std::vector<uint32_t> & batchKs, const uint32_t n, engine & engine,
+ 		const std::string & stopFile = std::string(), const bool stopOnPrime = false,
+-		const bool kernelProfile = false, const bool phaseProfile = false)
++		const bool kernelProfile = false, const bool phaseProfile = false,
++		const uint32_t probeIterations = 0)
+ 	{
+ 		if ((batchKs.size() < 1) || (batchKs.size() > 32))
+ 			throw std::runtime_error("native batch production mode requires 1 to 32 candidates");
+@@ -420,6 +422,7 @@ public:
+ 		planMarker << "PRIMEFORGE_NATIVE_BATCH_PLAN\t" << X.getPlanString() << std::endl;
+ 		planMarker << "PRIMEFORGE_NATIVE_BATCH_CONFIG\t" << X.getConfigString() << std::endl;
+ 		pio::print(planMarker.str());
++		std::cout.flush();
+ 
+ 		const std::chrono::steady_clock::time_point aPowKStart = std::chrono::steady_clock::now();
+ 		std::vector<std::vector<cl_uint2>> initialStates(batchKs.size());
+@@ -442,10 +445,16 @@ public:
+ 		const uint32_t L = 1 << (arith::log2(n) / 2);
+ 		if (kernelProfile) X.resetKernelProfiles();
+ 		const std::chrono::steady_clock::time_point mainStart = std::chrono::steady_clock::now();
+-		for (uint32_t i = 1; i < n; ++i)
++		const uint32_t loopLimit = (probeIterations == 0) ? n : std::min(n, probeIterations + 1);
++		uint64_t probeGerbiczSteps = 0;
++		for (uint32_t i = 1; i < loopLimit; ++i)
+ 		{
+ 			X.square();
+-			if ((i & (L - 1)) == 0) X.Gerbicz_step();
++			if ((i & (L - 1)) == 0)
++			{
++				X.Gerbicz_step();
++				++probeGerbiczSteps;
++			}
+ 			if (!stopFile.empty() && ((i & 4095) == 0) && std::filesystem::exists(stopFile))
+ 			{
+ 				X.synchronize();
+@@ -460,6 +469,16 @@ public:
+ 		if (kernelProfile) X.displayKernelProfiles();
+ 		const uint64_t mainMicroseconds = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+ 			std::chrono::steady_clock::now() - mainStart).count());
++		if (probeIterations != 0)
++		{
++			std::ostringstream marker;
++			marker << "PRIMEFORGE_NATIVE_BATCH_PROBE\titerations=" << (loopLimit - 1)
++				<< "\tmain_microseconds=" << mainMicroseconds
++				<< "\tgerbicz_steps=" << probeGerbiczSteps << std::endl;
++			pio::print(marker.str());
++			std::cout.flush();
++			return true;
++		}
+ 
+ 		std::vector<uint64_t> res64s;
+ 		uint64_t finalReduceMicroseconds = 0, deviceToHostMicroseconds = 0;
+diff --git a/src/main.cpp b/src/main.cpp
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -110,6 +110,7 @@ private:
+ 		ss << "  --batch <file>           test whitespace-separated k n pairs with one OpenCL context" << std::endl;
+ 		ss << "  --native-batch <file>    test 1 to 32 same-size candidates in one native NTT batch" << std::endl;
+ 		ss << "  --native-batch2 <file>   compatibility alias for a two-candidate native batch" << std::endl;
++		ss << "  --native-probe-iterations <n>  run a bounded native-batch timing probe without a verdict" << std::endl;
+ 		ss << "  --stop-on-prime          stop a batch after its first proven prime" << std::endl;
+ 		ss << "  --stop-file <file>       stop a batch cleanly between candidates when file exists" << std::endl;
+ 		ss << "  -o <a>                  compute the multiplicative order of a modulo k*2^n+1" << std::endl;
+@@ -169,7 +170,7 @@ public:
+ 		platform.displayDevices();
+ 
+ 		bool bPrime = false, bOrder = false, bGFN = false, bBatch = false, bNativeBatch = false, bNativeBatch2Alias = false, bStopOnPrime = false;
+-		uint32_t k = 0, n = 0, a = 0;
++		uint32_t k = 0, n = 0, a = 0, nativeProbeIterations = 0;
+ 		size_t d = 0;
+ 		std::string batchFile, stopFile;
+ 		// parse args
+@@ -180,6 +181,14 @@ public:
+ 			if (arg == "-f") bGFN = true;
+ 			else if ((arg == "--phase-profile") || (arg == "--kernel-profile")) {}
+ 			else if (arg == "--stop-on-prime") bStopOnPrime = true;
++			else if (arg == "--native-probe-iterations")
++			{
++				if (i + 1 >= size) throw std::runtime_error("--native-probe-iterations requires a count");
++				const uint64_t value = std::stoull(args[++i]);
++				if ((value < 1) || (value > 1000000))
++					throw std::runtime_error("--native-probe-iterations must be between 1 and 1000000");
++				nativeProbeIterations = static_cast<uint32_t>(value);
++			}
+ 			else if (arg == "--stop-file")
+ 			{
+ 				if (i + 1 >= size) throw std::runtime_error("--stop-file requires a file");
+@@ -234,6 +243,8 @@ public:
+ 			throw std::runtime_error("--stop-on-prime requires --batch");
+ 		if (!stopFile.empty() && !bBatch)
+ 			throw std::runtime_error("--stop-file requires --batch");
++		if ((nativeProbeIterations != 0) && !bNativeBatch)
++			throw std::runtime_error("--native-probe-iterations requires --native-batch");
+ 
+ 		if (bPrime)
+ 		{
+@@ -276,7 +287,7 @@ public:
+ 					if ((nativeKs.size() < 1) || (nativeKs.size() > 32))
+ 						throw std::runtime_error("native batch production mode requires 1 to 32 candidates");
+ 					p.checkNativeBatch(nativeKs, nativeN, engine, stopFile, bStopOnPrime,
+-						bKernelProfile, bPhaseProfile);
++						bKernelProfile, bPhaseProfile, nativeProbeIterations);
+ 				}
+ 				else
+ 				{

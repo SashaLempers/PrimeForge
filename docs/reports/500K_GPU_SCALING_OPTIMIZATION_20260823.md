@@ -100,11 +100,11 @@ NVIDIA `SW_POWER_CAP` a été observé ; il n'est ni présenté comme une erreur
 
 ## Au-delà de 500k
 
-Le fallback B1 pour une transformée 524 288 reste volontairement inchangé. Les valeurs 750k
-**49–65 candidats/h** et 1M **36–49 candidats/h** restent `EXTRAPOLATED` avec confiance limitée.
-Avant une campagne au-delà de 500k, la prochaine étape correcte est : B1 de validation/warm-up,
-puis autotune borné B2/B4/B8 sur quelques candidats fermés, cache par GPU/driver/transformée, et
-gate end-to-end exact. Aucune performance 750k ou 1M n'est revendiquée ici.
+Mise à jour du 2026-08-23 : cette section historique est remplacée par
+`NTT524288_SCALING_OPTIMIZATION_20260823.md`. La mesure réelle montre que le corpus 750k utilise
+encore NTT 262 144, tandis que le corpus 830k atteint NTT 524 288. Le nouveau profil mesuré B6 avec
+radix-256 atteint 29,617120 candidats/h à 830k chiffres. Les anciennes valeurs 750k/1M restent des
+extrapolations historiques, pas des performances mesurées de ces tailles.
 
 ## Contribution directe au logiciel final
 

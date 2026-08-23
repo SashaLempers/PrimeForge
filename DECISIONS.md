@@ -858,3 +858,24 @@ This table is not treated as universal or as a reason to tune every campaign.
 A future persistent tuner must authenticate the GPU, driver, kernel source,
 transform and batch, and must clear a repeatable minimum-gain gate before
 changing a cached selection.
+
+## D-0092 - NTT 524288 uses the measured RTX 5080 B6 radix-256 profile
+
+**Status:** Accepted - 2026-08-23
+
+The first measured transform above 262,144 is routed to B6 only on the NVIDIA
+RTX 5080 and only when the engine exposes at least six lanes. Proth20 selects
+`256_4 sq_2048 p2i_8_64` and radix-256/WG128 only for the same GPU, at least
+8 GiB of global memory, transform 524,288 and B6. Capacity-limited and unknown
+regimes retain the conservative autotuned path.
+
+On the deterministic 830,000-digit corpus, the former B1 fallback averages
+10.699900 complete candidates/hour. B6/radix-64 averages 28.823295, and the
+retained B6/radix-256 path averages 29.617120. The total speedup is 2.767981x.
+All complete A/B then B/A records preserve classifications, witnesses and
+RES64 values with Gerbicz PASS. B7 is 0.494% lower and all larger tested batches
+regress further, so batch and plan micro-tuning stops here.
+
+Bounded probes are explicitly non-verdict runs: they report no primality status
+and no Gerbicz claim. Experimental forced plans are visibly labelled and never
+selected by the PrimeForge production scheduler.

@@ -342,7 +342,7 @@ The guarded long-run component contract and exact commands are in
 The large-scaling optimization removes the native campaign's quadratic result
 rewrites with a durable append-only journal and checkpoint hash chain. Optional
 `--batch-size auto` dispatches the measured RTX 5080 regimes by transform length
-(B32 through 65,536, B16 through 131,072, B12 at 262,144) and uses B1 for
+(B32 through 65,536, B16 through 131,072, B12 at 262,144 and B6 at 524,288) and uses B1 for
 unmeasured hardware or transforms. Exact A/B/B/A persistence measurements and
 the rejected bounded GPU prototypes are in
 `docs/reports/LARGE_SCALING_OPTIMIZATION_20260822.md`.
@@ -353,6 +353,13 @@ improves the same-session complete-throughput baseline by 15.648537%, reproduces
 121.540999 candidates/hour from a fresh pinned-source build, and keeps exact
 RES64 records and Gerbicz PASS. Scope, rejected variants and raw evidence indexes
 are documented in `docs/reports/500K_GPU_SCALING_OPTIMIZATION_20260823.md`.
+
+The next NTT cliff is now measured rather than extrapolated. On the closed
+830k-digit corpus, the RTX 5080 B6 profile with `256_4 sq_2048 p2i_8_64` and
+radix-256/WG128 reaches 29.617120 complete candidates/hour versus 10.699900 for
+the former B1 fallback (2.767981x), with exact RES64 records and Gerbicz PASS.
+The bounded activation, rejected batch/plan variants and evidence are in
+`docs/reports/NTT524288_SCALING_OPTIMIZATION_20260823.md`.
 
 Milestone evidence is kept in `docs/reports/`. Stage 11 remains a scoped negative
 result: offline adaptation reproduced fixed-low and online exploration added cost

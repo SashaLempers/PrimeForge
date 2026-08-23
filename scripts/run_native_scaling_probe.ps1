@@ -11,6 +11,9 @@ param(
     [ValidateRange(30, 1800)][int]$MaximumRunSeconds = 1200,
     [ValidateRange(100, 5000)][int]$SampleIntervalMs = 500,
     [ValidateSet('WARMUP', 'MEASURED', 'PROFILED')][string]$RunKind = 'MEASURED',
+    [ValidateRange(0, 1000000)][int]$ProbeIterations = 0,
+    [string]$SquarePlan = '',
+    [string]$Poly2intPlan = '',
     [switch]$KernelProfile
 )
 
@@ -20,6 +23,11 @@ Set-StrictMode -Version Latest
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $utf8 = [Text.UTF8Encoding]::new($false)
 $invariant = [Globalization.CultureInfo]::InvariantCulture
+$hasSquarePlan = -not [string]::IsNullOrWhiteSpace($SquarePlan)
+$hasPoly2intPlan = -not [string]::IsNullOrWhiteSpace($Poly2intPlan)
+if ($hasSquarePlan -ne $hasPoly2intPlan) {
+    throw 'SquarePlan and Poly2intPlan must either both be specified or both be omitted.'
+}
 
 function Resolve-ProjectPath {
     param([Parameter(Mandatory)][string]$Path)
@@ -27,8 +35,41 @@ function Resolve-ProjectPath {
     return [IO.Path]::GetFullPath((Join-Path $repositoryRoot $Path))
 }
 
+function ConvertTo-ProcessArgument {
+    param([Parameter(Mandatory)][AllowEmptyString()][string]$Value)
+    if ($Value.Length -ne 0 -and $Value -notmatch '[\s"]') { return $Value }
+
+    $builder = [Text.StringBuilder]::new()
+    [void]$builder.Append([char]34)
+    $backslashes = 0
+    foreach ($character in $Value.ToCharArray()) {
+        if ($character -eq [char]92) {
+            ++$backslashes
+            continue
+        }
+        if ($character -eq [char]34) {
+            for ($index = 0; $index -lt 2 * $backslashes + 1; ++$index) {
+                [void]$builder.Append([char]92)
+            }
+            [void]$builder.Append([char]34)
+            $backslashes = 0
+            continue
+        }
+        for ($index = 0; $index -lt $backslashes; ++$index) {
+            [void]$builder.Append([char]92)
+        }
+        $backslashes = 0
+        [void]$builder.Append($character)
+    }
+    for ($index = 0; $index -lt 2 * $backslashes; ++$index) {
+        [void]$builder.Append([char]92)
+    }
+    [void]$builder.Append([char]34)
+    return $builder.ToString()
+}
+
 function Get-ResultDigest {
-    param([Parameter(Mandatory)][string]$Stdout)
+    param([Parameter(Mandatory)][AllowEmptyString()][string]$Stdout)
     $records = @($Stdout -split "`r?`n" | Where-Object {
         $_.StartsWith("PRIMEFORGE_NATIVE_BATCH_RESULT`t")
     } | Sort-Object { [int](($_ -split "`t")[1]) })
@@ -46,7 +87,7 @@ function Get-ResultDigest {
 
 function Get-TaggedFields {
     param(
-        [Parameter(Mandatory)][string]$Stdout,
+        [Parameter(Mandatory)][AllowEmptyString()][string]$Stdout,
         [Parameter(Mandatory)][string]$Prefix
     )
     $line = @($Stdout -split "`r?`n" | Where-Object { $_.StartsWith($Prefix) } | Select-Object -Last 1)
@@ -61,7 +102,7 @@ function Get-TaggedFields {
 }
 
 function Get-Plan {
-    param([Parameter(Mandatory)][string]$Stdout)
+    param([Parameter(Mandatory)][AllowEmptyString()][string]$Stdout)
     $line = @($Stdout -split "`r?`n" | Where-Object {
         $_.StartsWith("PRIMEFORGE_NATIVE_BATCH_PLAN`t")
     } | Select-Object -Last 1)
@@ -70,7 +111,7 @@ function Get-Plan {
 }
 
 function Get-PhaseSummary {
-    param([Parameter(Mandatory)][string]$Stdout)
+    param([Parameter(Mandatory)][AllowEmptyString()][string]$Stdout)
     $sums = [ordered]@{}
     foreach ($line in ($Stdout -split "`r?`n")) {
         if (-not $line.StartsWith("PRIMEFORGE_PHASE`t")) { continue }
@@ -89,7 +130,7 @@ function Get-PhaseSummary {
 }
 
 function Get-KernelProfile {
-    param([Parameter(Mandatory)][string]$Stdout)
+    param([Parameter(Mandatory)][AllowEmptyString()][string]$Stdout)
     $groups = [ordered]@{
         forward_ntt = [ordered]@{ launches = [uint64]0; nanoseconds = [uint64]0 }
         inverse_ntt = [ordered]@{ launches = [uint64]0; nanoseconds = [uint64]0 }
@@ -236,10 +277,27 @@ $monitor = Start-Process -FilePath $monitorPath -ArgumentList @(
 
 $startInfo = [Diagnostics.ProcessStartInfo]::new()
 $startInfo.FileName = $executablePath
-$startInfo.ArgumentList.Add('--native-batch')
-$startInfo.ArgumentList.Add($inputPath)
-$startInfo.ArgumentList.Add('--phase-profile')
-if ($KernelProfile) { $startInfo.ArgumentList.Add('--kernel-profile') }
+$nativeArguments = @('--native-batch', $inputPath, '--phase-profile')
+if ($KernelProfile) { $nativeArguments += '--kernel-profile' }
+if ($ProbeIterations -ne 0) {
+    $nativeArguments += @('--native-probe-iterations', [string]$ProbeIterations)
+}
+if ($null -ne $startInfo.PSObject.Properties['ArgumentList']) {
+    foreach ($argument in $nativeArguments) { $startInfo.ArgumentList.Add($argument) }
+} else {
+    $startInfo.Arguments = (($nativeArguments | ForEach-Object {
+        ConvertTo-ProcessArgument $_
+    }) -join ' ')
+}
+if ($hasSquarePlan) {
+    if ($null -ne $startInfo.PSObject.Properties['Environment']) {
+        $startInfo.Environment['PRIMEFORGE_EXPERIMENTAL_SQUARE_PLAN'] = $SquarePlan
+        $startInfo.Environment['PRIMEFORGE_EXPERIMENTAL_POLY2INT_PLAN'] = $Poly2intPlan
+    } else {
+        $startInfo.EnvironmentVariables['PRIMEFORGE_EXPERIMENTAL_SQUARE_PLAN'] = $SquarePlan
+        $startInfo.EnvironmentVariables['PRIMEFORGE_EXPERIMENTAL_POLY2INT_PLAN'] = $Poly2intPlan
+    }
+}
 $startInfo.WorkingDirectory = $repositoryRoot
 $startInfo.UseShellExecute = $false
 $startInfo.CreateNoWindow = $true
@@ -271,7 +329,7 @@ try {
         })
         if ($clock.Elapsed.TotalSeconds -gt $MaximumRunSeconds) {
             $timedOut = $true
-            $process.Kill($true)
+            $process.Kill()
             $process.WaitForExit()
             break
         }
@@ -281,7 +339,7 @@ try {
 } finally {
     $clock.Stop()
     if (-not $monitor.HasExited) {
-        $monitor.Kill($true)
+        $monitor.Kill()
         $monitor.WaitForExit(10000)
     }
     $monitor.Dispose()
@@ -289,7 +347,7 @@ try {
 
 [IO.File]::WriteAllText($stdoutPath, $stdout, $utf8)
 [IO.File]::WriteAllText($stderrPath, $stderr, $utf8)
-$processTsv = @('elapsed_seconds`ttotal_cpu_seconds`tuser_cpu_seconds`tprivileged_cpu_seconds`tworking_set_bytes`tprivate_bytes`tpaged_bytes`tvirtual_bytes`tthread_count`thandle_count')
+$processTsv = @("elapsed_seconds`ttotal_cpu_seconds`tuser_cpu_seconds`tprivileged_cpu_seconds`tworking_set_bytes`tprivate_bytes`tpaged_bytes`tvirtual_bytes`tthread_count`thandle_count")
 foreach ($sample in $processSamples) {
     $processTsv += @(
         $sample.elapsed_seconds.ToString('0.000000', $invariant),
@@ -304,13 +362,31 @@ foreach ($sample in $processSamples) {
 
 $result = Get-ResultDigest $stdout
 $timing = Get-TaggedFields -Stdout $stdout -Prefix "PRIMEFORGE_NATIVE_BATCH_TIMING`t"
+$probeTiming = Get-TaggedFields -Stdout $stdout -Prefix "PRIMEFORGE_NATIVE_BATCH_PROBE`t"
+$configLine = @($stdout -split "`r?`n" | Where-Object {
+    $_.StartsWith("PRIMEFORGE_NATIVE_BATCH_CONFIG`t")
+} | Select-Object -Last 1)
+$configText = if ($configLine.Count -eq 0) { '' } else {
+    $configLine[0].Substring("PRIMEFORGE_NATIVE_BATCH_CONFIG`t".Length)
+}
 $readbackMatches = [regex]::Matches($stdout, "PRIMEFORGE_COUNTER`t[^`r`n]*`tRESULT_READBACK_BYTES`t([0-9]+)")
 $readbackBytes = if ($readbackMatches.Count -eq 0) { [uint64]0 } else { [uint64]$readbackMatches[$readbackMatches.Count - 1].Groups[1].Value }
-$transformLength = if ($readbackBytes -eq 0) { [uint64]0 } else { [uint64]($readbackBytes / (4 * $batch)) }
+$transformLength = if ($readbackBytes -ne 0) {
+    [uint64]($readbackBytes / (4 * $batch))
+} elseif ($configText -match '(?:^|\s)transform=([0-9]+)(?:\s|$)') {
+    [uint64]$Matches[1]
+} else { [uint64]0 }
 $exactBufferBytes = if ($transformLength -eq 0) { [uint64]0 } else {
     [uint64](60 * $transformLength * $batch + 32 * $transformLength + 87296 + 28 * $batch)
 }
 $cpuSeconds = if ($processSamples.Count -eq 0) { 0.0 } else { [double]$processSamples[$processSamples.Count - 1].total_cpu_seconds }
+$isBoundedProbe = $ProbeIterations -ne 0
+$probeMainMicroseconds = if ($probeTiming.Contains('main_microseconds')) {
+    [uint64]$probeTiming['main_microseconds']
+} else { [uint64]0 }
+$probeCompletedIterations = if ($probeTiming.Contains('iterations')) {
+    [uint64]$probeTiming['iterations']
+} else { [uint64]0 }
 $summary = [pscustomobject][ordered]@{
     schema = 'primeforge.native_scaling_probe.v1'
     run_id = $RunId
@@ -325,16 +401,33 @@ $summary = [pscustomobject][ordered]@{
     batch = $batch
     transform_length = $transformLength
     plan = Get-Plan $stdout
+    config = if ([string]::IsNullOrWhiteSpace($configText)) { 'UNKNOWN' } else { $configText }
+    plan_override = if ($hasSquarePlan) { [ordered]@{
+        square = $SquarePlan
+        poly2int = $Poly2intPlan
+    }} else { 'NONE' }
+    probe_iterations_requested = $ProbeIterations
+    probe_iterations_completed = $probeCompletedIterations
+    probe_main_microseconds = $probeMainMicroseconds
+    probe_squarings_per_second = if ($probeMainMicroseconds -eq 0) { 'UNKNOWN' } else {
+        1.0e6 * [double]$probeCompletedIterations / [double]$probeMainMicroseconds
+    }
     kernel_profile_enabled = [bool]$KernelProfile
     exit_code = $process.ExitCode
     timed_out = $timedOut
     wall_seconds = $clock.Elapsed.TotalSeconds
-    seconds_per_candidate = $clock.Elapsed.TotalSeconds / [double]$batch
-    candidates_per_hour = 3600.0 * [double]$batch / $clock.Elapsed.TotalSeconds
+    seconds_per_candidate = if ($isBoundedProbe) { 'NOT_APPLICABLE_BOUNDED_PROBE' } else {
+        $clock.Elapsed.TotalSeconds / [double]$batch
+    }
+    candidates_per_hour = if ($isBoundedProbe) { 'NOT_APPLICABLE_BOUNDED_PROBE' } else {
+        3600.0 * [double]$batch / $clock.Elapsed.TotalSeconds
+    }
     result_count = $result.count
     result_sha256 = $result.sha256
     result_records = $result.records
-    gerbicz = if ($stdout -match 'gerbicz_status=PASS') { 'PASS' } else { 'FAIL_OR_MISSING' }
+    gerbicz = if ($isBoundedProbe) { 'NOT_APPLICABLE_BOUNDED_PROBE' }
+        elseif ($stdout -match 'gerbicz_status=PASS') { 'PASS' }
+        else { 'FAIL_OR_MISSING' }
     native_timing = $timing
     host_phase_sums_nanoseconds = Get-PhaseSummary $stdout
     kernel_profile = Get-KernelProfile $stdout
@@ -368,11 +461,23 @@ Write-Host "scaling_probe.digits=$Digits"
 Write-Host "scaling_probe.batch=$batch"
 Write-Host "scaling_probe.transform=$transformLength"
 Write-Host "scaling_probe.wall_seconds=$($clock.Elapsed.TotalSeconds.ToString('0.000000', $invariant))"
-Write-Host "scaling_probe.candidates_per_hour=$((3600.0 * [double]$batch / $clock.Elapsed.TotalSeconds).ToString('0.000', $invariant))"
+if ($isBoundedProbe) {
+    Write-Host "scaling_probe.probe_iterations=$probeCompletedIterations"
+    Write-Host "scaling_probe.probe_main_microseconds=$probeMainMicroseconds"
+    if ($probeMainMicroseconds -ne 0) {
+        Write-Host "scaling_probe.probe_squarings_per_second=$((1.0e6 * [double]$probeCompletedIterations / [double]$probeMainMicroseconds).ToString('0.000', $invariant))"
+    }
+} else {
+    Write-Host "scaling_probe.candidates_per_hour=$((3600.0 * [double]$batch / $clock.Elapsed.TotalSeconds).ToString('0.000', $invariant))"
+}
 Write-Host "scaling_probe.result_sha256=$($result.sha256)"
 Write-Host "scaling_probe.gerbicz=$($summary.gerbicz)"
 Write-Host "scaling_probe.summary=$summaryPath"
-if ($timedOut -or $process.ExitCode -ne 0 -or $result.count -ne $batch -or $summary.gerbicz -ne 'PASS') {
+if ($isBoundedProbe) {
+    if ($timedOut -or $process.ExitCode -ne 0 -or $probeCompletedIterations -ne [uint64]$ProbeIterations) {
+        throw "Scaling probe failed: run=$RunId exit=$($process.ExitCode) iterations=$probeCompletedIterations/$ProbeIterations timeout=$timedOut"
+    }
+} elseif ($timedOut -or $process.ExitCode -ne 0 -or $result.count -ne $batch -or $summary.gerbicz -ne 'PASS') {
     throw "Scaling probe failed: run=$RunId exit=$($process.ExitCode) results=$($result.count)/$batch gerbicz=$($summary.gerbicz) timeout=$timedOut"
 }
 Write-Host 'scaling_probe.status=PASS'

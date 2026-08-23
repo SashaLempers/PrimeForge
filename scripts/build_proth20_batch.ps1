@@ -25,6 +25,8 @@ $nativeKernelProfilePatch = Join-Path $repositoryRoot 'patches\proth20-native-b8
 $nativeB32ProductionPatch = Join-Path $repositoryRoot 'patches\proth20-native-b32-production.patch'
 $adaptiveReductionPatch = Join-Path $repositoryRoot 'patches\proth20-adaptive-reduction-poly2int.patch'
 $scaling500kPatch = Join-Path $repositoryRoot 'patches\proth20-500k-b12-radix256.patch'
+$scalingNtt524288Patch = Join-Path $repositoryRoot 'patches\proth20-ntt524288-b6.patch'
+$boundedPlanProbePatch = Join-Path $repositoryRoot 'patches\proth20-bounded-plan-probe.patch'
 $openClHeaderSync = Join-Path $repositoryRoot 'scripts\sync_proth20_opencl_header.ps1'
 
 function Resolve-ProjectPath {
@@ -78,7 +80,7 @@ if (-not (Test-Path -LiteralPath $profilePatch -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $planCachePatch -PathType Leaf)) {
     throw "Pinned proth20 plan-cache patch is missing: $planCachePatch"
 }
-foreach ($requiredPatch in @($invariantPatch, $nativeBatchPatch, $nativeProductionPatch, $nativeKernelProfilePatch, $nativeB32ProductionPatch, $adaptiveReductionPatch, $scaling500kPatch)) {
+foreach ($requiredPatch in @($invariantPatch, $nativeBatchPatch, $nativeProductionPatch, $nativeKernelProfilePatch, $nativeB32ProductionPatch, $adaptiveReductionPatch, $scaling500kPatch, $scalingNtt524288Patch, $boundedPlanProbePatch)) {
     if (-not (Test-Path -LiteralPath $requiredPatch -PathType Leaf)) {
         throw "Pinned proth20 production patch is missing: $requiredPatch"
     }
@@ -105,6 +107,13 @@ if ($LASTEXITCODE -ne 0 -or $revision -ne $expectedRevision) {
 $sourceChanged = $LASTEXITCODE -ne 0
 $profileHeader = Join-Path $sourcePath 'src\primeforge_profile.h'
 $scaling500kAlreadyApplied = Test-ReversePatch -SourcePath $sourcePath -PatchPath $scaling500kPatch
+$scalingNtt524288AlreadyApplied = Test-ReversePatch `
+    -SourcePath $sourcePath -PatchPath $scalingNtt524288Patch
+$boundedPlanProbeAlreadyApplied = Test-ReversePatch `
+    -SourcePath $sourcePath -PatchPath $boundedPlanProbePatch
+$scalingNtt524288AlreadyApplied = `
+    $boundedPlanProbeAlreadyApplied -or $scalingNtt524288AlreadyApplied
+$scaling500kAlreadyApplied = $scalingNtt524288AlreadyApplied -or $scaling500kAlreadyApplied
 $adaptiveAlreadyApplied = $scaling500kAlreadyApplied -or `
     (Test-ReversePatch -SourcePath $sourcePath -PatchPath $adaptiveReductionPatch)
 if ($adaptiveAlreadyApplied) {
@@ -170,6 +179,20 @@ if (-not $scaling500kAlreadyApplied) {
 
     Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', '--check', $scaling500kPatch)
     Invoke-Checked -Executable git -Arguments @('-C', $sourcePath, 'apply', $scaling500kPatch)
+}
+
+if (-not $scalingNtt524288AlreadyApplied) {
+    Invoke-Checked -Executable git -Arguments @(
+        '-C', $sourcePath, 'apply', '--check', $scalingNtt524288Patch)
+    Invoke-Checked -Executable git -Arguments @(
+        '-C', $sourcePath, 'apply', $scalingNtt524288Patch)
+}
+
+if (-not $boundedPlanProbeAlreadyApplied) {
+    Invoke-Checked -Executable git -Arguments @(
+        '-C', $sourcePath, 'apply', '--check', $boundedPlanProbePatch)
+    Invoke-Checked -Executable git -Arguments @(
+        '-C', $sourcePath, 'apply', $boundedPlanProbePatch)
 }
 
 & $openClHeaderSync `

@@ -1,0 +1,2 @@
+threads	prime_interval	wall_seconds	seconds_per_trillion	output_sha256	cpu_temperature_max_c	cpu_power_mean_w	throttle_samples	whea_max	xid_max	worker_exit	watchdog_exit	worker_stderr_bytes	watchdog_stderr_bytes	verdict
+32	128000000000001..136000000000000	151.5328268	18.94160335	768f12293fa61ad4282c459b14b1c876fd156fd0723cd1c7d9744e1234f34614	85.5	245.79872365460491	0	0	0	0	0	0	0	RETAINED

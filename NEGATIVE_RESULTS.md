@@ -801,3 +801,75 @@ future campaigns.
 - **Failure criterion:** the benchmark harness must start and clean up under both supported PowerShell runtimes.
 - **Conclusion:** argument quoting now has a Windows PowerShell fallback, environment injection uses the available API, and process cleanup uses the common `Kill()` overload. A fresh bounded smoke completed with the requested iteration count and no surviving monitor process.
 - **Retry condition:** retain a Windows PowerShell smoke in the final local validation whenever the process launcher changes.
+
+## NR-0087 - Two simultaneous 500k GPU contexts did not increase aggregate work
+
+- **Date:** 2026-08-23
+- **Change tested:** run two independent B12/radix-256 bounded probes concurrently on the RTX 5080 instead of one.
+- **Evidence:** `benchmarks/evidence/500k-deep-sieve-20260823/gpu_concurrency.tsv`; identical 32 768-iteration probes, stderr empty.
+- **Failure criterion:** concurrency advances only if aggregate useful candidate-iterations/s increases reproducibly before paying for a full multi-minute correctness gate.
+- **Conclusion:** one context reached 51 482,416 candidate-iterations/s; two contexts together reached 51 166,585, a 0,613 % regression. The contexts share the same saturated GPU resources and add startup cost. The dual-context path is rejected without further rescue tuning.
+- **Retry condition:** reconsider only after a structural asynchronous or multi-candidate kernel change demonstrates unused execution resources in a kernel-level profile.
+
+## NR-0088 - Unresolved external-engine licences block a CPU comparison
+
+- **Date:** 2026-08-23
+- **Change tested:** assess whether the locally captured PRST, LLR2 or OpenPFGW sources could provide a faster independent CPU path for 500k candidates.
+- **Evidence:** `audits/prst.md`, `audits/llr2.md` and the existing external-engine provenance records; no authorised binary was present.
+- **Failure criterion:** no external code is built or integrated while licence, provenance, redistribution and integration mode remain unresolved.
+- **Conclusion:** PRST/LLR2 remain reference-only and OpenPFGW remains an isolated custom-terms oracle. No source was compiled, installed or integrated. The retained optimisation uses only PrimeForge's existing primesieve path.
+- **Retry condition:** reconsider only after a documented individual licensing decision and a bounded same-corpus comparison.
+
+## NR-0089 - A shorter Montgomery inverse seed and left-to-right chain regressed
+
+- **Date:** 2026-08-24
+- **Change tested:** replace six Newton rounds seeded at one and the right-to-left exponent loop with a five-bit inverse seed and a left-to-right exponent loop.
+- **Evidence:** `benchmarks/evidence/500k-deep-sieve-20260823/hotloop_abba.tsv`; A/B/B/A on the fixed 68,980-candidate, 256G corpus, 16 threads, identical survivor SHA-256.
+- **Failure criterion:** retain only a reproducible reduction in complete sieve wall time with byte-identical survivors.
+- **Conclusion:** the control averaged 49.2201816 s and the variant 53.8523772 s, a 9.411% regression. The dependency change costs more than the removed Newton step. The original chain is restored and no rescue tuning is attempted.
+- **Retry condition:** reconsider exponentiation only with a structurally different independently validated batch or addition-chain design.
+
+## NR-0090 - Montgomery batch widths two and eight are both below four
+
+- **Date:** 2026-08-24
+- **Change tested:** vary the number of independent wide moduli interleaved per CPU worker from the retained B4 to B2 and B8.
+- **Evidence:** `benchmarks/evidence/500k-deep-sieve-20260823/hotloop_abba.tsv`; same corpus and survivor SHA-256 in every run.
+- **Failure criterion:** a batch-width change must improve the end-to-end sieve wall, not merely expose more theoretical instruction-level parallelism.
+- **Conclusion:** B4 averaged 27.1254030 s. B8 averaged 28.5158844 s, a 5.126% regression, and the B2 screen took 32.8114228 s. B4 is retained; wider batches add register pressure and narrower batches expose multiply latency.
+- **Retry condition:** retune only on a different CPU microarchitecture or after the Montgomery state layout changes materially.
+
+## NR-0091 - Conditional residue subtraction regressed the batched hot loop
+
+- **Date:** 2026-08-24
+- **Change tested:** replace the generic modular residue expressions with conditional subtraction inside the common prime application path.
+- **Evidence:** `benchmarks/evidence/500k-deep-sieve-20260823/hotloop_abba.tsv`; A/B/B/A, identical 2,964 survivors and SHA-256.
+- **Failure criterion:** both paired comparisons must reduce wall time.
+- **Conclusion:** the control averaged 27.1776088 s and the conditional variant 28.6598985 s, a 5.454% regression. The generic path is restored. A separate mathematically stronger wide-prime specialization, which avoids the whole progression calculation, is evaluated independently.
+- **Retry condition:** do not retry branch-level variants of the generic path; only a domain-level specialization is eligible.
+
+## NR-0092 - Thirty-two sieve threads initially exceeded the overnight thermal gate
+
+- **Date:** 2026-08-24
+- **Change tested:** use 32 workers for the 512G full-size deep-sieve screen.
+- **Evidence:** `benchmarks/evidence/500k-deep-sieve-20260823/progressive_depth.tsv` and closed watchdog telemetry.
+- **Failure criterion:** prolonged work must not keep the CPU above the established 92 C stop threshold.
+- **Conclusion:** the initial run reached 94.5 C despite zero WHEA and no reported throttling, so the immediate fallback used 16 workers. The later frozen IFMA32 path was separately revalidated at 32 workers after cooldown: the 512T--1,024T segment completed at 87.375 C maximum, with zero throttling, WHEA and Xid. Thread count is therefore a measured operating-point choice, not a permanent property of the algorithm.
+- **Retry condition:** every prolonged 32-worker segment retains the independent 92 C watchdog; fall back to fewer workers after any repeated thermal stop.
+
+## NR-0093 - Skipping the first Montgomery multiply stayed below the retention gate
+
+- **Date:** 2026-08-24
+- **Change tested:** initialize the fixed-exponent result from its first set-bit power instead of multiplying Montgomery one by that power.
+- **Evidence:** `benchmarks/evidence/500k-deep-sieve-20260823/structural_probes.tsv`; same fixed screen, byte-identical survivor SHA-256 `a7f44a...7cea`.
+- **Failure criterion:** a hot-loop change must improve complete sieve time by at least 2% in the first paired screen before a longer A/B/B/A confirmation.
+- **Conclusion:** control was 10.7007712 s and the variant 10.5571336 s, only 1.36057% faster. The change is mathematically correct but too small to justify another branch and sustained validation; it is rejected without rescue tuning.
+- **Retry condition:** reconsider only as part of a larger exponentiation redesign whose combined end-to-end gain clears the gate.
+
+## NR-0094 - CUDA deep-sieve arithmetic was fast but its exact prime supply was slower
+
+- **Date:** 2026-08-24
+- **Change tested:** move the exact 52-bit Montgomery inverse and hit marking to the RTX 5080, first with fresh prime iterators and then with 32 persistent disjoint prime lanes, pinned buffers and an overlapped producer/device model.
+- **Evidence:** `benchmarks/evidence/500k-deep-sieve-20260823/structural_probes.tsv`; 262,144 low-modulus hit cases matched the CPU bitset exactly, 4,096 production-size inverses matched exactly, and repeated GPU bitsets were deterministic.
+- **Failure criterion:** the full producer-to-device pipeline must beat the measured frozen CPU segment rate of 1,432,491,457 divisors/s, not merely report a fast kernel.
+- **Conclusion:** the CUDA kernel reached 2,757,186,694 divisors/s, but the best persistent 64M pipeline reached only 844,655,489 divisors/s. Prime production remained dominant and the complete path regressed by 41.035914%. Production integration is rejected; no CUDA campaign path was created.
+- **Retry condition:** reconsider only if a different prime-source representation feeds the GPU above the current CPU full-pipeline rate while preserving exact contiguous coverage and durable per-lane checkpoints.

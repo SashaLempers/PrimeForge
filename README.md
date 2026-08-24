@@ -354,6 +354,14 @@ improves the same-session complete-throughput baseline by 15.648537%, reproduces
 RES64 records and Gerbicz PASS. Scope, rejected variants and raw evidence indexes
 are documented in `docs/reports/500K_GPU_SCALING_OPTIMIZATION_20260823.md`.
 
+The 500k campaign-time profile raises the exact sieve beyond 4 billion and
+partitions each prime interval deterministically across CPU workers. Progressive
+closed-corpus segments have been measured through 1,024 trillion: 55,688 GPU
+survivors remain versus 87,124 at 4G. The current 468.053-hour campaign estimate
+is derived from measured sieve segments plus the separately measured GPU rate;
+it is not presented as an executed discovery campaign. See
+`docs/reports/500K_DEEP_SIEVE_OPTIMIZATION_20260823.md`.
+
 The next NTT cliff is now measured rather than extrapolated. On the closed
 830k-digit corpus, the RTX 5080 B6 profile with `256_4 sq_2048 p2i_8_64` and
 radix-256/WG128 reaches 29.617120 complete candidates/hour versus 10.699900 for

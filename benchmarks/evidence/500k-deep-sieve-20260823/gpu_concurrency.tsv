@@ -1,0 +1,3 @@
+case	processes	batch_per_process	iterations	main_microseconds_max	aggregate_candidate_iterations_per_second	delta_vs_single_percent	stderr_bytes	verdict
+single	1	12	32768	7637870	51482.41590914744	0	0	BASELINE
+dual	2	12	32768	15370031	51166.58515522838	-0.613473063262	0	REJECTED

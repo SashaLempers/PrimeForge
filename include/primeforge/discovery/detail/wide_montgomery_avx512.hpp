@@ -8,7 +8,7 @@
 
 namespace primeforge::discovery::detail {
 
-inline constexpr std::size_t avx512_ifma_lane_count = 16U;
+inline constexpr std::size_t avx512_ifma_lane_count = 32U;
 inline constexpr std::uint64_t avx512_ifma_radix = 1ULL << 52U;
 inline constexpr std::uint64_t avx512_ifma_modulus_limit = avx512_ifma_radix;
 using Avx512IfmaBatch = std::array<std::uint64_t, avx512_ifma_lane_count>;

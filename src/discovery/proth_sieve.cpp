@@ -323,6 +323,7 @@ ProthSieveResult sieve_proth_candidates(const ProthSieveConfig& config) {
             worker.scalar_wide_primes_processed += processed;
             wide_count = 0U;
         };
+        // Accumulate one complete multi-register IFMA group before dispatch.
         detail::Avx512IfmaBatch ifma_primes{};
         detail::Avx512IfmaBatch ifma_ones{};
         std::size_t ifma_count = 0U;

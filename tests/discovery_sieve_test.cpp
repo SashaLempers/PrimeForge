@@ -307,9 +307,9 @@ int main() {
 
         primeforge::discovery::ProthSieveConfig transition_52{
             3U, 10'001U, wide_exponent,
-            primeforge::discovery::detail::avx512_ifma_modulus_limit + 1'000U,
+            primeforge::discovery::detail::avx512_ifma_modulus_limit + 10'000U,
             1U,
-            primeforge::discovery::detail::avx512_ifma_modulus_limit - 1'000U};
+            primeforge::discovery::detail::avx512_ifma_modulus_limit - 10'000U};
         auto scalar_transition_52 = transition_52;
         scalar_transition_52.wide_inverse_backend =
             primeforge::discovery::WideInverseBackend::scalar;
@@ -396,6 +396,22 @@ int main() {
                 2'000'000'000'000'001ULL,
                 3'000'000'000'000'001ULL,
                 4'000'000'000'000'001ULL,
+                5'000'000'001ULL,
+                10'000'000'001ULL,
+                100'000'000'001ULL,
+                200'000'000'001ULL,
+                300'000'000'001ULL,
+                400'000'000'001ULL,
+                600'000'000'001ULL,
+                700'000'000'001ULL,
+                800'000'000'001ULL,
+                900'000'000'001ULL,
+                1'200'000'000'000'001ULL,
+                1'500'000'000'000'001ULL,
+                2'500'000'000'000'001ULL,
+                3'500'000'000'000'001ULL,
+                4'200'000'000'000'001ULL,
+                4'500'000'000'000'001ULL,
             };
             constexpr std::uint32_t ifma_exponent = 1'660'936U;
             primeforge::discovery::detail::Avx512IfmaBatch montgomery_ones{};

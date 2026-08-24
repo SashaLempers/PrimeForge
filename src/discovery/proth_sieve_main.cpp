@@ -43,10 +43,11 @@ struct Arguments {
 };
 
 [[nodiscard]] Arguments parse_arguments(const int argc, char** argv) {
-    if (argc != 11 && argc != 13 && argc != 15) {
+    if (argc != 11 && argc != 13 && argc != 15 && argc != 17) {
         throw std::invalid_argument(
             "usage: primeforge-discovery-sieve --k-start K --k-stop K --n N "
-            "--sieve-bound P --output FILE [--threads T] [--sieve-start P]");
+            "--sieve-bound P --output FILE [--threads T] [--sieve-start P] "
+            "[--wide-backend auto|scalar]");
     }
     Arguments result;
     bool have_start = false;
@@ -73,6 +74,16 @@ struct Arguments {
             result.config.thread_count = parse_u32(value, option);
         } else if (option == "--sieve-start") {
             result.config.minimum_prime = parse_u64(value, option);
+        } else if (option == "--wide-backend") {
+            if (value == "auto") {
+                result.config.wide_inverse_backend =
+                    primeforge::discovery::WideInverseBackend::automatic;
+            } else if (value == "scalar") {
+                result.config.wide_inverse_backend =
+                    primeforge::discovery::WideInverseBackend::scalar;
+            } else {
+                throw std::invalid_argument("--wide-backend requires auto or scalar");
+            }
         } else if (option == "--output") {
             if (value.empty()) throw std::invalid_argument("--output requires a file");
             result.output = value;
@@ -132,10 +143,24 @@ int main(const int argc, char** argv) {
                   << "discovery.sieve.maximum_prime=" << arguments.config.maximum_prime << '\n'
                   << "discovery.sieve.minimum_prime=" << arguments.config.minimum_prime << '\n'
                   << "discovery.sieve.threads=" << arguments.config.thread_count << '\n'
+                  << "discovery.sieve.wide_backend_requested="
+                  << (arguments.config.wide_inverse_backend ==
+                              primeforge::discovery::WideInverseBackend::automatic
+                          ? "auto"
+                          : "scalar")
+                  << '\n'
                   << "discovery.sieve.candidates=" << result.candidate_count << '\n'
                   << "discovery.sieve.eliminated=" << result.eliminated_count << '\n'
                   << "discovery.sieve.survivors=" << result.survivors.size() << '\n'
                   << "discovery.sieve.primes_applied=" << result.primes_applied << '\n'
+                  << "discovery.sieve.uint32_primes_processed="
+                  << result.uint32_primes_processed << '\n'
+                  << "discovery.sieve.scalar_wide_primes_processed="
+                  << result.scalar_wide_primes_processed << '\n'
+                  << "discovery.sieve.avx512_ifma_primes_processed="
+                  << result.avx512_ifma_primes_processed << '\n'
+                  << "discovery.sieve.avx512_ifma_applied="
+                  << (result.avx512_ifma_applied ? "yes" : "no") << '\n'
                   << "discovery.sieve.prime_source=primesieve-12.15-segmented\n"
                   << "discovery.sieve.inverse=direct-2^-n\n"
                   << "discovery.sieve.candidate_storage=uint64-bitset\n"

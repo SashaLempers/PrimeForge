@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "primeforge/discovery/proth_sieve.hpp"
+#include "primeforge/core/system_info.hpp"
+#include "primeforge/discovery/detail/wide_montgomery_avx512.hpp"
 #include "primeforge/math/mul128.hpp"
 
 #include <primesieve.hpp>
@@ -241,6 +243,10 @@ void validate(const ProthSieveConfig& config) {
 struct WorkerResult {
     CandidateBitset eliminated;
     std::uint64_t primes_applied{};
+    std::uint64_t uint32_primes_processed{};
+    std::uint64_t scalar_wide_primes_processed{};
+    std::uint64_t avx512_ifma_primes_processed{};
+    bool avx512_ifma_applied{};
 };
 
 }  // namespace
@@ -255,10 +261,15 @@ ProthSieveResult sieve_proth_candidates(const ProthSieveConfig& config) {
 
     const auto candidate_size = static_cast<std::size_t>(candidate_count);
     const auto window_width = static_cast<std::uint64_t>(config.k_stop) - config.k_start;
+    static const bool hardware_avx512_ifma =
+        collect_cpu_capabilities().avx512ifma;
+    const auto use_avx512_ifma =
+        config.wide_inverse_backend == WideInverseBackend::automatic &&
+        hardware_avx512_ifma;
 
     const auto scan_interval = [&](const std::uint64_t interval_start,
                                    const std::uint64_t interval_stop) {
-        WorkerResult worker{CandidateBitset{candidate_size}, 0U};
+        WorkerResult worker{CandidateBitset{candidate_size}, 0U, 0U, 0U, 0U, false};
         const auto apply_prime = [&](const std::uint64_t prime, const std::uint64_t inverse) {
             const auto residue = (prime - inverse) % prime;
             const auto start_residue = static_cast<std::uint64_t>(config.k_start) % prime;
@@ -296,6 +307,7 @@ ProthSieveResult sieve_proth_candidates(const ProthSieveConfig& config) {
         WideInverseBatch wide_primes{};
         std::size_t wide_count = 0U;
         const auto flush_wide_primes = [&]() {
+            const auto processed = wide_count;
             if (wide_count == wide_inverse_batch_size) {
                 const auto inverses = modular_inverse_power_of_two_wide_batch(
                     config.exponent, wide_primes);
@@ -308,7 +320,29 @@ ProthSieveResult sieve_proth_candidates(const ProthSieveConfig& config) {
                         config.exponent, wide_primes[lane]));
                 }
             }
+            worker.scalar_wide_primes_processed += processed;
             wide_count = 0U;
+        };
+        detail::Avx512IfmaBatch ifma_primes{};
+        std::size_t ifma_count = 0U;
+        const auto flush_ifma_primes = [&]() {
+            const auto processed = ifma_count;
+            if (ifma_count == detail::avx512_ifma_lane_count) {
+                const auto inverses = detail::inverse_power_of_two_avx512_ifma(
+                    config.exponent, ifma_primes);
+                for (std::size_t lane = 0U; lane < detail::avx512_ifma_lane_count; ++lane) {
+                    apply_wide_prime(ifma_primes[lane], inverses[lane]);
+                }
+                worker.avx512_ifma_applied = true;
+                worker.avx512_ifma_primes_processed += processed;
+            } else {
+                for (std::size_t lane = 0U; lane < ifma_count; ++lane) {
+                    apply_wide_prime(ifma_primes[lane], modular_inverse_power_of_two(
+                        config.exponent, ifma_primes[lane]));
+                }
+                worker.scalar_wide_primes_processed += processed;
+            }
+            ifma_count = 0U;
         };
 
         primesieve::iterator primes{interval_start, interval_stop};
@@ -321,12 +355,20 @@ ProthSieveResult sieve_proth_candidates(const ProthSieveConfig& config) {
             // computes 2^-n directly and removes the former second powmod.
             if (prime <= std::numeric_limits<std::uint32_t>::max()) {
                 apply_prime(prime, modular_inverse_power_of_two(config.exponent, prime));
+                ++worker.uint32_primes_processed;
                 continue;
             }
 
-            wide_primes[wide_count++] = prime;
-            if (wide_count == wide_inverse_batch_size) flush_wide_primes();
+            if (use_avx512_ifma && prime < detail::avx512_ifma_modulus_limit) {
+                ifma_primes[ifma_count++] = prime;
+                if (ifma_count == detail::avx512_ifma_lane_count) flush_ifma_primes();
+            } else {
+                flush_ifma_primes();
+                wide_primes[wide_count++] = prime;
+                if (wide_count == wide_inverse_batch_size) flush_wide_primes();
+            }
         }
+        flush_ifma_primes();
         flush_wide_primes();
         return worker;
     };
@@ -350,10 +392,25 @@ ProthSieveResult sieve_proth_candidates(const ProthSieveConfig& config) {
 
     CandidateBitset eliminated(candidate_size);
     std::uint64_t primes_applied = 0U;
+    std::uint64_t uint32_primes_processed = 0U;
+    std::uint64_t scalar_wide_primes_processed = 0U;
+    std::uint64_t avx512_ifma_primes_processed = 0U;
+    bool avx512_ifma_applied = false;
     for (auto& future : futures) {
         auto worker = future.get();
         eliminated.merge(worker.eliminated);
         primes_applied += worker.primes_applied;
+        uint32_primes_processed += worker.uint32_primes_processed;
+        scalar_wide_primes_processed += worker.scalar_wide_primes_processed;
+        avx512_ifma_primes_processed += worker.avx512_ifma_primes_processed;
+        avx512_ifma_applied = avx512_ifma_applied || worker.avx512_ifma_applied;
+    }
+    if (uint32_primes_processed + scalar_wide_primes_processed +
+            avx512_ifma_primes_processed != primes_applied) {
+        throw std::logic_error("Proth sieve prime-processing coverage mismatch");
+    }
+    if (avx512_ifma_applied != (avx512_ifma_primes_processed != 0U)) {
+        throw std::logic_error("Proth sieve IFMA dispatch accounting mismatch");
     }
     const auto eliminated_count = eliminated.marked_count();
 
@@ -361,6 +418,10 @@ ProthSieveResult sieve_proth_candidates(const ProthSieveConfig& config) {
     result.candidate_count = candidate_count;
     result.eliminated_count = eliminated_count;
     result.primes_applied = primes_applied;
+    result.uint32_primes_processed = uint32_primes_processed;
+    result.scalar_wide_primes_processed = scalar_wide_primes_processed;
+    result.avx512_ifma_primes_processed = avx512_ifma_primes_processed;
+    result.avx512_ifma_applied = avx512_ifma_applied;
     result.survivors.reserve(static_cast<std::size_t>(candidate_count - eliminated_count));
     for (std::size_t index = 0U; index < eliminated.size(); ++index) {
         if (!eliminated.test(index)) {

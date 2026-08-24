@@ -94,12 +94,19 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|amd64|x86_64|x86|i[3-6]86)$")
         set_source_files_properties(
             src/family_sieve/vector_avx512.cpp PROPERTIES COMPILE_OPTIONS "/arch:AVX512"
         )
+        set_source_files_properties(
+            src/discovery/wide_montgomery_avx512.cpp PROPERTIES COMPILE_OPTIONS "/arch:AVX512"
+        )
     else()
         set_source_files_properties(
             src/family_sieve/vector_avx2.cpp PROPERTIES COMPILE_OPTIONS "-mavx2"
         )
         set_source_files_properties(
             src/family_sieve/vector_avx512.cpp PROPERTIES COMPILE_OPTIONS "-mavx512f"
+        )
+        set_source_files_properties(
+            src/discovery/wide_montgomery_avx512.cpp
+            PROPERTIES COMPILE_OPTIONS "-mavx512f;-mavx512ifma"
         )
     endif()
 else()
@@ -113,6 +120,7 @@ add_library(primeforge_core STATIC
     src/core/system_info.cpp
     src/cpu/cpu_topology.cpp
     src/discovery/proth_sieve.cpp
+    src/discovery/wide_montgomery_avx512.cpp
     src/engine/external_adapter.cpp
     src/family/family.cpp
     src/math/big_integer.cpp

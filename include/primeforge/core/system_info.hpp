@@ -30,6 +30,7 @@ struct CpuCapabilities {
     bool avx{};
     bool avx2{};
     bool avx512f{};
+    bool avx512ifma{};
     bool bmi2{};
 };
 
@@ -47,6 +48,7 @@ struct SystemInfo {
 };
 
 [[nodiscard]] SystemInfo collect_system_info();
+[[nodiscard]] CpuCapabilities collect_cpu_capabilities();
 [[nodiscard]] std::string format_system_info(const SystemInfo& info);
 
 } // namespace primeforge

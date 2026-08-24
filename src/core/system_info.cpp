@@ -223,6 +223,8 @@ struct CpuidRegisters {
             capabilities.bmi2 = (leaf_seven.ebx & (1U << 8U)) != 0U;
             const bool os_avx512 = (xcr0 & 0xe6U) == 0xe6U;
             capabilities.avx512f = os_avx512 && (leaf_seven.ebx & (1U << 16U)) != 0U;
+            capabilities.avx512ifma =
+                capabilities.avx512f && (leaf_seven.ebx & (1U << 21U)) != 0U;
         }
     }
     return capabilities;
@@ -256,11 +258,15 @@ struct CpuidRegisters {
 
 } // namespace
 
+CpuCapabilities collect_cpu_capabilities() {
+    return cpu_capabilities();
+}
+
 SystemInfo collect_system_info() {
     SystemInfo info{};
     info.compiler = compiler_info();
     info.operating_system = operating_system_info();
-    info.cpu = cpu_capabilities();
+    info.cpu = collect_cpu_capabilities();
     info.gpu = gpu_info();
     info.electrical_power_watts = "UNKNOWN";
     return info;
@@ -285,6 +291,7 @@ std::string format_system_info(const SystemInfo& info) {
     output << "cpu.avx=" << yes_no(info.cpu.avx) << '\n';
     output << "cpu.avx2=" << yes_no(info.cpu.avx2) << '\n';
     output << "cpu.avx512f=" << yes_no(info.cpu.avx512f) << '\n';
+    output << "cpu.avx512ifma=" << yes_no(info.cpu.avx512ifma) << '\n';
     output << "cpu.bmi2=" << yes_no(info.cpu.bmi2) << '\n';
     output << "gpu.available=" << yes_no(info.gpu.available) << '\n';
     for (std::size_t index = 0; index < info.gpu.adapters.size(); ++index) {

@@ -26,16 +26,27 @@ namespace {
     return value;
 }
 
+[[nodiscard]] std::uint64_t parse_u64(
+    const std::string_view text, const std::string_view option) {
+    std::uint64_t value{};
+    const auto parsed = std::from_chars(text.data(), text.data() + text.size(), value);
+    if (text.empty() || (text.size() > 1U && text.front() == '0') ||
+        parsed.ec != std::errc{} || parsed.ptr != text.data() + text.size()) {
+        throw std::invalid_argument(std::string{option} + " requires a canonical uint64");
+    }
+    return value;
+}
+
 struct Arguments {
     primeforge::discovery::ProthSieveConfig config;
     std::filesystem::path output;
 };
 
 [[nodiscard]] Arguments parse_arguments(const int argc, char** argv) {
-    if (argc != 11) {
+    if (argc != 11 && argc != 13 && argc != 15) {
         throw std::invalid_argument(
             "usage: primeforge-discovery-sieve --k-start K --k-stop K --n N "
-            "--sieve-bound P --output FILE");
+            "--sieve-bound P --output FILE [--threads T] [--sieve-start P]");
     }
     Arguments result;
     bool have_start = false;
@@ -56,8 +67,12 @@ struct Arguments {
             result.config.exponent = parse_u32(value, option);
             have_exponent = true;
         } else if (option == "--sieve-bound") {
-            result.config.maximum_prime = parse_u32(value, option);
+            result.config.maximum_prime = parse_u64(value, option);
             have_bound = true;
+        } else if (option == "--threads") {
+            result.config.thread_count = parse_u32(value, option);
+        } else if (option == "--sieve-start") {
+            result.config.minimum_prime = parse_u64(value, option);
         } else if (option == "--output") {
             if (value.empty()) throw std::invalid_argument("--output requires a file");
             result.output = value;
@@ -115,6 +130,8 @@ int main(const int argc, char** argv) {
                   << "discovery.sieve.k_stop=" << arguments.config.k_stop << '\n'
                   << "discovery.sieve.n=" << arguments.config.exponent << '\n'
                   << "discovery.sieve.maximum_prime=" << arguments.config.maximum_prime << '\n'
+                  << "discovery.sieve.minimum_prime=" << arguments.config.minimum_prime << '\n'
+                  << "discovery.sieve.threads=" << arguments.config.thread_count << '\n'
                   << "discovery.sieve.candidates=" << result.candidate_count << '\n'
                   << "discovery.sieve.eliminated=" << result.eliminated_count << '\n'
                   << "discovery.sieve.survivors=" << result.survivors.size() << '\n'

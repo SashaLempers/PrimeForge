@@ -11,7 +11,9 @@ struct ProthSieveConfig {
     std::uint32_t k_start{};
     std::uint32_t k_stop{};
     std::uint32_t exponent{};
-    std::uint32_t maximum_prime{};
+    std::uint64_t maximum_prime{};
+    std::uint32_t thread_count{1U};
+    std::uint64_t minimum_prime{3U};
 };
 
 struct ProthSieveResult {

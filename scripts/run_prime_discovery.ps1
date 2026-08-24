@@ -6,7 +6,8 @@ param(
     [uint32]$KStart = 10001,
     [uint32]$KStop = 90001,
     [uint32]$Exponent = 33221,
-    [uint32]$SieveBound = 65521,
+    [uint64]$SieveBound = 65521,
+    [ValidateRange(1, 64)][int]$SieveThreads = 1,
     [ValidateRange(1, 1000)][int]$BatchSize = 100,
     [ValidateRange(0, 100000000)][int]$ValidationCount = 0,
     [ValidateRange(0, 31)][int]$Device = 0,
@@ -200,7 +201,7 @@ $survivorsPath = Join-Path $campaignPath 'survivors.txt'
 if (-not (Test-Path -LiteralPath $survivorsPath -PathType Leaf)) {
     Write-Host '[PrimeForge] Criblage exact de la plage...'
     $sieveOutput = @(& $sievePath --k-start $KStart --k-stop $KStop --n $Exponent `
-        --sieve-bound $SieveBound --output $survivorsPath 2>&1)
+        --sieve-bound $SieveBound --threads $SieveThreads --output $survivorsPath 2>&1)
     $sieveExit = $LASTEXITCODE
     $sieveText = ($sieveOutput | ForEach-Object { $_.ToString() }) -join "`n"
     Write-AtomicUtf8 -Path (Join-Path $logsPath 'sieve.log') -Content ($sieveText + "`n")

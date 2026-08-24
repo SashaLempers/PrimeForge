@@ -324,12 +324,14 @@ ProthSieveResult sieve_proth_candidates(const ProthSieveConfig& config) {
             wide_count = 0U;
         };
         detail::Avx512IfmaBatch ifma_primes{};
+        detail::Avx512IfmaBatch ifma_ones{};
         std::size_t ifma_count = 0U;
+        std::uint64_t ifma_radix_quotient = 0U;
         const auto flush_ifma_primes = [&]() {
             const auto processed = ifma_count;
             if (ifma_count == detail::avx512_ifma_lane_count) {
                 const auto inverses = detail::inverse_power_of_two_avx512_ifma(
-                    config.exponent, ifma_primes);
+                    config.exponent, ifma_primes, ifma_ones);
                 for (std::size_t lane = 0U; lane < detail::avx512_ifma_lane_count; ++lane) {
                     apply_wide_prime(ifma_primes[lane], inverses[lane]);
                 }
@@ -360,7 +362,15 @@ ProthSieveResult sieve_proth_candidates(const ProthSieveConfig& config) {
             }
 
             if (use_avx512_ifma && prime < detail::avx512_ifma_modulus_limit) {
+                if (ifma_radix_quotient == 0U) {
+                    ifma_radix_quotient = detail::avx512_ifma_radix / prime;
+                }
+                while (ifma_radix_quotient * prime > detail::avx512_ifma_radix) {
+                    --ifma_radix_quotient;
+                }
                 ifma_primes[ifma_count++] = prime;
+                ifma_ones[ifma_count - 1U] = detail::avx512_ifma_radix -
+                    ifma_radix_quotient * prime;
                 if (ifma_count == detail::avx512_ifma_lane_count) flush_ifma_primes();
             } else {
                 flush_ifma_primes();

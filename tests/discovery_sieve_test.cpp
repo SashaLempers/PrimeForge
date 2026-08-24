@@ -234,8 +234,10 @@ int main() {
                         automatic_serial_result.primes_applied,
                 "IFMA worker partition changed the exact sieve result");
 
-        std::array<std::uint64_t, 8U> tail_stops{};
-        std::array<std::uint32_t, 8U> tail_witnesses{};
+        std::array<std::uint64_t,
+                   primeforge::discovery::detail::avx512_ifma_lane_count> tail_stops{};
+        std::array<std::uint32_t,
+                   primeforge::discovery::detail::avx512_ifma_lane_count> tail_witnesses{};
         std::vector<std::uint32_t> preceding_factor_residues;
         std::uint64_t tail_prime_count = 0U;
         for (auto candidate_prime = wide_batch_start;
@@ -250,11 +252,14 @@ int main() {
                 residue >= 3U && residue <= 99'999'999U && (residue & 1U) != 0U
                 ? static_cast<std::uint32_t>(residue)
                 : 0U;
-            if (tail_prime_count < 8U) {
+            if (tail_prime_count <
+                primeforge::discovery::detail::avx512_ifma_lane_count) {
                 preceding_factor_residues.push_back(admissible_residue);
                 continue;
             }
-            const auto remainder = static_cast<std::size_t>(tail_prime_count % 8U);
+            const auto remainder = static_cast<std::size_t>(
+                tail_prime_count %
+                primeforge::discovery::detail::avx512_ifma_lane_count);
             if (tail_stops[remainder] == 0U && remainder == 0U) {
                 tail_stops[remainder] = candidate_prime;
                 tail_witnesses[remainder] = 3U;
@@ -280,7 +285,8 @@ int main() {
             require(automatic_result.survivors == scalar_result.survivors &&
                         automatic_result.eliminated_count == scalar_result.eliminated_count &&
                         automatic_result.primes_applied == scalar_result.primes_applied &&
-                        automatic_result.primes_applied % 8U == remainder,
+                        automatic_result.primes_applied %
+                            primeforge::discovery::detail::avx512_ifma_lane_count == remainder,
                     "IFMA tail remainder disagrees with the scalar backend");
             if (hardware_avx512_ifma) {
                 require(automatic_result.avx512_ifma_primes_processed ==
@@ -382,11 +388,24 @@ int main() {
                 (1ULL << 51U) + 1U,
                 (1ULL << 52U) - 33U,
                 (1ULL << 52U) - 1U,
+                17'000'000'000'001ULL,
+                64'000'000'000'001ULL,
+                129'000'000'000'001ULL,
+                512'000'000'000'001ULL,
+                1'000'000'000'000'001ULL,
+                2'000'000'000'000'001ULL,
+                3'000'000'000'000'001ULL,
+                4'000'000'000'000'001ULL,
             };
             constexpr std::uint32_t ifma_exponent = 1'660'936U;
+            primeforge::discovery::detail::Avx512IfmaBatch montgomery_ones{};
+            for (std::size_t lane = 0U; lane < moduli.size(); ++lane) {
+                montgomery_ones[lane] =
+                    primeforge::discovery::detail::avx512_ifma_radix % moduli[lane];
+            }
             const auto inverses =
                 primeforge::discovery::detail::inverse_power_of_two_avx512_ifma(
-                    ifma_exponent, moduli);
+                    ifma_exponent, moduli, montgomery_ones);
             for (std::size_t lane = 0U; lane < moduli.size(); ++lane) {
                 const auto expected_inverse = reference_power_wide(
                     (moduli[lane] + 1U) / 2U, ifma_exponent, moduli[lane]);
@@ -407,9 +426,15 @@ int main() {
                               (1ULL << 32U) | 1U;
                 }
                 const auto exponent = exponent_cases[batch % exponent_cases.size()];
+                primeforge::discovery::detail::Avx512IfmaBatch random_ones{};
+                for (std::size_t lane = 0U; lane < random_moduli.size(); ++lane) {
+                    random_ones[lane] =
+                        primeforge::discovery::detail::avx512_ifma_radix %
+                        random_moduli[lane];
+                }
                 const auto actual =
                     primeforge::discovery::detail::inverse_power_of_two_avx512_ifma(
-                        exponent, random_moduli);
+                        exponent, random_moduli, random_ones);
                 for (std::size_t lane = 0U; lane < random_moduli.size(); ++lane) {
                     const auto expected_inverse = reference_power_wide(
                         (random_moduli[lane] + 1U) / 2U,

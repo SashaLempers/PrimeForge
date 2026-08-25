@@ -81,6 +81,7 @@ qu'il supprimait. Cette extension ne recalcule jamais les diviseurs déjà couve
 | 128T--256T | 16 | 57 984 | 8 372,30 s | PASS |
 | 256T--512T | 32 | 56 797 | 5 053,5781171 s | PASS |
 | 512T--1 024T | 32 | **55 688** | **10 434,227852 s** | **PASS** |
+| 1 024T--2 048T | 32 | **54 633** | **21 940,6076818 s** | **PASS — PAUSED** |
 
 Le dernier segment applique exactement 14 946 942 261 342 diviseurs premiers et
 supprime 1 109 survivants supplémentaires. Il coûte 2,898397 h et évite 9,124493 h
@@ -93,6 +94,17 @@ Le segment 512T--1 024T a terminé avec stderr vide, maximum CPU 87,375 C, zéro
 throttling, zéro WHEA et zéro Xid. Ses SHA-256 sont
 `5d601e6a...f5188` (sortie du segment), `e3dacb6e...95bbb` (télémétrie) et
 `197da825...e554` (intersection cumulative).
+
+Le segment final 1 024T--2 048T applique 29 300 953 446 128 diviseurs premiers
+et supprime encore 1 055 survivants. Il coûte 6,094613 h et évite 8,680199 h GPU :
+gain marginal net **2,585585 h**. La projection mesurée devient **465,467883 h
+(19,394495 jours)**. L'intersection cumulative de 54 633 lignes a été reproduite
+en mémoire, dans le même ordre, avec le SHA-256
+`7220f1ee...912e`.
+
+Ce segment termine avec les deux codes de sortie à zéro, stderr vide, maximum CPU
+88,75 C, zéro throttling, zéro WHEA et zéro Xid. Les recherches sont volontairement
+en pause à 2 048T ; aucun segment suivant n'a été lancé.
 
 ## Expériences rejetées
 

@@ -356,8 +356,8 @@ are documented in `docs/reports/500K_GPU_SCALING_OPTIMIZATION_20260823.md`.
 
 The 500k campaign-time profile raises the exact sieve beyond 4 billion and
 partitions each prime interval deterministically across CPU workers. Progressive
-closed-corpus segments have been measured through 1,024 trillion: 55,688 GPU
-survivors remain versus 87,124 at 4G. The current 468.053-hour campaign estimate
+closed-corpus segments have been measured through 2,048 trillion: 54,633 GPU
+survivors remain versus 87,124 at 4G. The current 465.468-hour campaign estimate
 is derived from measured sieve segments plus the separately measured GPU rate;
 it is not presented as an executed discovery campaign. See
 `docs/reports/500K_DEEP_SIEVE_OPTIMIZATION_20260823.md`.
